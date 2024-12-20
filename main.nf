@@ -4099,7 +4099,7 @@ process create_yaml {
 		set group, file("${group}.yaml*") into yaml
 
 	script:
-		def assay = ${params.dev} ? "dev,${analysis}" : "${assay},${analysis}"
+		def assay = params.dev ? "dev,${analysis}" : "${assay},${analysis}"
 		print(">>> params.dev: ${params.dev}")
 		print(">>> Assay: ${assay}")
 		print(">>> Analysis: ${analysis}")
