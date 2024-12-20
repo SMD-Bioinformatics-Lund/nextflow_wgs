@@ -4100,9 +4100,6 @@ process create_yaml {
 
 	script:
 		def assay = params.dev ? "dev,${analysis}" : "${assay},${analysis}"
-		print(">>> params.dev: ${params.dev}")
-		print(">>> Assay: ${assay}")
-		print(">>> Analysis: ${analysis}")
 		"""
 		create_yml.pl \\
 			--g "${group},${clarity_sample_id}" \\
