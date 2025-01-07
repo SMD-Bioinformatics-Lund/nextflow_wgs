@@ -955,27 +955,17 @@ process verifybamid2 {
 		path "*versions.yml", emit: versions
 
 	script:
-
-		disable_sanity_check = ""
-
-		if ( params.antype != "wgs") {
-			disable_sanity_check = "--DisableSanityCheck"
-		}
-
 		"""
 		verifybamid2 \
 			--SVDPrefix ${params.verifybamid2_svdprefix} \
 			--Reference ${params.genome_file} \
-			--BamFile ${bam} \
-			${disable_sanity_check}
+			--BamFile ${bam}
 
 			mv result.selfSM ${id}.result.selfSM
 			mv result.Ancestry ${id}.result.Ancestry
 
 		${verifybamid2_version(task)}
 		"""
-		}
-
 
 	stub:
 		"""
