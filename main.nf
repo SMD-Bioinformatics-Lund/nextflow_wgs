@@ -154,7 +154,7 @@ workflow NEXTFLOW_WGS {
 
 	// COVERAGE //
 	d4_coverage(ch_bam_bai)
-
+	gatkcov(ch_bam_bai)
 	if (params.assay == "swea") {
 		depth_onco(ch_bam_bai)
 	}
@@ -2878,136 +2878,139 @@ def roh_version(task) {
 }
 
 // // Create coverage profile using GATK
-// process gatkcov {
-// 	publishDir "${params.results_output_dir}/cov", mode: 'copy' , overwrite: 'true', pattern: '*.tsv'
-// 	tag "$group"
-// 	cpus 2
-// 	memory '80 GB'
-// 	time '5h'
+process gatkcov {
+	publishDir "${params.results_output_dir}/cov", mode: 'copy' , overwrite: 'true', pattern: '*.tsv'
+	tag "$group"
+	cpus 2
+	memory '80 GB'
+	time '5h'
 
-// 	input:
-// 		tuple val(id), val(group), path(bam), path(bai), gr, sex, type
+	input:
+		tuple val(id), val(group), path(bam), path(bai), val(gr), val(sex), val(type)
 
-// 	output:
-// 		tuple val(group), val(id), val(type), sex, path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_plot, cov_gens
-// 		path "*versions.yml", emit: versions
+	// TODO: kick meta out out output
+	output:
+		tuple val(group), val(id), val(type), sex, path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_plot
+		tuple val(group), val(id), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_gens
+		path "*versions.yml", emit: versions
 
-// 	when:
-// 		params.gatkcov
+	when:
+		params.gatkcov
 
-// 	script:
-// 		"""
-// 		source activate gatk4-env
+	script:
+		"""
+		source activate gatk4-env
 
-// 		gatk CollectReadCounts \\
-// 			-I $bam -L $params.COV_INTERVAL_LIST \\
-// 			--interval-merging-rule OVERLAPPING_ONLY -O ${bam}.hdf5
+		gatk CollectReadCounts \\
+			-I $bam -L $params.COV_INTERVAL_LIST \\
+			--interval-merging-rule OVERLAPPING_ONLY -O ${bam}.hdf5
 
-// 		gatk --java-options "-Xmx30g" DenoiseReadCounts \\
-// 			-I ${bam}.hdf5 --count-panel-of-normals ${PON[sex]} \\
-// 			--standardized-copy-ratios ${id}.standardizedCR.tsv \\
-// 			--denoised-copy-ratios ${id}.denoisedCR.tsv
+		gatk --java-options "-Xmx30g" DenoiseReadCounts \\
+			-I ${bam}.hdf5 --count-panel-of-normals ${PON[sex]} \\
+			--standardized-copy-ratios ${id}.standardizedCR.tsv \\
+			--denoised-copy-ratios ${id}.denoisedCR.tsv
 
-// 		gatk PlotDenoisedCopyRatios \\
-// 			--standardized-copy-ratios ${id}.standardizedCR.tsv \\
-// 			--denoised-copy-ratios ${id}.denoisedCR.tsv \\
-// 			--sequence-dictionary $params.GENOMEDICT \\
-// 			--minimum-contig-length 46709983 --output . --output-prefix $id
+		gatk PlotDenoisedCopyRatios \\
+			--standardized-copy-ratios ${id}.standardizedCR.tsv \\
+			--denoised-copy-ratios ${id}.denoisedCR.tsv \\
+			--sequence-dictionary $params.GENOMEDICT \\
+			--minimum-contig-length 46709983 --output . --output-prefix $id
 
-// 		${gatkcov_version(task)}
-// 		"""
+		${gatkcov_version(task)}
+		"""
 
-// 	stub:
-// 		"""
-// 		source activate gatk4-env
-// 		touch "${id}.standardizedCR.tsv"
-// 		touch "${id}.denoisedCR.tsv"
+	stub:
+		"""
+		source activate gatk4-env
+		touch "${id}.standardizedCR.tsv"
+		touch "${id}.denoisedCR.tsv"
 
-// 		${gatkcov_version(task)}
-// 		"""
-// }
-// def gatkcov_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    gatk: \$(echo \$(gatk --version 2>&1) | sed 's/^.*(GATK) v//; s/ .*\$// ; s/-SNAPSHOT//')
-// 	END_VERSIONS
-// 	"""
-// }
+		${gatkcov_version(task)}
+		"""
+}
+def gatkcov_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    gatk: \$(echo \$(gatk --version 2>&1) | sed 's/^.*(GATK) v//; s/ .*\$// ; s/-SNAPSHOT//')
+	END_VERSIONS
+	"""
+}
 
 
-// // Plot ROH, UPD and coverage in a genomic overview plot
-// process overview_plot {
+// Plot ROH, UPD and coverage in a genomic overview plot
+process overview_plot {
 
-// 	cpus 2
-// 	tag "$group"
-// 	time '1h'
-// 	memory '5 GB'
-// 	publishDir "${params.results_output_dir}/plots", mode: 'copy' , overwrite: 'true', pattern: "*.png"
+	cpus 2
+	tag "$group"
+	time '1h'
+	memory '5 GB'
+	publishDir "${params.results_output_dir}/plots", mode: 'copy' , overwrite: 'true', pattern: "*.png"
 
-// 	input:
-// 		path(upd)
-// 		tuple val(group), path(roh)
-// 		tuple val(group), val(id), val(type), sex, path(cov_stand), path(cov_denoised)
+	input:
+		path(upd)
+		tuple val(group), path(roh)
+		tuple val(group), val(id), val(type), sex, path(cov_stand), path(cov_denoised)
 
-// 	output:
-// 		path("${group}.genomic_overview.png")
-// 		tuple val(group), path("${group}_oplot.INFO"), emit: oplot_INFO
+	output:
+		path("${group}.genomic_overview.png")
+		tuple val(group), path("${group}_oplot.INFO"), emit: oplot_INFO
 
-// 	script:
-// 		proband_idx = type.findIndexOf{ it == "proband" }
-// 		"""
-// 		genome_plotter.pl --dict $params.GENOMEDICT \\
-// 			--sample ${id[proband_idx]} \\
-// 			--upd $upd \\
-// 			--roh $roh \\
-// 			--sex ${sex[proband_idx]} \\
-// 			--cov ${cov_denoised[proband_idx]} \\
-// 			--out ${group}.genomic_overview.png
-// 		echo "IMG overviewplot	${params.accessdir}/plots/${group}.genomic_overview.png" > ${group}_oplot.INFO
-// 		"""
+	script:
+		proband_idx = type.findIndexOf{ it == "proband" }
+		"""
+		genome_plotter.pl --dict $params.GENOMEDICT \\
+			--sample ${id[proband_idx]} \\
+			--upd $upd \\
+			--roh $roh \\
+			--sex ${sex[proband_idx]} \\
+			--cov ${cov_denoised[proband_idx]} \\
+			--out ${group}.genomic_overview.png
+		echo "IMG overviewplot	${params.accessdir}/plots/${group}.genomic_overview.png" > ${group}_oplot.INFO
+		"""
 
-// 	stub:
-// 		"""
-// 		touch "${group}.genomic_overview.png"
-// 		touch "${group}_oplot.INFO"
-// 		"""
-// }
+	stub:
+		"""
+		touch "${group}.genomic_overview.png"
+		touch "${group}_oplot.INFO"
+		"""
+}
 
-// process generate_gens_data {
-// 	publishDir "${params.results_output_dir}/plot_data", mode: 'copy' , overwrite: 'true', pattern: "*.gz*"
-// 	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: 'true', pattern: "*.gens"
-// 	tag "$group"
-// 	cpus 1
-// 	time '3h'
-// 	memory '5 GB'
+process generate_gens_data {
+	publishDir "${params.results_output_dir}/plot_data", mode: 'copy' , overwrite: 'true', pattern: "*.gz*"
+	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: 'true', pattern: "*.gens"
+	tag "$group"
+	cpus 1
+	time '3h'
+	memory '5 GB'
 
-// 	input:
-// 		tuple val(id), val(group), path(gvcf), g, val(type), sex, path(cov_stand), path(cov_denoise)
+	input:
+		tuple val(group), val(id), path(gvcf), path(gvcf_index)
+		tuple val(group2), val(id2), path(cov_stand), path(cov_denoise)
 
-// 	output:
-// 		tuple path("${id}.cov.bed.gz"), path("${id}.baf.bed.gz"), path("${id}.cov.bed.gz.tbi"), path("${id}.baf.bed.gz.tbi"), path("${id}.overview.json.gz")
-// 		path("${id}.gens"), emit: gens_middleman
+	output:
+		tuple path("${id}.cov.bed.gz"), path("${id}.baf.bed.gz"), path("${id}.cov.bed.gz.tbi"), path("${id}.baf.bed.gz.tbi"), path("${id}.overview.json.gz")
+		path("${id}.gens"), emit: gens_middleman
 
-// 	when:
-// 		params.prepare_gens_data
+	when:
+		params.prepare_gens_data
 
-// 	script:
-// 		"""
-// 		generate_gens_data.pl $cov_stand $gvcf $id $params.GENS_GNOMAD
-// 		echo "gens load sample --sample-id $id --genome-build 38 --baf ${params.gens_accessdir}/${id}.baf.bed.gz --coverage ${params.gens_accessdir}/${id}.cov.bed.gz --overview-json ${params.gens_accessdir}/${id}.overview.json.gz" > ${id}.gens
-// 		"""
+	script:
+		"""
+		generate_gens_data.pl $cov_stand $gvcf $id $params.GENS_GNOMAD
+		echo "gens load sample --sample-id $id --genome-build 38 --baf ${params.gens_accessdir}/${id}.baf.bed.gz --coverage ${params.gens_accessdir}/${id}.cov.bed.gz --overview-json ${params.gens_accessdir}/${id}.overview.json.gz" > ${id}.gens
+		"""
 
-// 	stub:
-// 		"""
-// 		touch "${id}.cov.bed.gz"
-// 		touch "${id}.baf.bed.gz"
-// 		touch "${id}.cov.bed.gz.tbi"
-// 		touch "${id}.baf.bed.gz.tbi"
-// 		touch "${id}.overview.json.gz"
-// 		touch "${id}.gens"
-// 		"""
-// }
+	stub:
+		"""
+		touch "${id}.cov.bed.gz"
+		touch "${id}.baf.bed.gz"
+		touch "${id}.cov.bed.gz.tbi"
+		touch "${id}.baf.bed.gz.tbi"
+		touch "${id}.overview.json.gz"
+		touch "${id}.gens"
+		"""
+}
 
 // SV-calling //
 
