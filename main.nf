@@ -152,6 +152,16 @@ workflow NEXTFLOW_WGS {
 	// TODO: dedupmetrics wont be in bam start, send in dummy file
 	sentieon_qc_postprocess(markdup.out.dedup_metrics, sentieon_qc.out.sentieon_qc_metrics)
 
+	// COVERAGE //
+	d4_coverage(ch_bam_bai)
+
+	if (params.assay == "swea") {
+		depth_onco(ch_bam_bai)
+	}
+
+	// CONTAMINATION //
+	verifybamid2(ch_bam_bai)
+
 	// SNV CALLING //
 	dnascope(ch_bam_bai, bqsr.out.dnascope_bqsr)
 	gvcf_combine(dnascope.out.gvcf_tbi.groupTuple())
@@ -164,6 +174,7 @@ workflow NEXTFLOW_WGS {
 		freebayes(ch_bam_bai)
 		ch_split_normalize_concat_vcf = freebayes.out.freebayes_variants
 	}
+
 
 
 	// MITO
@@ -881,142 +892,132 @@ process sentieon_qc_postprocess {
 		"""
 }
 
-// process d4_coverage {
-// 	cpus 16
-// 	memory '10 GB'
-// 	publishDir "${params.results_output_dir}/cov", mode: 'copy', overwrite: 'true', pattern: '*.d4'
-// 	tag "$id"
-// 	container  "${params.container_d4tools}"
+process d4_coverage {
+	cpus 16
+	memory '10 GB'
+	publishDir "${params.results_output_dir}/cov", mode: 'copy', overwrite: 'true', pattern: '*.d4'
+	tag "$id"
+	container  "${params.container_d4tools}"
 
-// 	input:
-// 		tuple val(group), val(id), path(bam), path(bai)
+	input:
+		tuple val(group), val(id), path(bam), path(bai)
 
-// 	output:
-// 		path("${id}_coverage.d4")
-// 		tuple val(group), val(id), path("${id}_coverage.d4"), emit: ch_final_d4
-// 		path "*versions.yml", emit: versions
-// 		tuple val(group), path("${group}_d4.INFO"), emit: d4_INFO
+	output:
+		tuple val(group), val(id), path("${id}_coverage.d4"), emit: ch_final_d4
+		tuple val(group), path("${group}_d4.INFO"), emit: d4_INFO
+		path "*versions.yml", emit: versions
 
-// 	when:
-// 		params.run_chanjo2
+	when:
+		params.run_chanjo2
 
-// 	script:
-// 	"""
-// 	d4tools create \\
-// 		--threads ${task.cpus} \\
-// 		"${bam}" \\
-// 		"${id}_coverage.d4"
+	script:
+	"""
+	d4tools create \\
+		--threads ${task.cpus} \\
+		"${bam}" \\
+		"${id}_coverage.d4"
 
-// 	echo "D4	$id	/access/${params.subdir}/cov/${id}_coverage.d4" > ${group}_d4.INFO
+	echo "D4	$id	/access/${params.subdir}/cov/${id}_coverage.d4" > ${group}_d4.INFO
 
-// 	${d4_coverage_version(task)}
-// 	"""
+	${d4_coverage_version(task)}
+	"""
 
-// 	stub:
-// 	"""
-// 	touch "${id}_coverage.d4"
-// 	touch "${group}_d4.INFO"
+	stub:
+	"""
+	touch "${id}_coverage.d4"
+	touch "${group}_d4.INFO"
 
-// 	${d4_coverage_version(task)}
-// 	"""
-// }
-// def d4_coverage_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    d4tools: \$(echo \$( d4tools 2>&1 | head -1 ) | sed "s/.*version: //" | sed "s/)//" )
-// 	END_VERSIONS
-// 	"""
-// }
+	${d4_coverage_version(task)}
+	"""
+}
+def d4_coverage_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    d4tools: \$(echo \$( d4tools 2>&1 | head -1 ) | sed "s/.*version: //" | sed "s/)//" )
+	END_VERSIONS
+	"""
+}
 
-// process verifybamid2 {
-// 	cpus 16
-// 	memory '10 GB'
-// 	// publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: 'true', pattern: '*.selfSM'
-// 	tag "$id"
-// 	container  "${params.container_verifybamid2}"
+process verifybamid2 {
+	cpus 16
+	memory '10 GB'
+	// publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: 'true', pattern: '*.selfSM'
+	tag "$id"
+	container  "${params.container_verifybamid2}"
 
-// 	input:
-// 		tuple val(group), val(id), path(bam), path(bai)
+	input:
+		tuple val(group), val(id), path(bam), path(bai)
 
-// 	output:
-// 		path("${id}.result.selfSM")
-// 		path("${id}.result.Ancestry")
-// 		path "*versions.yml", emit: versions
+	output:
+		path("${id}.result.selfSM")
+		path("${id}.result.Ancestry")
+		path "*versions.yml", emit: versions
 
-// 	script:
-// 		if ( params.antype == "wgs") {
-// 			"""
-// 			verifybamid2 \
-// 				--SVDPrefix ${params.verifybamid2_svdprefix} \
-// 				--Reference ${params.genome_file} \
-// 				--BamFile ${bam}
+	script:
 
-// 				mv result.selfSM ${id}.result.selfSM
-// 				mv result.Ancestry ${id}.result.Ancestry
-// 			${verifybamid2_version(task)}
-// 			"""
-// 		}
-// 		else {
-// 			"""
-// 			verifybamid2 \
-// 				--DisableSanityCheck \
-// 				--SVDPrefix ${params.verifybamid2_svdprefix} \
-// 				--Reference ${params.genome_file} \
-// 				--BamFile ${bam}
+		disable_sanity_check = ""
 
-// 				mv result.selfSM ${id}.result.selfSM
-// 				mv result.Ancestry ${id}.result.Ancestry
-// 			${verifybamid2_version(task)}
-// 			"""
-// 		}
+		if ( params.antype != "wgs") {
+			disable_sanity_check = "--DisableSanityCheck"
+		}
+
+		"""
+		verifybamid2 \
+			--SVDPrefix ${params.verifybamid2_svdprefix} \
+			--Reference ${params.genome_file} \
+			--BamFile ${bam} \
+			${disable_sanity_check}
+
+			mv result.selfSM ${id}.result.selfSM
+			mv result.Ancestry ${id}.result.Ancestry
+
+		${verifybamid2_version(task)}
+		"""
+		}
 
 
-// 	stub:
-// 		"""
-// 		touch "${id}.result.selfSM"
-// 		touch "${id}.result.Ancestry"
+	stub:
+		"""
+		touch "${id}.result.selfSM"
+		touch "${id}.result.Ancestry"
 
-// 		${verifybamid2_version(task)}
-// 		"""
-// }
-// def verifybamid2_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    VerifyBamID2: \$( echo \$( verifybamid2 --help 2>&1 | grep Version ) | sed "s/^.*Version://" )
-// 	END_VERSIONS
-// 	"""
-// }
+		${verifybamid2_version(task)}
+		"""
+}
+def verifybamid2_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    VerifyBamID2: \$( echo \$( verifybamid2 --help 2>&1 | grep Version ) | sed "s/^.*Version://" )
+	END_VERSIONS
+	"""
+}
 
 // // Calculate coverage for paneldepth
-// process depth_onco {
-// 	cpus 2
-// 	time '1h'
-// 	memory '10 GB'
-// 	publishDir "${params.results_output_dir}/cov", mode: 'copy', overwrite: 'true'
-// 	tag "$id"
-// 	input:
-// 		tuple val(group), val(id), path(bam), path(bai)
+process depth_onco {
+	cpus 2
+	time '1h'
+	memory '10 GB'
+	publishDir "${params.results_output_dir}/cov", mode: 'copy', overwrite: 'true'
+	tag "$id"
+	input:
+		tuple val(group), val(id), path(bam), path(bai)
 
-// 	output:
-// 		path("${id}.lowcov.overlapping.bed"), emit: cov_onco
+	output:
+		path("${id}.lowcov.overlapping.bed"), emit: cov_onco
 
+	script:
+		"""
+		panel_depth.pl $bam $params.scoutbed > ${id}.lowcov.bed
+		overlapping_genes.pl ${id}.lowcov.bed $params.gene_regions > ${id}.lowcov.overlapping.bed
+		"""
 
-// 	when:
-// 		params.assay == "swea"
-
-// 	script:
-// 		"""
-// 		panel_depth.pl $bam $params.scoutbed > ${id}.lowcov.bed
-// 		overlapping_genes.pl ${id}.lowcov.bed $params.gene_regions > ${id}.lowcov.overlapping.bed
-// 		"""
-
-// 	stub:
-// 		"""
-// 		touch "${id}.lowcov.overlapping.bed"
-// 		"""
-// }
+	stub:
+		"""
+		touch "${id}.lowcov.overlapping.bed"
+		"""
+}
 
 process SMNCopyNumberCaller {
 	cpus 10
