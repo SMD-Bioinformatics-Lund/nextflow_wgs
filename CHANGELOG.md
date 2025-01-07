@@ -3,6 +3,7 @@
 ### TBA
 
 * Switch to DSL2
+* Remove contamination check for non-wgs profiles
 
 ### 3.14.1
 
