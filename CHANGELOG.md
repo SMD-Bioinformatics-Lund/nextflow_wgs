@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.14.2
+
+* Fix rankscore parsing in `cnv2bed.pl`
+
 ### 3.14.1
 
 * Adds basic flake8-based linting 
