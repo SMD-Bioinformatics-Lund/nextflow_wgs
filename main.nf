@@ -165,7 +165,11 @@ workflow NEXTFLOW_WGS {
 
 	// COVERAGE //
 	d4_coverage(ch_bam_bai)
-	gatkcov(ch_bam_bai)
+
+	if (params.gatkcov) {
+		gatkcov(ch_bam_bai)
+	}
+
 	if (params.assay == "swea") {
 		depth_onco(ch_bam_bai)
 	}
@@ -2898,9 +2902,6 @@ process gatkcov {
 		tuple val(group), val(id), val(type), val(sex), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_plot
 		tuple val(group), val(id), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_gens
 		path "*versions.yml", emit: versions
-
-	when:
-		params.gatkcov
 
 	script:
 
