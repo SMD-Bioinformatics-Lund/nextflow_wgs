@@ -339,18 +339,19 @@ workflow NEXTFLOW_WGS {
 			)
 		}
 
+		if(params.run_melt) {
+			melt_qc_val(sentieon_qc_postprocess.out.qc_json)
+			melt(ch_bam_bai, melt_qc_val.out.qc_melt_val)
+		}
+
+
 		if (params.antype == "panel") {
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
 
-			// cnvkit_panel()
+			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, melt_qc_val)
 			// svdb_merge_panel()
 			// postprocess_merged_panel_sv_vcf()
-		}
-
-		if(params.run_melt) {
-			melt_qc_val(sentieon_qc_postprocess.out.qc_json)
-			melt(ch_bam_bai, melt_qc_val.out.qc_melt_val)
 		}
 
 
@@ -1308,7 +1309,7 @@ process melt_qc_val {
 	time '20m'
 	memory '50 MB'
 	input:
-	tuple val(group), val(id), path(qc_json)
+		tuple val(group), val(id), path(qc_json)
 
 	output:
 		tuple val(group), val(id), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV), emit: qc_melt_val
@@ -3398,26 +3399,25 @@ process cnvkit_panel {
 	time '1h'
 	memory '20 GB'
 	input:
-		tuple val(group), val(id), path(bam), path(bai), path(vcf), path(multi), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV)
+		tuple val(group), val(id), path(bam), path(bai)
+		tuple val(group2), val(id2), path(intersected_vcf)
+		tuple val(group3), val(id3), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV)
 
 	output:
 		tuple val(group), val(id), path("${id}.cnvkit_filtered.vcf"), emit: cnvkit_calls
-		path("${id}.call.cns"), emit: unfiltered_cns
-		path("${group}.genomic_overview.png")
-		tuple val(group), path("${group}_oplot.INFO"), emit: cnvkit_INFO
+		tuple val(group), val(id), path("${id}.call.cns"), emit: unfiltered_cns
+		tuple val(group), val(id), path("${group}.genomic_overview.png")
+		tuple val(group), val(id), path("${group}_oplot.INFO"), emit: cnvkit_INFO
 		path "*versions.yml", emit: versions
 
-
-	when:
-		params.antype == "panel"
 
 	script:
 		"""
 		cnvkit.py batch $bam -r $params.cnvkit_reference -p 5 -d results/
-		cnvkit.py call results/*.cns -v $vcf -o ${id}.call.cns
+		cnvkit.py call results/*.cns -v $intersected_vcf -o ${id}.call.cns
 		filter_cnvkit.pl ${id}.call.cns $MEAN_DEPTH > ${id}.filtered
 		cnvkit.py export vcf ${id}.filtered -i "$id" > ${id}.cnvkit_filtered.vcf
-		cnvkit.py scatter -s results/*dedup.cn{s,r} -o ${group}.genomic_overview.png -v $vcf -i $id
+		cnvkit.py scatter -s results/*dedup.cn{s,r} -o ${group}.genomic_overview.png -v $intersected_vcf -i $id
 		echo "IMG overviewplot	${params.accessdir}/plots/${group}.genomic_overview.png" > ${group}_oplot.INFO
 
 		${cnvkit_panel_version(task)}
@@ -3442,95 +3442,95 @@ def cnvkit_panel_version(task) {
 	"""
 }
 
-// process svdb_merge_panel {
-// 	container  "${params.container_svdb}"
-// 	cpus 2
-// 	cache 'deep'
-// 	tag "$group"
-// 	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
-// 	time '1h'
-// 	memory '1 GB'
-// 	input:
-// 		tuple val(group), val(id), path(vcfs)
+process svdb_merge_panel {
+	container  "${params.container_svdb}"
+	cpus 2
+	cache 'deep'
+	tag "$group"
+	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	time '1h'
+	memory '1 GB'
+	input:
+		tuple val(group), val(id), path(vcfs)
 
-// 	output:
-// 		tuple val(group), val(id), path("${group}.merged.vcf"), emit: ch_postprocess_merged_panel_sv
-// 		path "*versions.yml", emit: versions
-
-
-// 	when:
-// 		params.antype == "panel"
-
-// 	script:
-// 		if (vcfs.size() > 1) {
-// 			// for each sv-caller add idx, find vcf and find priority, add in priority order! //
-// 			// index of vcfs added
-// 			manta_idx = vcfs.findIndexOf{ it =~ 'manta' }
-// 			cnvkit_idx = vcfs.findIndexOf{ it =~ 'cnvkit' }
-// 			gatk_idx = vcfs.findIndexOf{ it =~ 'gatk' }
-
-// 			// find vcfs //
-// 			manta = manta_idx >= 0 ? vcfs[manta_idx].collect {it + ':manta ' } : null
-// 			cnvkit = cnvkit_idx >= 0 ? vcfs[cnvkit_idx].collect {it + ':cnvkit ' } : null
-// 			gatk = gatk_idx >= 0 ? vcfs[gatk_idx].collect {it + ':gatk ' } : null
-// 			tmp = manta + gatk + cnvkit
-// 			tmp = tmp - null
-// 			vcfs_svdb = tmp.join(' ')
-
-// 			// find priorities //
-// 			mantap = manta_idx >= 0 ? 'manta' : null
-// 			gatkp = gatk_idx >= 0 ? 'gatk' : null
-// 			cnvkitp = cnvkit_idx >= 0 ? 'cnvkit' : null
-// 			tmpp = [mantap, gatkp, cnvkitp]
-// 			tmpp = tmpp - null
-// 			priority = tmpp.join(',')
-
-// 			"""
-// 			svdb \\
-// 			  --merge \\
-// 			  --vcf $vcfs_svdb \\
-// 			  --no_intra \\
-// 			  --pass_only \\
-// 			  --bnd_distance 2500 \\
-// 			  --overlap 0.7 \\
-// 			  --priority $priority \\
-// 			  --ins_distance 0 > ${group}.merged.tmp
+	output:
+		tuple val(group), val(id), path("${group}.merged.vcf"), emit: ch_postprocess_merged_panel_sv
+		path "*versions.yml", emit: versions
 
 
-// 			# copy callers out of INFO.tuple to INFO.SCOUT_CUSTOM
-// 			add_callers_to_scout_custom.py \\
-// 				--callers $priority \\
-// 				--merged_vcf ${group}.merged.tmp > ${group}.merged.callers.tmp
+	when:
+		params.antype == "panel"
 
-// 			add_vcf_header_info_records.py \\
-// 				--vcf ${group}.merged.callers.tmp \\
-// 				--info SCOUT_CUSTOM . String "Custom annotations for scout" '' '' \\
-// 				--output ${group}.merged.vcf
+	script:
+		if (vcfs.size() > 1) {
+			// for each sv-caller add idx, find vcf and find priority, add in priority order! //
+			// index of vcfs added
+			manta_idx = vcfs.findIndexOf{ it =~ 'manta' }
+			cnvkit_idx = vcfs.findIndexOf{ it =~ 'cnvkit' }
+			gatk_idx = vcfs.findIndexOf{ it =~ 'gatk' }
 
-// 			${svdb_merge_panel_version(task)}
-// 			"""
-// 		}
-// 		else {
-// 			"""
-// 			mv $vcf ${group}.merged.vcf
-// 			${svdb_merge_panel_version(task)}
-// 			"""
-// 		}
+			// find vcfs //
+			manta = manta_idx >= 0 ? vcfs[manta_idx].collect {it + ':manta ' } : null
+			cnvkit = cnvkit_idx >= 0 ? vcfs[cnvkit_idx].collect {it + ':cnvkit ' } : null
+			gatk = gatk_idx >= 0 ? vcfs[gatk_idx].collect {it + ':gatk ' } : null
+			tmp = manta + gatk + cnvkit
+			tmp = tmp - null
+			vcfs_svdb = tmp.join(' ')
 
-// 	stub:
-// 		"""
-// 		touch "${group}.merged.vcf"
-// 		${svdb_merge_panel_version(task)}
-// 		"""
-// }
-// def svdb_merge_panel_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    svdb: \$( echo \$(svdb) | head -1 | sed 's/usage: SVDB-\\([0-9]\\.[0-9]\\.[0-9]\\).*/\\1/' )
-// 	END_VERSIONS
-// 	"""
-// }
+			// find priorities //
+			mantap = manta_idx >= 0 ? 'manta' : null
+			gatkp = gatk_idx >= 0 ? 'gatk' : null
+			cnvkitp = cnvkit_idx >= 0 ? 'cnvkit' : null
+			tmpp = [mantap, gatkp, cnvkitp]
+			tmpp = tmpp - null
+			priority = tmpp.join(',')
+
+			"""
+			svdb \\
+			  --merge \\
+			  --vcf $vcfs_svdb \\
+			  --no_intra \\
+			  --pass_only \\
+			  --bnd_distance 2500 \\
+			  --overlap 0.7 \\
+			  --priority $priority \\
+			  --ins_distance 0 > ${group}.merged.tmp
+
+
+			# copy callers out of INFO.tuple to INFO.SCOUT_CUSTOM
+			add_callers_to_scout_custom.py \\
+				--callers $priority \\
+				--merged_vcf ${group}.merged.tmp > ${group}.merged.callers.tmp
+
+			add_vcf_header_info_records.py \\
+				--vcf ${group}.merged.callers.tmp \\
+				--info SCOUT_CUSTOM . String "Custom annotations for scout" '' '' \\
+				--output ${group}.merged.vcf
+
+			${svdb_merge_panel_version(task)}
+			"""
+		}
+		else {
+			"""
+			mv $vcf ${group}.merged.vcf
+			${svdb_merge_panel_version(task)}
+			"""
+		}
+
+	stub:
+		"""
+		touch "${group}.merged.vcf"
+		${svdb_merge_panel_version(task)}
+		"""
+}
+def svdb_merge_panel_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    svdb: \$( echo \$(svdb) | head -1 | sed 's/usage: SVDB-\\([0-9]\\.[0-9]\\.[0-9]\\).*/\\1/' )
+	END_VERSIONS
+	"""
+}
 
 // process postprocess_merged_panel_sv_vcf {
 // 	cpus 2
