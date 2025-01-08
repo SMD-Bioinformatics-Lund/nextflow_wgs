@@ -3550,8 +3550,7 @@ process postprocess_merged_panel_sv_vcf {
 		tuple val(group2), val(id2), path(melt_vcf)
 
 	output:
-		tuple val(group), val(id), path("${group}.merged.bndless.genotypefix.melt.vcf"), emit: vep_sv_panel, annotsv_panel
-		tuple val(group), path("${group}.merged.bndless.genotypefix.melt.vcf"), emit: loqusdb_sv_panel
+		tuple val(group), val(id), path("${group}.merged.bndless.genotypefix.melt.vcf"), emit: merged_postprocessed_vcf
 		path "*versions.yml", emit: versions
 
 
