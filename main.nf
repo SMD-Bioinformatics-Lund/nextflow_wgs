@@ -93,13 +93,13 @@ workflow NEXTFLOW_WGS {
 		}
 
 	ch_bam_start_dedup_dummy = Channel.empty()
-	ch_bam_start_dedup_dummy = ch_bam_start_dedup_dummy.mix(ch_bam_start)
 
 	// BAM-start
 	copy_bam(ch_bam_start)
 
 	if(params.run_melt) {
-		dedupdummy(ch_bam_start_dedup_dummy)
+		dedupdummy(ch_bam_start)
+		ch_bam_start_dedup_dummy = dedupdummy.out.dedup_dummy
 	}
 
 	ch_bam_start = copy_bam.out.bam_bai
@@ -147,13 +147,11 @@ workflow NEXTFLOW_WGS {
 
 	// ALIGN //
 	//TODO: handle false or remove?
+	ch_dedup_stats = Channel.empty()
 	if (params.align) {
 		bwa_align(ch_fastq)
-		ch_dedup_stats = Channel.empty()
 		markdup(bwa_align.out.bam_bai)
-		ch_dedup_stats = ch_dedup_stats
-			.mix(markdup.out.dedup_metrics)
-			.mix(dedupdummy.out.dedup_dummy)
+		ch_dedup_stats = markdup.out.dedup_metrics
 
 		ch_bam_bai = ch_bam_bai.mix(markdup.out.dedup_bam_bai)
 	}
@@ -167,7 +165,7 @@ workflow NEXTFLOW_WGS {
 	ch_sentieon_qc_postprocess = ch_sentieon_qc_postprocess.mix()
 
 
-	sentieon_qc_postprocess(ch_dedup_stats, sentieon_qc.out.sentieon_qc_metrics)
+	sentieon_qc_postprocess(ch_dedup_stats.mix(ch_bam_start_dedup_dummy), sentieon_qc.out.sentieon_qc_metrics)
 
 	// COVERAGE //
 	d4_coverage(ch_bam_bai)
