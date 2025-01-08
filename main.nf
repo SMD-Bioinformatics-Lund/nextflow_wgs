@@ -2891,7 +2891,7 @@ process gatkcov {
 
 	// TODO: kick meta out out output
 	output:
-		tuple val(group), val(id), val(type), sex, path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_plot
+		tuple val(group), val(id), val(type), val(sex), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_plot
 		tuple val(group), val(id), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_gens
 		path "*versions.yml", emit: versions
 
