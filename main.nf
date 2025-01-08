@@ -350,12 +350,16 @@ workflow NEXTFLOW_WGS {
 
 
 		if (params.antype == "panel") {
+			ch_panel_merge = Channel.empty()
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
 
+			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
 			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, melt_qc_val)
-			// svdb_merge_panel()
-			// postprocess_merged_panel_sv_vcf()
+
+			ch_panel_merge = ch_panel_merge.mix(ch_cnvkit_out, ch_manta_out).groupTuple()
+			svdb_merge_panel(ch_panel_merge)
+			postprocess_merged_panel_sv_vcf(svdb_merge_panel.out.merged_vcf, melt.out.melt_vcf_nonfiltered)
 		}
 
 
@@ -3458,7 +3462,7 @@ process svdb_merge_panel {
 		tuple val(group), val(id), path(vcfs)
 
 	output:
-		tuple val(group), val(id), path("${group}.merged.vcf"), emit: ch_postprocess_merged_panel_sv
+		tuple val(group), val(id), path("${group}.merged.vcf"), emit: merged_vcf
 		path "*versions.yml", emit: versions
 
 
@@ -3513,7 +3517,7 @@ process svdb_merge_panel {
 		}
 		else {
 			"""
-			mv $vcf ${group}.merged.vcf
+			mv $vcfs ${group}.merged.vcf
 			${svdb_merge_panel_version(task)}
 			"""
 		}
@@ -3533,59 +3537,59 @@ def svdb_merge_panel_version(task) {
 	"""
 }
 
-// process postprocess_merged_panel_sv_vcf {
-// 	cpus 2
-// 	tag "$group"
-// 	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
-// 	time '1h'
-// 	memory '1 GB'
+process postprocess_merged_panel_sv_vcf {
+	cpus 2
+	tag "$group"
+	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	time '1h'
+	memory '1 GB'
 
 
-// 	input:
-// 		tuple val(group), val(id), path(merged_vcf)
-// 		tuple val(group), val(id), path(melt_vcf)
+	input:
+		tuple val(group), val(id), path(merged_vcf)
+		tuple val(group2), val(id2), path(melt_vcf)
 
-// 	output:
-// 		tuple val(group), val(id), path("${group}.merged.bndless.genotypefix.melt.vcf"), emit: vep_sv_panel, annotsv_panel
-// 		tuple val(group), path("${group}.merged.bndless.genotypefix.melt.vcf"), emit: loqusdb_sv_panel
-// 		path "*versions.yml", emit: versions
+	output:
+		tuple val(group), val(id), path("${group}.merged.bndless.genotypefix.melt.vcf"), emit: vep_sv_panel, annotsv_panel
+		tuple val(group), path("${group}.merged.bndless.genotypefix.melt.vcf"), emit: loqusdb_sv_panel
+		path "*versions.yml", emit: versions
 
 
-// 	script:
-// 		"""
-// 		# Remove BNDs
-// 		grep -v "BND" $merged_vcf > ${group}.merged.bndless.vcf
+	script:
+		"""
+		# Remove BNDs
+		grep -v "BND" $merged_vcf > ${group}.merged.bndless.vcf
 
-// 		# Any 0/0 GT -> 0/1, otherwise loqus will reject them.
-// 		modify_cnv_genotypes_for_loqusdb.pl --merged_panel_sv_vcf ${group}.merged.bndless.vcf > ${group}.merged.bndless.genotypefix.vcf
+		# Any 0/0 GT -> 0/1, otherwise loqus will reject them.
+		modify_cnv_genotypes_for_loqusdb.pl --merged_panel_sv_vcf ${group}.merged.bndless.vcf > ${group}.merged.bndless.genotypefix.vcf
 
-// 		# Add MELT data to info vars:
-// 		add_vcf_header_info_records.py \\
-// 			--vcf ${group}.merged.bndless.genotypefix.vcf \\
-// 			--info MELT_RANK . String "Evidence level 1-5, 5 - highest" '' '' \\
-// 			--info MELT_QC . String "Quality of call" '' '' \\
-// 			--output ${group}.merged.bndless.genotypefix.headers.vcf
+		# Add MELT data to info vars:
+		add_vcf_header_info_records.py \\
+			--vcf ${group}.merged.bndless.genotypefix.vcf \\
+			--info MELT_RANK . String "Evidence level 1-5, 5 - highest" '' '' \\
+			--info MELT_QC . String "Quality of call" '' '' \\
+			--output ${group}.merged.bndless.genotypefix.headers.vcf
 
-// 		# Combine with MELT:
-// 		vcf-concat  ${group}.merged.bndless.genotypefix.headers.vcf $melt_vcf | vcf-sort -c > ${group}.merged.bndless.genotypefix.melt.vcf
-// 		${postprocess_merged_panel_sv_version(task)}
-// 		"""
+		# Combine with MELT:
+		vcf-concat  ${group}.merged.bndless.genotypefix.headers.vcf $melt_vcf | vcf-sort -c > ${group}.merged.bndless.genotypefix.melt.vcf
+		${postprocess_merged_panel_sv_version(task)}
+		"""
 
-// 	stub:
-// 		"""
-// 		touch ${group}.merged.bndless.genotypefix.melt.vcf
-// 		${postprocess_merged_panel_sv_version(task)}
-// 		"""
+	stub:
+		"""
+		touch ${group}.merged.bndless.genotypefix.melt.vcf
+		${postprocess_merged_panel_sv_version(task)}
+		"""
 
-// }
-// def postprocess_merged_panel_sv_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    vcftools: \$(vcftools --version | cut -f 2 -d " " | tr -d "()")
-// 	END_VERSIONS
-// 	"""
-// }
+}
+def postprocess_merged_panel_sv_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    vcftools: \$(vcftools --version | cut -f 2 -d " " | tr -d "()")
+	END_VERSIONS
+	"""
+}
 
 process tiddit {
 	cpus  2
