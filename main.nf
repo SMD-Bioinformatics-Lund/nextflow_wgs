@@ -161,10 +161,6 @@ workflow NEXTFLOW_WGS {
 	// POST SEQ QC //
 	sentieon_qc(ch_bam_bai)
 	// TODO: dedupmetrics wont be in bam start, send in dummy file
-	ch_sentieon_qc_postprocess = Channel.empty()
-	ch_sentieon_qc_postprocess = ch_sentieon_qc_postprocess.mix()
-
-
 	sentieon_qc_postprocess(ch_dedup_stats.mix(ch_bam_start_dedup_dummy), sentieon_qc.out.sentieon_qc_metrics)
 
 	// COVERAGE //
