@@ -3,6 +3,7 @@
 nextflow.enable.dsl=2
 
 
+
 workflow {
 
 	// Print startup and conf output dirs and modes.
@@ -16,8 +17,6 @@ workflow {
 	params.trio = file(params.csv).countLines() > 3 ? true : false
 
 	log.info("Hello.")
-
-	def PON = [F: params.GATK_PON_FEMALE, M: params.GATK_PON_MALE]
 
 	// Count lines of input csv, if more than 2(header + 1 ind) then mode is set to family //
 
@@ -93,7 +92,16 @@ workflow NEXTFLOW_WGS {
 			tuple(group, id, bam, bai)
 		}
 
+	ch_bam_start_dedup_dummy = Channel.empty()
+	ch_bam_start_dedup_dummy = ch_bam_start_dedup_dummy.mix(ch_bam_start)
+
+	// BAM-start
 	copy_bam(ch_bam_start)
+
+	if(params.run_melt) {
+		dedupdummy(ch_bam_start_dedup_dummy)
+	}
+
 	ch_bam_start = copy_bam.out.bam_bai
 
 	ch_bam_bai = Channel.empty()
@@ -141,7 +149,12 @@ workflow NEXTFLOW_WGS {
 	//TODO: handle false or remove?
 	if (params.align) {
 		bwa_align(ch_fastq)
+		ch_dedup_stats = Channel.empty()
 		markdup(bwa_align.out.bam_bai)
+		ch_dedup_stats = ch_dedup_stats
+			.mix(markdup.out.dedup_metrics)
+			.mix(dedupdummy.out.dedup_dummy)
+
 		ch_bam_bai = ch_bam_bai.mix(markdup.out.dedup_bam_bai)
 	}
 
@@ -150,7 +163,11 @@ workflow NEXTFLOW_WGS {
 	// POST SEQ QC //
 	sentieon_qc(ch_bam_bai)
 	// TODO: dedupmetrics wont be in bam start, send in dummy file
-	sentieon_qc_postprocess(markdup.out.dedup_metrics, sentieon_qc.out.sentieon_qc_metrics)
+	ch_sentieon_qc_postprocess = Channel.empty()
+	ch_sentieon_qc_postprocess = ch_sentieon_qc_postprocess.mix()
+
+
+	sentieon_qc_postprocess(ch_dedup_stats, sentieon_qc.out.sentieon_qc_metrics)
 
 	// COVERAGE //
 	d4_coverage(ch_bam_bai)
@@ -336,6 +353,12 @@ workflow NEXTFLOW_WGS {
 			// svdb_merge_panel()
 			// postprocess_merged_panel_sv_vcf()
 		}
+
+		if(params.run_melt) {
+			melt_qc_val(sentieon_qc_postprocess.out.qc_json)
+			melt(ch_bam_bai, melt_qc_val.out.qc_melt_val)
+		}
+
 
 		ch_loqusdb_sv_input = Channel.empty()
 
@@ -653,21 +676,21 @@ process copy_bam {
 }
 
 
-// // TODO: no
-// // For melt to work if started
-// process dedupdummy {
-// 	input:
-// 		tuple val(group), val(id), path(bam), path(bai)
-// 	output:
-// 		tuple id, path("dummy"), emit: dedup_dummy
-// 	when:
-// 		params.run_melt
+// For melt to work if started
+process dedupdummy {
+	input:
+		tuple val(group), val(id), path(bam), path(bai)
+	output:
+		tuple val(group), val(id), path("dummy"), emit: dedup_dummy
 
-// 	script:
-// 	"""
-// 	echo test > dummy
-// 	"""
-// }
+	when:
+		params.run_melt
+
+	script:
+	"""
+	echo test > dummy
+	"""
+}
 
 
 process bqsr {
@@ -1294,12 +1317,7 @@ process melt_qc_val {
 	tuple val(group), val(id), path(qc_json)
 
 	output:
-		tuple id, val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV), emit: qc_melt_val
-		tuple val(group), val(id), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV), emit: qc_cnvkit_val
-
-
-	when:
-		params.run_melt
+		tuple val(group), val(id), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV), emit: qc_melt_val
 
 	script:
 		// Collect qc-data if possible
@@ -1329,63 +1347,62 @@ process melt_qc_val {
 
 }
 
-// // MELT always give VCFs for each type of element defined in mei_list
-// // If none found -> 0 byte vcf. merge_melt.pl merges the three, if all empty
-// // it creates a vcf with only header
-// // merge_melt.pl gives output ${id}.melt.merged.vcf
-// process melt {
-// 	cpus 3
-// 	errorStrategy 'retry'
-// 	container  "${params.container_melt}"
-// 	tag "$id"
-// 	// memory seems to scale with less number of reads?
-// 	memory '70 GB'
-// 	time '3h'
-// 	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: 'true', pattern: '*.vcf'
+// MELT always give VCFs for each type of element defined in mei_list
+// If none found -> 0 byte vcf. merge_melt.pl merges the three, if all empty
+// it creates a vcf with only header
+// merge_melt.pl gives output ${id}.melt.merged.vcf
+process melt {
+	cpus 3
+	errorStrategy 'retry'
+	container  "${params.container_melt}"
+	tag "$id"
+	// memory seems to scale with less number of reads?
+	memory '70 GB'
+	time '3h'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: 'true', vcf: '*.pattern'
 
-// 	input:
-// 		tuple val(id), val(group), path(bam), path(bai), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV)
+	input:
+		tuple val(group), val(id), path(bam), path(bai)
+		tuple val(group1), val(id1), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV)
 
-// 	output:
-// 		tuple val(group), val(id), path("${id}.melt.merged.vcf"), emit: melt_vcf_nonfiltered
-// 		path "*versions.yml", emit: versions
+	output:
+		tuple val(group), val(id), path("${id}.melt.merged.vcf"), emit: melt_vcf_nonfiltered
+		path "*versions.yml", emit: versions
 
-// 	when:
-// 		params.run_melt
 
-// 	script:
-// 		"""
-// 		java -jar /opt/MELTv2.2.2/MELT.jar Single \\
-// 			-bamfile $bam \\
-// 			-r 150 \\
-// 			-h ${params.genome_file} \\
-// 			-n /opt/MELTv2.2.2/add_bed_files/Hg38/Hg38.genes.bed \\
-// 			-z 500000 \\
-// 			-d 50 \\
-// 			-t $params.mei_list \\
-// 			-w . \\
-// 			-c $MEAN_DEPTH \\
-// 			-e $INS_SIZE \\
-// 			-exome
-// 		merge_melt.pl $params.meltheader $id
+	script:
+		"""
+		java -jar /opt/MELTv2.2.2/MELT.jar Single \\
+			-bamfile $bam \\
+			-r 150 \\
+			-h ${params.genome_file} \\
+			-n /opt/MELTv2.2.2/add_bed_files/Hg38/Hg38.genes.bed \\
+			-z 500000 \\
+			-d 50 \\
+			-t $params.mei_list \\
+			-w . \\
+			-c $MEAN_DEPTH \\
+			-e $INS_SIZE \\
+			-exome
+		merge_melt.pl $params.meltheader $id
 
-// 		${melt_version(task)}
-// 		"""
+		${melt_version(task)}
+		"""
 
-// 	stub:
-// 		"""
-// 		touch "${id}.melt.merged.vcf"
-// 		${melt_version(task)}
-// 		"""
-// }
-// def melt_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    melt: \$(echo \$(java -jar /opt/MELTv2.2.2/MELT.jar -h | grep "^MELTv" | cut -f1 -d" " | sed "s/MELTv//" ) )
-// 	END_VERSIONS
-// 	"""
-// }
+	stub:
+		"""
+		touch "${id}.melt.merged.vcf"
+		${melt_version(task)}
+		"""
+}
+def melt_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    melt: \$(echo \$(java -jar /opt/MELTv2.2.2/MELT.jar -h | grep "^MELTv" | cut -f1 -d" " | sed "s/MELTv//" ) )
+	END_VERSIONS
+	"""
+}
 
 // process intersect_melt {
 // 	cpus 2
@@ -2888,6 +2905,9 @@ process gatkcov {
 		params.gatkcov
 
 	script:
+
+		def PON = [F: params.GATK_PON_FEMALE, M: params.GATK_PON_MALE]
+
 		"""
 		source activate gatk4-env
 
@@ -2940,7 +2960,7 @@ process overview_plot {
 	input:
 		path(upd)
 		tuple val(group), path(roh)
-		tuple val(group), val(id), val(type), sex, path(cov_stand), path(cov_denoised)
+		tuple val(group2), val(id2), val(type), val(sex), path(cov_stand), path(cov_denoised)
 
 	output:
 		path("${group}.genomic_overview.png")
