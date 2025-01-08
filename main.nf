@@ -258,24 +258,25 @@ workflow NEXTFLOW_WGS {
 		// TODO: Move this guy to QC:
 		peddy(ch_peddy_input_vcf, ch_ped_base)
 
-		// fastgnomad
-		fastgnomad(split_normalize.out.norm_uniq_dpaf_vcf)
-		// upd
-		ch_upd_meta = ch_samplesheet
-			.filter { row ->
-				row.type == "proband"
-			}
-			.map { row ->
-				tuple(row.group, row.id, row.mother, row.father)
-			}
+		if (params.antype == "wgs") {
+			// fastgnomad
+			fastgnomad(split_normalize.out.norm_uniq_dpaf_vcf)
+			// upd
+			ch_upd_meta = ch_samplesheet
+				.filter { row ->
+					row.type == "proband"
+				}
+				.map { row ->
+					tuple(row.group, row.id, row.mother, row.father)
+				}
 
-		// upd
-		upd(fastgnomad.out.vcf, ch_upd_meta)
-		upd_table(upd.out.upd_sites)
+			// upd
+			upd(fastgnomad.out.vcf, ch_upd_meta)
+			upd_table(upd.out.upd_sites)
 
-		// roh
-		roh(fastgnomad.out.vcf)
-
+			// roh
+			roh(fastgnomad.out.vcf)
+		}
 	}
 
 	if (params.sv) {
