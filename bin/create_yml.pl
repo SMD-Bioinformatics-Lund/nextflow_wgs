@@ -108,9 +108,9 @@ my %assays = (
             'institute_owner' => 'klingen-genlista'
         }
     },
-    'pipeeval' => {
-        'rankm' => '5.2.1_SNV(pipeeval placeholder)',
-        'svrankm' => '5.2_SV(pipeeval placeholder)',
+    'dev' => {
+        'rankm' => '5.2.1_SNV(dev placeholder)',
+        'svrankm' => '5.2_SV(dev placeholder)',
         'wgs' => {
             'institute' => 'klingen_38',
             'institute_owner' => 'klingen-genlista'
@@ -118,6 +118,26 @@ my %assays = (
         'onco' => {
             'institute' => 'onkogenetik',
             'institute_owner' => 'oncogen'
+        },
+        'mody' => {
+            'institute' => 'MODY',
+            'institute_owner' => 'klingen-genlista',
+        },
+        'cf' => {
+            'institute' => 'cf-test',
+            'institute_owner' => 'klingen-genlista',
+        },
+        'ph' => {
+            'institute' => 'klingen_38',
+            'institute_owner' => 'klingen-genlista'
+        },
+        'hemato' => {
+            'institute' => 'myeloid',
+            'institute_owner' => 'klingen-genlista',
+        },
+        'ahus' => {
+            'institute' => 'ahus',
+            'institute_owner' => 'klingen-genlista'
         }
     },
     'myeloid-const' => {
