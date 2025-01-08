@@ -1339,6 +1339,9 @@ process melt_qc_val {
 		INS_SIZE = 0
 		MEAN_DEPTH = 0
 		COV_DEV = 0
+	"""
+	echo "hello"
+	"""
 
 }
 
@@ -3457,9 +3460,6 @@ process svdb_merge_panel {
 		tuple val(group), val(id), path("${group}.merged.vcf"), emit: ch_postprocess_merged_panel_sv
 		path "*versions.yml", emit: versions
 
-
-	when:
-		params.antype == "panel"
 
 	script:
 		if (vcfs.size() > 1) {
