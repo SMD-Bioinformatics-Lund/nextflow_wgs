@@ -1,6 +1,6 @@
 # CHANGELOG
 
-### TBD
+### 3.14.2
 
 * dev-assay for create-yaml, triggered when running with `--dev` flag
 
