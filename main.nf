@@ -95,10 +95,10 @@ workflow NEXTFLOW_WGS {
 	ch_bam_start_dedup_dummy = Channel.empty()
 
 	// BAM-start
-	copy_bam(ch_bam_start.collect().ifEmpty([]))
+	copy_bam(ch_bam_start)
 
 	if(params.run_melt) {
-		dedupdummy(ch_bam_start.collect().ifEmpty([]))
+		dedupdummy(ch_bam_start)
 		ch_bam_start_dedup_dummy = dedupdummy.out.dedup_dummy
 	}
 
