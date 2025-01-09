@@ -344,6 +344,8 @@ workflow NEXTFLOW_WGS {
 				tiddit.out.vcf.groupTuple(),
 				ch_filtered_merged_gatk_calls.groupTuple()
 			)
+
+			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge.out.merged_vcf)
 		}
 
 		if(params.run_melt) {
@@ -362,14 +364,15 @@ workflow NEXTFLOW_WGS {
 
 			ch_panel_merge = ch_panel_merge.mix(ch_cnvkit_out, ch_manta_out).groupTuple()
 			svdb_merge_panel(ch_panel_merge)
+
+			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge_panel.out.loqusdb_vcf)
+
 			postprocess_merged_panel_sv_vcf(svdb_merge_panel.out.merged_vcf, melt.out.melt_vcf_nonfiltered)
 		}
 
 
-
-
-
 	} else {
+		// TODO: move to top w/ if not
 		ch_loqusdb_no_sv_dummy = ch_meta
 			.first()
 			.map { row ->
@@ -385,8 +388,15 @@ workflow NEXTFLOW_WGS {
 	log.info("loqusdb input:")
 	vcf_completion.out.vcf_tbi.view()
 	ch_ped_base.view()
-	ch_loqusdb_sv.view()
-	add_to_loqusdb(vcf_completion.out.vcf_tbi, ch_ped_base, ch_loqusdb_sv)
+
+	//TODO: make work w/ dummy
+
+
+	add_to_loqusdb(
+		vcf_completion.out.vcf_tbi,
+		ch_ped_base,
+		ch_loqusdb_sv
+	)
 
 
 	ch_versions = Channel.empty()
@@ -3483,6 +3493,7 @@ process svdb_merge_panel {
 
 	output:
 		tuple val(group), val(id), path("${group}.merged.vcf"), emit: merged_vcf
+		tuple val(group), path("${group}.merged.vcf"), emit: loqusdb_vcf
 		path "*versions.yml", emit: versions
 
 
@@ -3666,8 +3677,8 @@ process svdb_merge {
 		tuple val(group3), val(id3), path(gatkV)
 
 	output:
-		tuple val(group), val(id), path("${group}.merged.bndless.vcf"), emit: bndless_vcf
-		tuple val(group), path("${group}.merged.vcf"), emit: bndful_vcf
+		tuple val(group), val(id), path("${group}.merged.bndless.vcf"), emit: merged_bndless_vcf
+		tuple val(group), path("${group}.merged.vcf"), emit: merged_vcf
 		path "*versions.yml", emit: versions
 
 	script:
@@ -3781,7 +3792,8 @@ process dummy_svvcf_for_loqusdb {
 		tuple val(group), val(assay)
 
 	output:
-		tuple val(group), path("${group}.dummy.sv.vcf"), emit: dummy_vcf
+		tuple val(group),  path("${group}.dummy.sv.vcf"), emit: dummy_vcf
+
 
 	script:
 		"""
