@@ -280,10 +280,10 @@ workflow NEXTFLOW_WGS {
 	}
 
 	ch_loqusdb_sv = Channel.empty()
-	ch_postprocessed_merged_sv_vcf = Channel.empty()
 
 	if (params.sv) {
 		ch_smn_tsv = Channel.empty()
+		ch_postprocessed_merged_sv_vcf = Channel.empty()
 		if(params.antype  == "wgs") {
 			// SMN CALLING //
 			SMNCopyNumberCaller(ch_bam_bai)
@@ -371,7 +371,7 @@ workflow NEXTFLOW_WGS {
 			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge_panel.out.loqusdb_vcf)
 
 			postprocess_merged_panel_sv_vcf(svdb_merge_panel.out.merged_vcf, melt.out.melt_vcf_nonfiltered)
-			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(postprocess_merged_panel_sv_vcf)
+			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf)
 		}
 
 		annotsv(ch_postprocessed_merged_sv_vcf)
