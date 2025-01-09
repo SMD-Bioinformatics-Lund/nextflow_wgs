@@ -1,8 +1,10 @@
 # CHANGELOG
 
-### 3.14.2
-
+### 3.14.3
 * Fix rankscore parsing in `cnv2bed.pl`
+
+### 3.14.2
+* dev-assay for create-yaml, triggered when running with `--dev` flag
 
 ### 3.14.1
 
