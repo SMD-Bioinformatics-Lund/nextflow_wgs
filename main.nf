@@ -126,10 +126,10 @@ workflow NEXTFLOW_WGS {
 	ch_ped_trio = ch_ped_trio.mix(ch_ped_base)
 	if(params.mode == "family" && params.assay == "wgs") {
 
-		ch_ped_fa.mix(create_ped.out.ped_fa)
-		ch_ped_ma.mix(create_ped.out.ped_ma)
+		ch_ped_fa = create_ped.out.ped_fa)
+		ch_ped_ma = create_ped.out.ped_ma
 
-		ch_ped_trio = ch_ped_trio.mix(ch_ped_fa, ch_ped_ma)
+		ch_ped_trio = ch_ped_trio.mix(ch_ped_fa).mix(ch_ped_ma)
 		madeline(ch_ped_base.mix(ch_ped_trio)) // TODO: fetch info
 
 	}
@@ -375,11 +375,8 @@ workflow NEXTFLOW_WGS {
 		add_omim(postprocess_vep_sv.out.merged_processed_vcf)
 		artefact(add_omim.out.vcf)
 
-		ch_ped_prescore = ch_ped_base
+		ch_ped_prescore = ch_ped_trio
 
-		if (params.trio) {
-			ch_ped_prescore = ch_ped_prescore.mix(ch_ped_trio)
-		}
 
 		log.info("prescore ped input:")
 		ch_ped_prescore.view()
