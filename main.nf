@@ -133,8 +133,8 @@ workflow NEXTFLOW_WGS {
 		ch_ped_fa.mix(create_ped.out.ped_fa)
 		ch_ped_ma.mix(create_ped.out.ped_ma)
 
-		ch_ped_trio = ch_ped_base.mix(ch_ped_fa, ch_ped_ma)
-		madeline(ch_ped_trio) // TODO: fetch info
+		ch_ped_trio = ch_ped_trio.mix(ch_ped_fa, ch_ped_ma)
+		madeline(ch_ped_base.mix(ch_ped_trio)) // TODO: fetch info
 
 	}
 
@@ -381,9 +381,28 @@ workflow NEXTFLOW_WGS {
 		add_omim(postprocess_vep_sv.out.merged_processed_vcf)
 		artefact(add_omim.out.vcf)
 
-		// ch_prescore_ped = artefact.out.vcf.join()
+		ch_ped_prescore = ch_ped_base
 
-		prescore(artefact.out.vcf)
+		if (params.trio) {
+			ch_ped_prescore = ch_ped_prescore.mix(ch_ped_trio)
+		}
+
+		ch_prescore_input = artefact.out.join(annotsv.out.annotsv_tsv) // ch: group, path(annotsv_tsv), path(vcf)
+		ch_prescore_input = ch_prescore_input.cross(ch_ped_prescore)
+			.map{
+				item ->
+
+				def group = item[0][0]
+				def annotsv_tsv = item[0][1]
+				def artefact_vcf = item[0][2]
+				def type = item[1][1]
+				def ped = item[1][2]
+				tuple(group, type, ped, annotsv_tsv, artefact_vcf)
+			}
+
+		ch_prescore_input.view()
+
+		prescore(ch_prescore_input)
 
 
 	} else {
@@ -4104,7 +4123,7 @@ process prescore {
 	time '1h'
 
 	input:
-		tuple val(group), path(sv_artefact), val(type), path(ped), path(annotsv)
+		tuple val(group), val(type), path(ped), path(sv_artefact), path(annotsv)
 
 	output:
 		tuple val(group), val(type), path("${group}.annotatedSV.vcf"), emit: annotated_sv_vcf
@@ -4122,7 +4141,7 @@ process prescore {
 }
 
 process score_sv {
-	tag "$group $mode"
+	tag "$group $params.mode"
 	cpus 2
 	memory '10 GB'
 	time '2h'
