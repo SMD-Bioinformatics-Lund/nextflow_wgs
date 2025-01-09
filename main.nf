@@ -381,6 +381,7 @@ workflow NEXTFLOW_WGS {
 			ch_ped_prescore = ch_ped_prescore.mix(ch_ped_trio)
 		}
 
+		log.info("prescore ped input:")
 		ch_ped_prescore.view()
 		ch_prescore_input = artefact.out.vcf.join(annotsv.out.annotsv_tsv) // ch: group, path(annotsv_tsv), path(vcf)
 		ch_prescore_input = ch_prescore_input.cross(ch_ped_prescore)
@@ -392,11 +393,12 @@ workflow NEXTFLOW_WGS {
 				def annotsv_tsv = item[0][2]
 				def type = item[1][1]
 				def ped = item[1][2]
+				log.info(type)
 				tuple(group, type, ped, annotsv_tsv, artefact_vcf)
 			}
 
+		log.info("prescore ped input after cross::")
 		ch_prescore_input.view()
-
 		prescore(ch_prescore_input)
 
 
