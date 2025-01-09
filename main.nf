@@ -3332,7 +3332,7 @@ process manta {
 		bams = bam.join('--bam ')
 
 		"""
-		configManta.py --bam $bam --reference ${params.genome_file} --runDir .
+		configManta.py --bam $bams --reference ${params.genome_file} --runDir .
 		python runWorkflow.py -m local -j ${task.cpus}
 		mv results/variants/diploidSV.vcf.gz ${id}.manta.vcf.gz
 		mv results/variants/diploidSV.vcf.gz.tbi ${id}.manta.vcf.gz.tbi
