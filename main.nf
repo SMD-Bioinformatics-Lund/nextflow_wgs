@@ -393,8 +393,8 @@ workflow NEXTFLOW_WGS {
 
 
 	add_to_loqusdb(
-		vcf_completion.out.vcf_tbi,
 		ch_ped_base,
+		vcf_completion.out.vcf_tbi,
 		ch_loqusdb_sv
 	)
 
