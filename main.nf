@@ -370,6 +370,8 @@ workflow NEXTFLOW_WGS {
 			postprocess_merged_panel_sv_vcf(svdb_merge_panel.out.merged_vcf, melt.out.melt_vcf_nonfiltered)
 		}
 
+		annotsv(postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf)
+
 
 	} else {
 		// TODO: move to top w/ if not
@@ -386,12 +388,11 @@ workflow NEXTFLOW_WGS {
 	}
 
 	log.info("loqusdb input:")
-	vcf_completion.out.vcf_tbi.view()
-	ch_ped_base.view()
-
 	//TODO: make work w/ dummy
 
 
+
+	// LOQUSDB //
 	add_to_loqusdb(
 		ch_ped_base,
 		vcf_completion.out.vcf_tbi,
@@ -3344,6 +3345,7 @@ process filter_merge_gatk {
 		"""
 }
 
+
 process manta {
 	cpus  56
 	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
@@ -3796,6 +3798,7 @@ process dummy_svvcf_for_loqusdb {
 
 
 	script:
+
 		"""
 		touch ${group}.dummy.sv.vcf
 		"""
@@ -3843,159 +3846,160 @@ process add_to_loqusdb {
 		"""
 }
 
-// process annotsv {
-// 	container  "${params.container_annotsv}"
-// 	cpus 2
-// 	tag "$group"
-// 	publishDir "${params.results_output_dir}/annotsv/", mode: 'copy', overwrite: 'true', pattern: '*.tsv'
-// 	time '5h'
-// 	memory '20 GB'
+process annotsv {
 
-// 	input:
-// 		tuple val(group), val(id), path(sv)
+	container  "${params.container_annotsv}"
+	cpus 2
+	tag "$group"
+	publishDir "${params.results_output_dir}/annotsv/", mode: 'copy', overwrite: 'true', pattern: '*.tsv'
+	time '5h'
+	memory '20 GB'
 
-// 	output:
-// 		tuple val(group), path("${group}_annotsv.tsv"), emit: annotsv, annotsv_ma, annotsv_fa
-// 		path "*versions.yml", emit: versions
+	input:
+		tuple val(group), val(id), path(sv_vcf)
 
-// 	shell:
-// 		version_str = annotsv_version(task)
-// 		'''
-// 		export ANNOTSV="/AnnotSV"
-// 		/AnnotSV/bin/AnnotSV -SvinputFile !{sv} \\
-// 			-typeOfAnnotation full \\
-// 			-outputDir !{group} \\
-// 			-genomeBuild GRCh38
-// 		if [ -f !{group}/*.annotated.tsv ]; then
-// 			mv !{group}/*.annotated.tsv !{group}_annotsv.tsv
-// 		else
-// 		    echo "1\n" > !{group}_annotsv.tsv
-// 		fi
-// 		echo "!{version_str}" > "!{task.process}_versions.yml"
-// 		'''
+	output:
+		tuple val(group), path("${group}_annotsv.tsv"), emit: annotsv_tsv
+		path "*versions.yml", emit: versions
 
-// 	stub:
-// 		version_str = annotsv_version(task)
-// 		"""
-// 		export ANNOTSV="/AnnotSV"
-// 		touch "${group}_annotsv.tsv"
+	script:
+		version_str = annotsv_version(task)
+		"""
+		export ANNOTSV="/AnnotSV"
+		/AnnotSV/bin/AnnotSV -SvinputFile ${sv} \\
+			-typeOfAnnotation full \\
+			-outputDir ${group} \\
+			-genomeBuild GRCh38
+		if [ -f ${group}/*.annotated.tsv ]; then
+			mv ${group}/*.annotated.tsv ${group}_annotsv.tsv
+		else
+		    echo "1\n" > ${group}_annotsv.tsv
+		fi
+		echo "${version_str}" > "${task.process}_versions.yml"
+		"""
 
-// 		echo "${version_str}" > "${task.process}_versions.yml"
-// 		"""
-// }
-// def annotsv_version(task) {
-// 	"""${task.process}:
-// 	    annotsv: \$( echo \$(/AnnotSV/bin/AnnotSV --version) | sed -e "s/AnnotSV //g ; s/Copyright.*//" )"""
-// }
+	stub:
+		version_str = annotsv_version(task)
+		"""
+		export ANNOTSV="/AnnotSV"
+		touch "${group}_annotsv.tsv"
 
-// process vep_sv {
-// 	cpus 10
-// 	container  "${params.container_vep}"
-// 	tag "$group"
-// 	memory '50 GB'
-// 	time '1h'
+		echo "${version_str}" > "${task.process}_versions.yml"
+		"""
+}
+def annotsv_version(task) {
+	"""${task.process}:
+	    annotsv: \$( echo \$(/AnnotSV/bin/AnnotSV --version) | sed -e "s/AnnotSV //g ; s/Copyright.*//" )"""
+}
 
-// 	input:
-// 		tuple val(group), val(id), path(vcf)
+process vep_sv {
+	cpus 10
+	container  "${params.container_vep}"
+	tag "$group"
+	memory '50 GB'
+	time '1h'
 
-// 	output:
-// 		tuple val(group), val(id), path("${group}.vep.vcf"), emit: vep_sv_vcf
-// 		path "*versions.yml", emit: versions
+	input:
+		tuple val(group), val(id), path(vcf)
 
-// 	script:
-// 		"""
+	output:
+		tuple val(group), val(id), path("${group}.vep.vcf"), emit: vep_sv_vcf
+		path "*versions.yml", emit: versions
 
-// 		# Temporary fix for VEP 111.0 annotation bug, where certain MANTA indels are being skipped by VEP
-// 		# See: https://github.com/Ensembl/ensembl-vep/issues/1631#issuecomment-1985973568
-// 		# Edit 2024-11-01: Fixed in VEP 112.0
+	script:
+		"""
 
-// 		sed 's/SVTYPE=/BAZBAZ=/' $vcf > ${group}.vep111-workaround.vcf
+		# Temporary fix for VEP 111.0 annotation bug, where certain MANTA indels are being skipped by VEP
+		# See: https://github.com/Ensembl/ensembl-vep/issues/1631#issuecomment-1985973568
+		# Edit 2024-11-01: Fixed in VEP 112.0
 
-// 		vep \\
-// 			-i ${group}.vep111-workaround.vcf \\
-// 			-o ${group}.vep.vcf \\
-// 			--offline \\
-// 			--merged \\
-// 			--sift b --polyphen b --ccds --hgvs --symbol --numbers --domains --regulatory --canonical --protein --biotype --af --af_1kg --max_af --pubmed --uniprot --mane --tsl --appris --variant_class --gene_phenotype --mirna \\
-// 			--synonyms $params.VEP_SYNONYMS \\
-// 			--vcf \\
-// 			--no_stats \\
-// 			--fork ${task.cpus} \\
-// 			--force_overwrite \\
-// 			--plugin LoFtool \\
-// 			--fasta $params.VEP_FASTA \\
-// 			--dir_cache $params.VEP_CACHE \\
-// 			--dir_plugins $params.VEP_PLUGINS \\
-// 			--max_sv_size $params.VEP_MAX_SV_SIZE \\
-// 			--distance $params.VEP_TRANSCRIPT_DISTANCE \\
-// 			-cache \\
-// 			--format vcf
+		sed 's/SVTYPE=/BAZBAZ=/' $vcf > ${group}.vep111-workaround.vcf
 
-// 		# Re-enable SVTYPE:
-// 		sed -i 's/BAZBAZ=/SVTYPE=/' ${group}.vep.vcf
-// 		${vep_sv_version(task)}
-// 		"""
+		vep \\
+			-i ${group}.vep111-workaround.vcf \\
+			-o ${group}.vep.vcf \\
+			--offline \\
+			--merged \\
+			--sift b --polyphen b --ccds --hgvs --symbol --numbers --domains --regulatory --canonical --protein --biotype --af --af_1kg --max_af --pubmed --uniprot --mane --tsl --appris --variant_class --gene_phenotype --mirna \\
+			--synonyms $params.VEP_SYNONYMS \\
+			--vcf \\
+			--no_stats \\
+			--fork ${task.cpus} \\
+			--force_overwrite \\
+			--plugin LoFtool \\
+			--fasta $params.VEP_FASTA \\
+			--dir_cache $params.VEP_CACHE \\
+			--dir_plugins $params.VEP_PLUGINS \\
+			--max_sv_size $params.VEP_MAX_SV_SIZE \\
+			--distance $params.VEP_TRANSCRIPT_DISTANCE \\
+			-cache \\
+			--format vcf
 
-// 	stub:
-// 		"""
-// 		touch "${group}.vep.vcf"
-// 		${vep_sv_version(task)}
-// 		"""
-// }
-// def vep_sv_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    vep: \$( echo \$(vep --help 2>&1) | sed 's/^.*Versions:.*ensembl-vep : // ; s/ .*\$//')
-// 	END_VERSIONS
-// 	"""
-// }
+		# Re-enable SVTYPE:
+		sed -i 's/BAZBAZ=/SVTYPE=/' ${group}.vep.vcf
+		${vep_sv_version(task)}
+		"""
 
-// process postprocess_vep_sv {
-// 	cpus  2
-// 	memory '10GB'
-// 	time '1h'
-// 	tag "$group"
-// 	container  "${params.container_svdb}"
+	stub:
+		"""
+		touch "${group}.vep.vcf"
+		${vep_sv_version(task)}
+		"""
+}
+def vep_sv_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    vep: \$( echo \$(vep --help 2>&1) | sed 's/^.*Versions:.*ensembl-vep : // ; s/ .*\$//')
+	END_VERSIONS
+	"""
+}
 
-// 	input:
-// 		tuple val(group), val(id), path(vcf)
+process postprocess_vep_sv {
+	cpus  2
+	memory '10GB'
+	time '1h'
+	tag "$group"
+	container  "${params.container_svdb}"
 
-// 	output:
-// 		tuple val(group), path("${group}.vep.clean.merge.vcf"), emit: add_omim_vcf
-// 		path "*versions.yml", emit: versions
+	input:
+		tuple val(group), val(id), path(vcf)
 
-// 	script:
-// 		"""
-// 		# Filter variants with FILTER != . or PASS and variants missing CSQ field.
-// 		postprocess_vep_vcf.py $vcf > ${group}.vep.clean.vcf
-// 		svdb --merge --overlap 0.9 --notag --vcf ${group}.vep.clean.vcf --ins_distance 0 > ${group}.vep.clean.merge.tmp.vcf
+	output:
+		tuple val(group), path("${group}.vep.clean.merge.vcf"), emit: add_omim_vcf
+		path "*versions.yml", emit: versions
 
-// 		# --notag above will remove set
-// 		add_vcf_header_info_records.py \\
-// 			--vcf ${group}.vep.clean.merge.tmp.vcf \\
-// 			--info tuple 1 String "Source VCF for the merged record in SVDB" '' '' \\
-// 			--info VARID 1 String "The variant ID of merged samples" '' '' \\
-// 			--output ${group}.vep.clean.merge.headers.tmp.vcf
+	script:
+		"""
+		# Filter variants with FILTER != . or PASS and variants missing CSQ field.
+		postprocess_vep_vcf.py $vcf > ${group}.vep.clean.vcf
+		svdb --merge --overlap 0.9 --notag --vcf ${group}.vep.clean.vcf --ins_distance 0 > ${group}.vep.clean.merge.tmp.vcf
 
-// 		# Prepare annotations for scout:
-// 		normalize_caller_names_in_svdb_fields.py ${group}.vep.clean.merge.headers.tmp.vcf --callers manta gatk tiddit > ${group}.vep.clean.merge.vcf
-// 		${postprocess_vep_sv_version(task)}
-// 		"""
-// 	stub:
-// 		"""
-// 		touch "${group}.vep.clean.merge.vcf"
-// 		${postprocess_vep_sv_version(task)}
-// 		"""
-// }
-// def postprocess_vep_sv_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    svdb: \$( echo \$(svdb) | head -1 | sed 's/usage: SVDB-\\([0-9]\\.[0-9]\\.[0-9]\\).*/\\1/' )
-// 	END_VERSIONS
-// 	"""
-// }
+		# --notag above will remove set
+		add_vcf_header_info_records.py \\
+			--vcf ${group}.vep.clean.merge.tmp.vcf \\
+			--info tuple 1 String "Source VCF for the merged record in SVDB" '' '' \\
+			--info VARID 1 String "The variant ID of merged samples" '' '' \\
+			--output ${group}.vep.clean.merge.headers.tmp.vcf
+
+		# Prepare annotations for scout:
+		normalize_caller_names_in_svdb_fields.py ${group}.vep.clean.merge.headers.tmp.vcf --callers manta gatk tiddit > ${group}.vep.clean.merge.vcf
+		${postprocess_vep_sv_version(task)}
+		"""
+	stub:
+		"""
+		touch "${group}.vep.clean.merge.vcf"
+		${postprocess_vep_sv_version(task)}
+		"""
+}
+def postprocess_vep_sv_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    svdb: \$( echo \$(svdb) | head -1 | sed 's/usage: SVDB-\\([0-9]\\.[0-9]\\.[0-9]\\).*/\\1/' )
+	END_VERSIONS
+	"""
+}
 
 // process add_omim {
 // 	cpus 2
