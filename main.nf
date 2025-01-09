@@ -387,6 +387,7 @@ workflow NEXTFLOW_WGS {
 			ch_ped_prescore = ch_ped_prescore.mix(ch_ped_trio)
 		}
 
+		ch_ped_prescore.view()
 		ch_prescore_input = artefact.out.vcf.join(annotsv.out.annotsv_tsv) // ch: group, path(annotsv_tsv), path(vcf)
 		ch_prescore_input = ch_prescore_input.cross(ch_ped_prescore)
 			.map{
