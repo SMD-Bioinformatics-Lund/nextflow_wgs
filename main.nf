@@ -388,8 +388,8 @@ workflow NEXTFLOW_WGS {
 				item ->
 
 				def group = item[0][0]
-				def annotsv_tsv = item[0][1]
-				def artefact_vcf = item[0][2]
+				def artefact_vcf = item[0][1]
+				def annotsv_tsv = item[0][2]
 				def type = item[1][1]
 				def ped = item[1][2]
 				tuple(group, type, ped, annotsv_tsv, artefact_vcf)
