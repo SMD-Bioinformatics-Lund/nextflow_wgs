@@ -130,7 +130,7 @@ workflow NEXTFLOW_WGS {
 		ch_ped_ma = create_ped.out.ped_ma
 
 		ch_ped_trio = ch_ped_trio.mix(ch_ped_fa).mix(ch_ped_ma)
-		madeline(ch_ped_base.mix(ch_ped_trio)) // TODO: fetch info
+		madeline(ch_ped_trio) // TODO: fetch info
 
 	}
 
