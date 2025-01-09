@@ -382,6 +382,10 @@ workflow NEXTFLOW_WGS {
 		ch_loqusdb_sv = ch_loqusdb_sv.mix(dummy_svvcf_for_loqusdb.out.dummy_vcf)
 	}
 
+	log.info("loqusdb input:")
+	vcf_completion.out.vcf_tbi.view()
+	ch_ped_base.view()
+	ch_loqusdb_sv.view()
 	add_to_loqusdb(vcf_completion.out.vcf_tbi, ch_ped_base, ch_loqusdb_sv)
 
 
