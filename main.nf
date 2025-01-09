@@ -1399,14 +1399,21 @@ process melt_qc_val {
 		INS_SIZE = ins_size[0][2]
 		MEAN_DEPTH = coverage[0][2]
 		COV_DEV = ins_dev[0][2]
+		"""
+		echo -e "INS_SIZE\tMEAN_DEPTH\tCOV_DEV\n" > qc.tsv
+		echo -e "$INS_SIZE\t$MEAN_DEPTH\t$COV_DEV\n" >> qc.tsv
+		"""
 
 	stub:
 		INS_SIZE = 0
 		MEAN_DEPTH = 0
 		COV_DEV = 0
-	"""
-	echo "hello"
-	"""
+
+	// Needs to be here to prevent error when .command.sh is executed:
+		"""
+		echo -e "INS_SIZE\tMEAN_DEPTH\tCOV_DEV\n" > qc.tsv
+		echo -e "$INS_SIZE\t$MEAN_DEPTH\t$COV_DEV\n" >> qc.tsv
+		"""
 
 }
 
