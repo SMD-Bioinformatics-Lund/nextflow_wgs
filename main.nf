@@ -59,7 +59,6 @@ workflow NEXTFLOW_WGS {
 	main:
 
 	// CHANNEL PREP //
-	ch_samplesheet.view()
 	ch_fastq = ch_samplesheet
 		.filter {
 			row -> row.read1.endsWith("fastq.gz") && row.read2.endsWith("fastq.gz")
@@ -71,8 +70,6 @@ workflow NEXTFLOW_WGS {
 		def fastq_r2 = row.read2
 		tuple(group, id, fastq_r1, fastq_r2) // TODO: filter non fq
 	}
-
-	ch_fastq.view()
 
 	// TODO: expand and implement across all processes:
 	ch_meta = ch_samplesheet.map{ row->
@@ -106,7 +103,6 @@ workflow NEXTFLOW_WGS {
 
 	ch_bam_bai = Channel.empty()
 	ch_bam_bai = ch_bam_bai.mix(ch_bam_start)
-	ch_bam_bai.view()
 
 	// PED //
 	ch_ped_input = ch_samplesheet
@@ -241,7 +237,7 @@ workflow NEXTFLOW_WGS {
 				def ped = ped_tuple[2]
 				tuple(group, vcf, type, ped) // Combine elements as desired
 			}
-			.view()
+
 
 		inher_models(ch_inher_models_input)
 
@@ -254,7 +250,6 @@ workflow NEXTFLOW_WGS {
 				type == "proband"
 			}
 
-		ch_peddy_input_vcf.view()
 		// TODO: Move this guy to QC:
 		peddy(ch_peddy_input_vcf, ch_ped_base)
 
@@ -295,7 +290,6 @@ workflow NEXTFLOW_WGS {
 						keepHeader: true,
 						storeDir: "${params.results_output_dir}/smn/")
 			)
-			ch_smn_tsv.view()
 
 			// CALL REPEATS //
 
