@@ -279,6 +279,8 @@ workflow NEXTFLOW_WGS {
 		}
 	}
 
+	ch_loqusdb_sv = Channel.empty()
+
 	if (params.sv) {
 		ch_smn_tsv = Channel.empty()
 		if(params.antype  == "wgs") {
@@ -364,10 +366,23 @@ workflow NEXTFLOW_WGS {
 		}
 
 
-		ch_loqusdb_sv_input = Channel.empty()
 
 
+
+	} else {
+		ch_loqusdb_no_sv_dummy = ch_meta
+			.first()
+			.map { row ->
+				def group = row.group
+				def assay = row.assay
+				tuple(group, assay)
+			}
+
+		dummy_svvcf_for_loqusdb(ch_loqusdb_no_sv_dummy)
+		ch_loqusdb_sv = ch_loqusdb_sv.mix(dummy_svvcf_for_loqusdb.out.dummy_vcf)
 	}
+
+	add_to_loqusdb(vcf_completion.out.vcf_tbi, ch_ped_base, ch_loqusdb_sv)
 
 
 	ch_versions = Channel.empty()
@@ -3463,7 +3478,7 @@ process svdb_merge_panel {
 		tuple val(group), val(id), path(vcfs)
 
 	output:
-		tuple val(group), val(id), path("${group}.merged.vcf"), emit: merged_vcf
+		tuple val(group), path("${group}.merged.vcf"), emit: merged_vcf
 		path "*versions.yml", emit: versions
 
 
@@ -3746,37 +3761,34 @@ def svdb_merge_version(task) {
 	"""
 }
 
-// process dummy_svvcf_for_loqusdb {
+process dummy_svvcf_for_loqusdb {
 
-// 	// add_to_loqusb won't run if no svvcf is generated
-// 	// this process creates dummy svvcf for no-SV runs
-// 	// assay input only exists to disable nextflow warning
-// 	// for channels emitting with less than two input elements
+	// add_to_loqusb won't run if no svvcf is generated
+	// this process creates dummy svvcf for no-SV runs
+	// assay input only exists to disable nextflow warning
+	// for channels emitting with less than two input elements
 
-// 	cpus 1
-// 	tag "$group"
-// 	memory '10 MB'
-// 	time '10m'
+	cpus 1
+	tag "$group"
+	memory '10 MB'
+	time '10m'
 
-// 	input:
-// 		tuple val(group), val(assay)
+	input:
+		tuple val(group), val(assay)
 
-// 	output:
-// 		tuple val(group), path("${group}.dummy.sv.vcf"), emit: dummy_svvcf_ch
+	output:
+		tuple val(group), path("${group}.dummy.sv.vcf"), emit: dummy_vcf
 
-// 	when:
-// 		!params.sv
+	script:
+		"""
+		touch ${group}.dummy.sv.vcf
+		"""
 
-// 	script:
-// 		"""
-// 		touch ${group}.dummy.sv.vcf
-// 		"""
-
-// 	stub:
-// 		"""
-// 		touch ${group}.dummy.sv.vcf
-// 		"""
-// }
+	stub:
+		"""
+		touch ${group}.dummy.sv.vcf
+		"""
+}
 
 process add_to_loqusdb {
 	cpus 1
@@ -3785,7 +3797,9 @@ process add_to_loqusdb {
 	memory '100 MB'
 	time '25m'
 	input:
-		tuple val(group), val(type), path(vcf), path(tbi), path(ped), path(svvcf)
+		tuple val(group), val(type), path(vcf), path(tbi)
+		tuple val(group2), path(ped)
+		tuple val(group3), path(svvcf)
 
 	output:
 		path("${group}*.loqus"), emit: loqusdb_done
