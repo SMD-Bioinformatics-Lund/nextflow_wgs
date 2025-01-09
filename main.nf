@@ -126,7 +126,7 @@ workflow NEXTFLOW_WGS {
 	ch_ped_trio = ch_ped_trio.mix(ch_ped_base)
 	if(params.mode == "family" && params.assay == "wgs") {
 
-		ch_ped_fa = create_ped.out.ped_fa)
+		ch_ped_fa = create_ped.out.ped_fa
 		ch_ped_ma = create_ped.out.ped_ma
 
 		ch_ped_trio = ch_ped_trio.mix(ch_ped_fa).mix(ch_ped_ma)
