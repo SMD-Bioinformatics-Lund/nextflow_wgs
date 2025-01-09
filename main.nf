@@ -3482,7 +3482,7 @@ process svdb_merge_panel {
 		tuple val(group), val(id), path(vcfs)
 
 	output:
-		tuple val(group), path("${group}.merged.vcf"), emit: merged_vcf
+		tuple val(group), val(id), path("${group}.merged.vcf"), emit: merged_vcf
 		path "*versions.yml", emit: versions
 
 
