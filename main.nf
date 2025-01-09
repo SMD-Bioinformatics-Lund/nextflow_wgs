@@ -374,8 +374,16 @@ workflow NEXTFLOW_WGS {
 			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf)
 		}
 
+		// ANNOTATE SVs //
 		annotsv(ch_postprocessed_merged_sv_vcf)
 		vep_sv(ch_postprocessed_merged_sv_vcf)
+		postprocess_vep_sv(vep_sv.out.vep_sv_vcf)
+		add_omim(postprocess_vep_sv.out.merged_processed_vcf)
+		artefact(add_omim.out.vcf)
+
+		// ch_prescore_ped = artefact.out.vcf.join()
+
+		prescore(artefact.out.vcf)
 
 
 	} else {
@@ -3871,7 +3879,7 @@ process annotsv {
 		version_str = annotsv_version(task)
 		"""
 		export ANNOTSV="/AnnotSV"
-		/AnnotSV/bin/AnnotSV -SvinputFile ${sv} \\
+	/AnnotSV/bin/AnnotSV -SvinputFile ${sv_vcf} \\
 			-typeOfAnnotation full \\
 			-outputDir ${group} \\
 			-genomeBuild GRCh38
@@ -3971,7 +3979,7 @@ process postprocess_vep_sv {
 		tuple val(group), val(id), path(vcf)
 
 	output:
-		tuple val(group), path("${group}.vep.clean.merge.vcf"), emit: add_omim_vcf
+		tuple val(group), path("${group}.vep.clean.merge.vcf"), emit: merged_processed_vcf
 		path "*versions.yml", emit: versions
 
 	script:
@@ -4006,152 +4014,152 @@ def postprocess_vep_sv_version(task) {
 	"""
 }
 
-// process add_omim {
-// 	cpus 2
-// 	memory '10GB'
-// 	time '1h'
-// 	tag "$group"
+process add_omim {
+	cpus 2
+	memory '10GB'
+	time '1h'
+	tag "$group"
 
-// 	input:
-// 		tuple val(group), path(vcf)
+	input:
+		tuple val(group), path(vcf)
 
-// 	output:
-// 		tuple val(group), path("${group}.vep.clean.merge.omim.vcf"), emit: artefact_vcf
+	output:
+		tuple val(group), path("${group}.vep.clean.merge.omim.vcf"), emit: vcf
 
-// 	script:
-// 		"""
-// 		add_omim.pl $params.OMIM_GENES < $vcf > ${group}.vep.clean.merge.omim.vcf
-// 		"""
-// 	stub:
-// 		"""
-// 		touch "${group}.vep.clean.merge.omim.vcf"
-// 		"""
-// }
-
-
-
-// // Query artefact db
-// process artefact {
-// 	cpus 2
-// 	tag "$group"
-// 	time '10h'
-// 	memory '10 GB'
-// 	container  "${params.container_svdb}"
+	script:
+		"""
+		add_omim.pl $params.OMIM_GENES < $vcf > ${group}.vep.clean.merge.omim.vcf
+		"""
+	stub:
+		"""
+		touch "${group}.vep.clean.merge.omim.vcf"
+		"""
+}
 
 
-// 	input:
-// 		tuple val(group), path(sv)
-// 	output:
-// 		tuple val(group), path("${group}.artefact.vcf"), emit: manip_vcf,manip_vcf_ma,manip_vcf_fa
-// 		path "*versions.yml", emit: versions
 
-// 	script:
-// 		// use loqusdb dump not svdb database //
-// 		if (params.gatkcnv) {
-// 			"""
-// 			svdb \\
-// 			--query --bnd_distance 25000 --overlap 0.7 --in_occ Obs --out_occ ACOUNT --in_frq Frq --out_frq AFRQ  \\
-// 			--db $params.svdb \\
-// 			--ins_distance 0 \\
-// 			--query_vcf $sv > ${group}.artefact.vcf
-
-// 			${artefact_version(task)}
-// 			"""
-// 		}
-// 		// for oncov1-0 still use svdb database remove in future//
-// 		else {
-// 			"""
-// 			svdb \\
-// 			--sqdb $params.svdb \\
-// 			--query \\
-// 			--query_vcf $sv \\
-// 			--out_occ ACOUNT \\
-// 			--ins_distance 0 \\
-// 			--out_frq AFRQ > ${group}.artefact.vcf
-
-// 			${artefact_version(task)}
-// 			"""
-// 		}
-
-// 	stub:
-// 		"""
-// 		touch "${group}.artefact.vcf"
-// 		${artefact_version(task)}
-// 		"""
-// }
-// def artefact_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    svdb: \$( echo \$(svdb) | head -1 | sed 's/usage: SVDB-\\([0-9]\\.[0-9]\\.[0-9]\\).*/\\1/' )
-// 	END_VERSIONS
-// 	"""
-// }
+// Query artefact db
+process artefact {
+	cpus 2
+	tag "$group"
+	time '10h'
+	memory '10 GB'
+	container  "${params.container_svdb}"
 
 
-// process prescore {
-// 	cpus 2
-// 	tag "$group"
-// 	memory '10 GB'
-// 	time '1h'
+	input:
+		tuple val(group), path(sv)
+	output:
+		tuple val(group), path("${group}.artefact.vcf"), emit: vcf
+		path "*versions.yml", emit: versions
 
-// 	input:
-// 		tuple val(group), path(sv_artefact), val(type), path(ped), path(annotsv)
+	script:
+		// use loqusdb dump not svdb database //
+		if (params.gatkcnv) {
+			"""
+			svdb \\
+			--query --bnd_distance 25000 --overlap 0.7 --in_occ Obs --out_occ ACOUNT --in_frq Frq --out_frq AFRQ  \\
+			--db $params.svdb \\
+			--ins_distance 0 \\
+			--query_vcf $sv > ${group}.artefact.vcf
 
-// 	output:
-// 		tuple val(group), val(type), path("${group}.annotatedSV.vcf"), emit: annotatedSV
+			${artefact_version(task)}
+			"""
+		}
+		// for oncov1-0 still use svdb database remove in future//
+		else {
+			"""
+			svdb \\
+			--sqdb $params.svdb \\
+			--query \\
+			--query_vcf $sv \\
+			--out_occ ACOUNT \\
+			--ins_distance 0 \\
+			--out_frq AFRQ > ${group}.artefact.vcf
 
-// 	script:
-// 		"""
-// 		prescore_sv.pl \\
-// 		--sv $sv_artefact --ped $ped --annotsv $annotsv --osv ${group}.annotatedSV.vcf
-// 		"""
+			${artefact_version(task)}
+			"""
+		}
 
-// 	stub:
-// 		"""
-// 		touch "${group}.annotatedSV.vcf"
-// 		"""
-// }
+	stub:
+		"""
+		touch "${group}.artefact.vcf"
+		${artefact_version(task)}
+		"""
+}
+def artefact_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    svdb: \$( echo \$(svdb) | head -1 | sed 's/usage: SVDB-\\([0-9]\\.[0-9]\\.[0-9]\\).*/\\1/' )
+	END_VERSIONS
+	"""
+}
 
-// process score_sv {
-// 	tag "$group $mode"
-// 	cpus 2
-// 	memory '10 GB'
-// 	time '2h'
-// 	container  "${params.container_genmod}"
 
-// 	input:
-// 		tuple val(group), val(type), path(in_vcf)
+process prescore {
+	cpus 2
+	tag "$group"
+	memory '10 GB'
+	time '1h'
 
-// 	output:
-// 		tuple val(group), val(type), path("${group_score}.sv.scored.vcf"), emit: ch_scored_sv
-// 		path "*versions.yml", emit: versions
+	input:
+		tuple val(group), path(sv_artefact), val(type), path(ped), path(annotsv)
 
-// 	script:
-// 		def model = (params.mode == "family" && params.antype == "wgs") ? params.svrank_model : params.svrank_model_s
-// 		def group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
-// 		"""
-// 		genmod score --family_id ${group_score} --score_config ${model} --rank_results --outfile "${group_score}.sv.scored.vcf" ${in_vcf}
+	output:
+		tuple val(group), val(type), path("${group}.annotatedSV.vcf"), emit: annotated_sv_vcf
 
-// 		${score_sv_version(task)}
-// 		"""
+	script:
+		"""
+		prescore_sv.pl \\
+		--sv $sv_artefact --ped $ped --annotsv $annotsv --osv ${group}.annotatedSV.vcf
+		"""
 
-// 	stub:
-// 		group_score = group
-// 		"""
-// 		touch "${group_score}.sv.scored.vcf"
+	stub:
+		"""
+		touch "${group}.annotatedSV.vcf"
+		"""
+}
 
-// 		${score_sv_version(task)}
-// 		"""
-// }
-// def score_sv_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    genmod: \$(echo \$(genmod --version 2>&1) | sed -e "s/^.*genmod version: //")
-// 	END_VERSIONS
-// 	"""
-// }
+process score_sv {
+	tag "$group $mode"
+	cpus 2
+	memory '10 GB'
+	time '2h'
+	container  "${params.container_genmod}"
+
+	input:
+		tuple val(group), val(type), path(in_vcf)
+
+	output:
+		tuple val(group), val(type), path("${group_score}.sv.scored.vcf"), emit: ch_scored_sv
+		path "*versions.yml", emit: versions
+
+	script:
+		def model = (params.mode == "family" && params.antype == "wgs") ? params.svrank_model : params.svrank_model_s
+		def group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
+		"""
+		genmod score --family_id ${group_score} --score_config ${model} --rank_results --outfile "${group_score}.sv.scored.vcf" ${in_vcf}
+
+		${score_sv_version(task)}
+		"""
+
+	stub:
+		group_score = group
+		"""
+		touch "${group_score}.sv.scored.vcf"
+
+		${score_sv_version(task)}
+		"""
+}
+def score_sv_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    genmod: \$(echo \$(genmod --version 2>&1) | sed -e "s/^.*genmod version: //")
+	END_VERSIONS
+	"""
+}
 
 // process bgzip_scored_genmod {
 // 	tag "$group"
