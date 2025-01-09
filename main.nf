@@ -394,13 +394,21 @@ workflow NEXTFLOW_WGS {
 				tuple(group, type, ped, annotsv_tsv, artefact_vcf)
 			}
 
-		log.info("prescore ped input after cross::")
+		log.info("prescore ped input after cross:")
 		ch_prescore_input.view()
 		prescore(ch_prescore_input)
+		score_sv(prescore.out.annotated_sv_vcf)
+		bgzip_scored_genmod(score_sv.out.scored_vcf)
 
+		ch_compound_finder_input = bgzip_scored_genmod.out.sv_rescore
+			.join(ch_ped_trio, by: [0,1])
+			.join(vcf_completion.out.vcf_tbi, by: [0,1])
+
+		ch_compound_finder_input.view()
+		compound_finder(ch_compound_finder_input)
 
 	} else {
-		// TODO: move to top w/ if not
+		// TODO: move to top w/ if-not at the beginning
 		ch_loqusdb_no_sv_dummy = ch_meta
 			.first()
 			.map { row ->
@@ -4152,7 +4160,7 @@ process score_sv {
 		tuple val(group), val(type), path(in_vcf)
 
 	output:
-		tuple val(group), val(type), path("${group_score}.sv.scored.vcf"), emit: ch_scored_sv
+		tuple val(group), val(type), path("${group_score}.sv.scored.vcf"), emit: scored_vcf
 		path "*versions.yml", emit: versions
 
 	script:
@@ -4181,108 +4189,108 @@ def score_sv_version(task) {
 	"""
 }
 
-// process bgzip_scored_genmod {
-// 	tag "$group"
-// 	cpus 4
-// 	memory '1 GB'
-// 	time '5m'
-// 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
-// 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz.tbi'
-// 	container  "${params.container_bcftools}"
+process bgzip_scored_genmod {
+	tag "$group"
+	cpus 4
+	memory '1 GB'
+	time '5m'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz.tbi'
+	container  "${params.container_bcftools}"
 
-// 	input:
-// 		tuple val(group), val(type), path(scored_sv_vcf)
+	input:
+		tuple val(group), val(type), path(scored_sv_vcf)
 
-// 	output:
-// 		tuple val(group), val(type), path("${group_score}.sv.scored.sorted.vcf.gz"), path("${group_score}.sv.scored.sorted.vcf.gz.tbi"), emit: sv_rescore, sv_rescore_ma, sv_rescore_fa
-// 		tuple val(group), path("${group_score}.sv.scored.sorted.vcf.gz"), emit: svvcf_bed, svvcf_pod
-// 		tuple val(group), path("${group}_sv.INFO"), emit: sv_INFO
-// 		path "*versions.yml", emit: versions
+	output:
+		tuple val(group), val(type), path("${group_score}.sv.scored.sorted.vcf.gz"), path("${group_score}.sv.scored.sorted.vcf.gz.tbi"), emit: sv_rescore
+		tuple val(group), path("${group_score}.sv.scored.sorted.vcf.gz"), emit: sv_rescore_vcf
+		tuple val(group), path("${group}_sv.INFO"), emit: sv_INFO
+		path "*versions.yml", emit: versions
 
-// 	script:
-// 		group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
-// 		"""
-// 			bcftools sort -O v -o ${group_score}.sv.scored.sorted.vcf ${scored_sv_vcf}
-// 			bgzip -@ ${task.cpus} ${group_score}.sv.scored.sorted.vcf -f
-// 			tabix ${group_score}.sv.scored.sorted.vcf.gz -f
-// 			echo "SV\t$type\t${params.accessdir}/vcf/${group_score}.sv.scored.sorted.vcf.gz" > ${group}_sv.INFO
+	script:
+		group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
+		"""
+			bcftools sort -O v -o ${group_score}.sv.scored.sorted.vcf ${scored_sv_vcf}
+			bgzip -@ ${task.cpus} ${group_score}.sv.scored.sorted.vcf -f
+			tabix ${group_score}.sv.scored.sorted.vcf.gz -f
+			echo "SV\t$type\t${params.accessdir}/vcf/${group_score}.sv.scored.sorted.vcf.gz" > ${group}_sv.INFO
 
-// 			${bgzip_score_sv_version(task)}
-// 		"""
-// 	stub:
-// 		group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
-// 		"""
-// 			touch "${group_score}.sv.scored.sorted.vcf.gz"
-// 			touch "${group_score}.sv.scored.sorted.vcf.gz.tbi"
-// 			touch "${group}_sv.INFO"
+			${bgzip_score_sv_version(task)}
+		"""
+	stub:
+		group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
+		"""
+			touch "${group_score}.sv.scored.sorted.vcf.gz"
+			touch "${group_score}.sv.scored.sorted.vcf.gz.tbi"
+			touch "${group}_sv.INFO"
 
-// 			${bgzip_score_sv_version(task)}
-// 		"""
-// }
-// def bgzip_score_sv_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
-// 	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
-// 	END_VERSIONS
-// 	"""
-// }
+			${bgzip_score_sv_version(task)}
+		"""
+}
+def bgzip_score_sv_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
+	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
+	END_VERSIONS
+	"""
+}
 
-// process compound_finder {
-// 	cpus 2
-// 	tag "$group ${params.mode}"
-// 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz*'
-// 	memory '10 GB'
-// 	time '2h'
+process compound_finder {
+	cpus 2
+	tag "$group ${params.mode}"
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz*'
+	memory '10 GB'
+	time '2h'
 
-// 	input:
-// 		tuple val(group), val(type), path(sv_vcf), path(sv_tbi), path(ped), path(snv_vcf), path(snv_tbi)
+	input:
+		tuple val(group), val(type), path(sv_vcf), path(sv_tbi), path(ped), path(snv_vcf), path(snv_tbi)
 
-// 	output:
-// 		tuple val(group), path("${group_score}.snv.rescored.sorted.vcf.gz"), path("${group_score}.snv.rescored.sorted.vcf.gz.tbi"), emit: vcf_yaml
-// 		tuple val(group), path("${group}_svp.INFO"), emit: svcompound_INFO
-// 		path "*versions.yml", emit: versions
-
-
-// 	when:
-// 		params.mode == "family" && params.assay == "wgs"
+	output:
+		tuple val(group), path("${group_score}.snv.rescored.sorted.vcf.gz"), path("${group_score}.snv.rescored.sorted.vcf.gz.tbi"), emit: vcf_yaml
+		tuple val(group), path("${group}_svp.INFO"), emit: svcompound_INFO
+		path "*versions.yml", emit: versions
 
 
-// 	script:
-// 		group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
+	when:
+		params.mode == "family" && params.assay == "wgs"
 
-// 		"""
-// 		compound_finder.pl \\
-// 			--sv $sv_vcf --ped $ped --snv $snv_vcf \\
-// 			--osv ${group_score}.sv.rescored.sorted.vcf \\
-// 			--osnv ${group_score}.snv.rescored.sorted.vcf \\
-// 			--skipsv
-// 		bgzip -@ ${task.cpus} ${group_score}.snv.rescored.sorted.vcf -f
-// 		tabix ${group_score}.snv.rescored.sorted.vcf.gz -f
-// 		echo "SVc	$type	${params.accessdir}/vcf/${group_score}.sv.scored.sorted.vcf.gz,${params.accessdir}/vcf/${group_score}.snv.rescored.sorted.vcf.gz" > ${group}_svp.INFO
 
-// 		${compound_finder_version(task)}
-// 		"""
+	script:
+		group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
 
-// 	stub:
-// 		group_score = group
-// 		"""
-// 		touch "${group_score}.snv.rescored.sorted.vcf.gz"
-// 		touch "${group_score}.snv.rescored.sorted.vcf.gz.tbi"
-// 		touch "${group}_svp.INFO"
+		"""
+		compound_finder.pl \\
+			--sv $sv_vcf --ped $ped --snv $snv_vcf \\
+			--osv ${group_score}.sv.rescored.sorted.vcf \\
+			--osnv ${group_score}.snv.rescored.sorted.vcf \\
+			--skipsv
+		bgzip -@ ${task.cpus} ${group_score}.snv.rescored.sorted.vcf -f
+		tabix ${group_score}.snv.rescored.sorted.vcf.gz -f
+		echo "SVc	$type	${params.accessdir}/vcf/${group_score}.sv.scored.sorted.vcf.gz,${params.accessdir}/vcf/${group_score}.snv.rescored.sorted.vcf.gz" > ${group}_svp.INFO
 
-// 		${compound_finder_version(task)}
-// 		"""
-// }
-// def compound_finder_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
-// 	END_VERSIONS
-// 	"""
-// }
+		${compound_finder_version(task)}
+		"""
+
+	stub:
+		group_score = group
+		"""
+		touch "${group_score}.snv.rescored.sorted.vcf.gz"
+		touch "${group_score}.snv.rescored.sorted.vcf.gz.tbi"
+		touch "${group}_svp.INFO"
+
+		${compound_finder_version(task)}
+		"""
+}
+def compound_finder_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
+	END_VERSIONS
+	"""
+}
 
 
 // process output_files {
