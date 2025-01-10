@@ -349,7 +349,7 @@ workflow NEXTFLOW_WGS {
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
 		if (params.run_melt) {
 			sentieon_qc_postprocess.out.qc_json.view()
-			melt_qc_val(sentieon_qc_postprocess.out.qc_json_file)
+			melt_qc_val(sentieon_qc_postprocess.out.qc_json)
 			melt(ch_bam_bai, melt_qc_val.out.qc_melt_val)
 			intersect_melt(melt.out.melt_vcf_nonfiltered)
 		}
@@ -965,7 +965,6 @@ process sentieon_qc_postprocess {
 
 	output:
 		tuple val(group), val(id), path("${id}_qc.json"), emit: qc_json
-		tuple val(group), val(id), file("${id}_qc.json"), emit: qc_json_file
 
 	script:
 		assay = (params.onco || params.exome) ? "panel" : "wgs"
@@ -1384,18 +1383,19 @@ process melt_qc_val {
 	time '20m'
 	memory '50 MB'
 	input:
-		tuple val(group), val(id), file(qc_json)
+		tuple val(group), val(id), path(qc_json)
 
 	output:
 		tuple val(group), val(id), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV), emit: qc_melt_val
 
 	script:
 		// Collect qc-data if possible
-		println qc_json
+		File qc_json_file = new File(qc_json)
+
 		def ins_dev
 		def coverage
 		def ins_size
-		qc_json.readLines().each {
+		qc_json_file.readLines().each {
 			if (it =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
 				ins_dev = it =~ /\"(ins_size_dev)\" : \"(\S+)\"/
 			}
