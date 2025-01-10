@@ -344,10 +344,13 @@ workflow NEXTFLOW_WGS {
 			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge.out.merged_vcf)
 		}
 
+		// MELT //
+		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
 		if (params.run_melt) {
 			sentieon_qc_postprocess.out.qc_json.view()
 			melt_qc_val(sentieon_qc_postprocess.out.qc_json)
 			melt(ch_bam_bai, melt_qc_val.out.qc_melt_val)
+			intersect_melt(melt.out.melt_vcf_nonfiltered)
 		}
 
 		if (params.antype == "panel") {
@@ -1480,66 +1483,66 @@ def melt_version(task) {
 	"""
 }
 
-// process intersect_melt {
-// 	cpus 2
-// 	tag "$id"
-// 	memory '2 GB'
-// 	time '1h'
-// 	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: 'true', pattern: '*.vcf'
+process intersect_melt {
+	cpus 2
+	tag "$id"
+	memory '2 GB'
+	time '1h'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: 'true', pattern: '*.vcf'
 
-// 	input:
-// 		tuple val(group), val(id), path(vcf)
+	input:
+		tuple val(group), val(id), path(vcf)
 
-// 	output:
-// 		tuple val(group), val(id), path("${id}.melt.merged.intersected.vcf"), emit: ch_melt_vcf
-// 		path "*versions.yml", emit: versions
+	output:
+		tuple val(group), val(id), path("${id}.melt.merged.intersected.vcf"), emit: merged_intersected_vcf
+		path "*versions.yml", emit: versions
 
-// 	when:
-// 		params.run_melt
+	when:
+		params.run_melt
 
-// 	script:
-// 		"""
-// 		bedtools intersect -a $vcf -b $params.intersect_bed -header > ${id}.melt.merged.intersected.vcf
-// 		${intersect_melt_version(task)}
-// 		"""
+	script:
+		"""
+		bedtools intersect -a $vcf -b $params.intersect_bed -header > ${id}.melt.merged.intersected.vcf
+		${intersect_melt_version(task)}
+		"""
 
-// 	stub:
-// 		"""
-// 		touch "${id}.melt.merged.intersected.vcf"
-// 		${intersect_melt_version(task)}
-// 		"""
-// }
-// def intersect_melt_version(task) {
-// 	"""
-// 	cat <<-END_VERSIONS > ${task.process}_versions.yml
-// 	${task.process}:
-// 	    bedtools: \$(echo \$(bedtools --version 2>&1) | sed -e "s/^.*bedtools v//" )
-// 	END_VERSIONS
-// 	"""
-// }
+	stub:
+		"""
+		touch "${id}.melt.merged.intersected.vcf"
+		${intersect_melt_version(task)}
+		"""
+}
+def intersect_melt_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    bedtools: \$(echo \$(bedtools --version 2>&1) | sed -e "s/^.*bedtools v//" )
+	END_VERSIONS
+	"""
+}
 
 
-// process bamtoyaml {
-// 	cpus 1
-// 	time "5m"
-// 	memory "2MB"
+process bamtoyaml {
+	cpus 1
+	time "5m"
+	memory "2MB"
 
-// 	input:
-// 		tuple val(group), val(id), bam, bai
+	input:
+	tuple val(group), val(id), path(bam), path(bai)
 
-// 	output:
-// 		tuple val(group), path("${group}_bamstart.INFO"), emit: bamchoice_INFO
+	output:
+		tuple val(group), path("${group}_bamstart.INFO"), emit: bamchoice_INFO
 
-// 	script:
-// 		"""
-// 		echo "BAM	$id	/access/${params.subdir}/bam/${bam.getName()}" > ${group}_bamstart.INFO
-// 		"""
+	script:
+		"""
+		echo "BAM	$id	/access/${params.subdir}/bam/${bam.getName()}" > ${group}_bamstart.INFO
+		"""
 
-// 	stub:
-// 		"""
-// 		touch "${group}_bamstart.INFO"
-// 		"""
-// }
+	stub:
+		"""
+		touch "${group}_bamstart.INFO"
+		"""
+}
 
 
 process gvcf_combine {
