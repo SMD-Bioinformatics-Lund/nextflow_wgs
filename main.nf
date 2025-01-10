@@ -1381,21 +1381,20 @@ process melt_qc_val {
 	time '20m'
 	memory '50 MB'
 	input:
-		tuple val(group), val(id), path(qc_json)
+		tuple val(group), val(id), file(qc_json) // Script requires file not path
 
 	output:
 		tuple val(group), val(id), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV), emit: qc_melt_val
 
 	script:
 		// Collect qc-data if possible
-		def json_file = file(qc_json)
 		def ins_dev
 		def coverage
 		def ins_size
 		def INS_SIZE
 		def MEAN_DEPTH
 		def COV_DEV
-		json_file.readLines().each {
+		qc_json.readLines().each {
 			if (it =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
 				ins_dev = it =~ /\"(ins_size_dev)\" : \"(\S+)\"/
 			}
