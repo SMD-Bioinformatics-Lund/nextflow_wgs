@@ -362,15 +362,18 @@ workflow NEXTFLOW_WGS {
 				def MEAN_DEPTH
 				def COV_DEV
 
+				println qc_json
+				println qc_json.readLines()
 				qc_json.readLines().each {
-					if (it =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
-						ins_dev = it =~ /\"(ins_size_dev)\" : \"(\S+)\"/
+					line ->
+					if (line =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
+						ins_dev = line =~ /\"(ins_size_dev)\" : \"(\S+)\"/
 						}
-					if (it =~ /\"(mean_coverage)\" : \"(\S+)\"/) {
-						coverage = it =~ /\"(mean_coverage)\" : \"(\S+)\"/
+					if (line =~ /\"(mean_coverage)\" : \"(\S+)\"/) {
+						coverage = line =~ /\"(mean_coverage)\" : \"(\S+)\"/
 						}
-					if (it =~ /\"(ins_size)\" : \"(\S+)\"/) {
-						ins_size = it =~ /\"(ins_size)\" : \"(\S+)\"/
+					if (line =~ /\"(ins_size)\" : \"(\S+)\"/) {
+						ins_size = line =~ /\"(ins_size)\" : \"(\S+)\"/
 						}
 				}
 
