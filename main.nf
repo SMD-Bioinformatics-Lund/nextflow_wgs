@@ -452,24 +452,25 @@ workflow NEXTFLOW_WGS {
 		compound_finder(ch_compound_finder_input)
 
 	} else {
-		// TODO: move to top w/ if-not at the beginning
+		// TODO: move the entire else-block to top w/ if-not at the beginning
+
+		// add_to_loqusb won't run if no svvcf is generated
+		// the code below creates dummy svvcf for no-SV runs
 		ch_loqusdb_no_sv_dummy = ch_meta
 			.first()
 			.map { row ->
 				def group = row.group
-				def assay = row.assay
-				tuple(group, assay)
+				def sv_vcf_dummy = "NA"
+
+				tuple(group, sv_vcf_dummy)
 			}
 
-		dummy_svvcf_for_loqusdb(ch_loqusdb_no_sv_dummy)
-		ch_loqusdb_sv = ch_loqusdb_sv.mix(dummy_svvcf_for_loqusdb.out.dummy_vcf)
+		ch_loqusdb_sv = ch_loqusdb_sv.mix(ch_loqusdb_no_sv_dummy)
+
 	}
 
 	log.info("loqusdb input:")
 	//TODO: make work w/ dummy
-
-
-
 	// LOQUSDB //
 	add_to_loqusdb(
 		ch_ped_base,
@@ -3921,7 +3922,7 @@ process add_to_loqusdb {
 		def sv_variants_arg=""
 
 		// Handle missing svvcf:
-		if(svvcf.baseName != "NONE") {
+		if(svvcf.baseName != "NA") {
 			sv_variants_arg="--sv-variants ${params.accessdir}/sv_vcf/merged/${svvcf}"
 		}
 
