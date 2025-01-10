@@ -4,6 +4,8 @@
 
 * Switch to DSL2
 * Remove contamination check for non-wgs profiles
+* Remove `melt_qc_val` process (now exists in main workflow)
+* Remove `dummy_svvcf_for_loqusdb` process
 
 ### 3.14.1
 

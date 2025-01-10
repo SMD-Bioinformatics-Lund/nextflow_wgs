@@ -1421,59 +1421,7 @@ def vcfbreakmulti_expansionhunter_version(task) {
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////
-process melt_qc_val {
 
-	tag "$id"
-	time '20m'
-	memory '50 MB'
-	stageInMode 'copy'
-
-	input:
-		tuple val(group), val(id), path(qc_json)
-
-	output:
-		tuple val(group), val(id), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV), emit: qc_melt_val
-
-	script:
-		// Collect qc-data if possible
-		def ins_dev
-		def coverage
-		def ins_size
-
-		println "Staged qc_json file: ${qc_json}"
-		qc_json = file(qc_json)
-		println "Staged qc_json file after file conversion?: ${qc_json}"
-		qc_json.readLines().each {
-			if (it =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
-				ins_dev = it =~ /\"(ins_size_dev)\" : \"(\S+)\"/
-			}
-			if (it =~ /\"(mean_coverage)\" : \"(\S+)\"/) {
-				coverage = it =~ /\"(mean_coverage)\" : \"(\S+)\"/
-			}
-			if (it =~ /\"(ins_size)\" : \"(\S+)\"/) {
-				ins_size = it =~ /\"(ins_size)\" : \"(\S+)\"/
-			}
-		}
-		// might need to be defined for -resume to work "def INS_SIZE" and so on....
-		INS_SIZE = ins_size[0][2]
-		MEAN_DEPTH = coverage[0][2]
-		COV_DEV = ins_dev[0][2]
-
-	"""
-	echo "QC Metrics extracted: INS_SIZE=$INS_SIZE, MEAN_DEPTH=$MEAN_DEPTH, COV_DEV=$COV_DEV"
-	"""
-
-	stub:
-		// Def first and assignment later is to prevent lsp warning
-		// about variables not being used
-		INS_SIZE = 0
-		COV_DEV = 0
-		MEAN_DEPTH = 0 		// Needs to be here to prevent error when .command.sh is executed:
-	"""
-	echo "QC Metrics extracted: INS_SIZE=$INS_SIZE, MEAN_DEPTH=$MEAN_DEPTH, COV_DEV=$COV_DEV"
-	"""
-
-}
 
 // MELT always give VCFs for each type of element defined in mei_list
 // If none found -> 0 byte vcf. merge_melt.pl merges the three, if all empty
@@ -3868,36 +3816,6 @@ def svdb_merge_version(task) {
 	"""
 }
 
-process dummy_svvcf_for_loqusdb {
-
-	// add_to_loqusb won't run if no svvcf is generated
-	// this process creates dummy svvcf for no-SV runs
-	// assay input only exists to disable nextflow warning
-	// for channels emitting with less than two input elements
-
-	cpus 1
-	tag "$group"
-	memory '10 MB'
-	time '10m'
-
-	input:
-		tuple val(group), val(assay)
-
-	output:
-		tuple val(group),  path("${group}.dummy.sv.vcf"), emit: dummy_vcf
-
-
-	script:
-
-		"""
-		touch ${group}.dummy.sv.vcf
-		"""
-
-	stub:
-		"""
-		touch ${group}.dummy.sv.vcf
-		"""
-}
 
 process add_to_loqusdb {
 	cpus 1
