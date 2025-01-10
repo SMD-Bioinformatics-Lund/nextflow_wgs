@@ -347,7 +347,7 @@ workflow NEXTFLOW_WGS {
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
 		if (params.run_melt) {
 			sentieon_qc_postprocess.out.qc_json.view()
-			melt_qc_val(sentieon_qc_postprocess.out.qc_json)
+			melt_qc_val(sentieon_qc_postprocess.out.qc_json_file)
 			melt(ch_bam_bai, melt_qc_val.out.qc_melt_val)
 			intersect_melt(melt.out.melt_vcf_nonfiltered)
 		}
@@ -963,9 +963,9 @@ process sentieon_qc_postprocess {
 
 	output:
 		tuple val(group), val(id), path("${id}_qc.json"), emit: qc_json
+		tuple val(group), val(id), file("${id}_qc.json"), emit: qc_json_file
 
 	script:
-
 		assay = (params.onco || params.exome) ? "panel" : "wgs"
 		"""
 		qc_sentieon.pl \\
@@ -1382,7 +1382,7 @@ process melt_qc_val {
 	time '20m'
 	memory '50 MB'
 	input:
-		tuple val(group), val(id), path(qc_json)
+		tuple val(group), val(id), file(qc_json)
 
 	output:
 		tuple val(group), val(id), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV), emit: qc_melt_val
