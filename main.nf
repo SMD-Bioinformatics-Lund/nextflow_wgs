@@ -1379,9 +1379,12 @@ def vcfbreakmulti_expansionhunter_version(task) {
 //////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////
 process melt_qc_val {
+
 	tag "$id"
 	time '20m'
 	memory '50 MB'
+	stageInMode 'copy'
+
 	input:
 		tuple val(group), val(id), path(qc_json)
 
@@ -1415,6 +1418,9 @@ process melt_qc_val {
 		MEAN_DEPTH = coverage[0][2]
 		COV_DEV = ins_dev[0][2]
 
+	"""
+	echo "QC Metrics extracted: INS_SIZE=$INS_SIZE, MEAN_DEPTH=$MEAN_DEPTH, COV_DEV=$COV_DEV"
+	"""
 
 	stub:
 		// Def first and assignment later is to prevent lsp warning
@@ -1423,7 +1429,7 @@ process melt_qc_val {
 		MEAN_DEPTH = 0 		// Needs to be here to prevent error when .command.sh is executed:
 		COV_DEV = 0
 	"""
-	true
+	echo "QC Metrics extracted: INS_SIZE=$INS_SIZE, MEAN_DEPTH=$MEAN_DEPTH, COV_DEV=$COV_DEV"
 	"""
 
 }
