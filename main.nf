@@ -158,7 +158,10 @@ workflow NEXTFLOW_WGS {
 	// POST SEQ QC //
 	sentieon_qc(ch_bam_bai)
 	// TODO: dedupmetrics wont be in bam start, send in dummy file
-	sentieon_qc_postprocess(ch_dedup_stats.mix(ch_bam_start_dedup_dummy), sentieon_qc.out.sentieon_qc_metrics)
+	sentieon_qc_postprocess(
+		ch_dedup_stats.mix(ch_bam_start_dedup_dummy),
+		sentieon_qc.out.sentieon_qc_metrics
+	)
 
 	// COVERAGE //
 	d4_coverage(ch_bam_bai)
@@ -186,8 +189,6 @@ workflow NEXTFLOW_WGS {
 		freebayes(ch_bam_bai)
 		ch_split_normalize_concat_vcf = freebayes.out.freebayes_variants
 	}
-
-
 
 	// MITO
 	if (params.antype == "wgs") { // TODO: if params.mito etc ? will probably mess up split_normalize
@@ -236,7 +237,7 @@ workflow NEXTFLOW_WGS {
 				def vcf = vcf_tuple[1]
 				def type = ped_tuple[1]
 				def ped = ped_tuple[2]
-				tuple(group, vcf, type, ped) // Combine elements as desired
+				tuple(group, vcf, type, ped)
 			}
 
 
@@ -294,6 +295,7 @@ workflow NEXTFLOW_WGS {
 
 			// CALL REPEATS //
 
+			// TODO: clean up below:
 			expansionhunter(ch_bam_bai.join(ch_samplesheet.map {row ->
 				tuple(row.group, row.id, row.sex, row.type)
 			}))
@@ -327,9 +329,6 @@ workflow NEXTFLOW_WGS {
 		filter_merge_gatk(postprocessgatk.out.called_gatk)
 		ch_filtered_merged_gatk_calls = filter_merge_gatk.out.merged_filtered_vcf
 
-		// TODO: these two processes can be merged.
-		//       antype.panel has an additional arg to manta
-		//       and different resource allocation
 		ch_manta_out = Channel.empty()
 		if (params.antype == "wgs") {
 			manta(ch_bam_bai)
@@ -386,7 +385,6 @@ workflow NEXTFLOW_WGS {
 		ch_prescore_input = ch_prescore_input.cross(ch_ped_prescore)
 			.map{
 				item ->
-
 				def group = item[0][0]
 				def artefact_vcf = item[0][1]
 				def annotsv_tsv = item[0][2]
@@ -4294,59 +4292,59 @@ def compound_finder_version(task) {
 }
 
 
-// process output_files {
-// 	cpus 2
-// 	memory '1GB'
-// 	time '1h'
+process output_files {
+	cpus 2
+	memory '1GB'
+	time '1h'
 
-// 	input:
-// 		tuple val(group), files
+	input:
+		tuple val(group), files
 
-// 	output:
-// 		tuple val(group), path("${group}.INFO"), emit: yaml_INFO
+	output:
+		tuple val(group), path("${group}.INFO"), emit: yaml_INFO
 
-// 	script:
-// 		files = files.join( ' ' )
+	script:
+		files = files.join( ' ' )
 
-// 		"""
-// 		cat $files > ${group}.INFO
-// 		"""
+		"""
+		cat $files > ${group}.INFO
+		"""
 
-// 	stub:
-// 		"""
-// 		touch "${group}.INFO"
-// 		"""
-// }
-
-
-// process svvcf_to_bed {
-// 	publishDir "${params.results_output_dir}/bed", mode: 'copy' , overwrite: 'true'
-// 	tag "group"
-// 	memory '1 GB'
-// 	time '1h'
-// 	cpus 2
-
-// 	input:
-// 		tuple val(group), path(vcf)
-// 		tuple val(group), val(id), sex, type
-
-// 	output:
-// 		path("${group}.sv.bed")
-
-// 	when:
-// 		params.antype != "panel"
+	stub:
+		"""
+		touch "${group}.INFO"
+		"""
+}
 
 
-// 	script:
-// 		"""
-// 		cnv2bed.pl --cnv $vcf --pb $id > ${group}.sv.bed
-// 		"""
+process svvcf_to_bed {
+	publishDir "${params.results_output_dir}/bed", mode: 'copy' , overwrite: 'true'
+	tag "group"
+	memory '1 GB'
+	time '1h'
+	cpus 2
 
-// 	stub:
-// 		"""
-// 		touch "${group}.sv.bed"
-// 		"""
-// }
+	input:
+		tuple val(group), path(vcf)
+		tuple val(group2), val(id), val(sex), val(type)
+
+	output:
+		path("${group}.sv.bed")
+
+	when:
+		params.antype != "panel"
+
+
+	script:
+		"""
+		cnv2bed.pl --cnv $vcf --pb $id > ${group}.sv.bed
+		"""
+
+	stub:
+		"""
+		touch "${group}.sv.bed"
+		"""
+}
 
 // process plot_pod {
 // 	container  "${params.container_pod}"
