@@ -175,7 +175,9 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// CONTAMINATION //
-	verifybamid2(ch_bam_bai)
+	if (params.antype == "wgs") {
+		verifybamid2(ch_bam_bai)
+	}
 
 	// SNV CALLING //
 	dnascope(ch_bam_bai, bqsr.out.dnascope_bqsr)
