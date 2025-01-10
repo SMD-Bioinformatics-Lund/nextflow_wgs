@@ -4181,7 +4181,7 @@ process prescore {
 	time '1h'
 
 	input:
-		tuple val(group), val(type), path(ped), path(sv_artefact), path(annotsv)
+		tuple val(group), val(type), path(ped), path(annotsv), path(sv_artefact)
 
 	output:
 		tuple val(group), val(type), path("${group}.annotatedSV.vcf"), emit: annotated_sv_vcf
