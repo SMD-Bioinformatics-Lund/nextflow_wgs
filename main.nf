@@ -1398,6 +1398,8 @@ process melt_qc_val {
 		def ins_size
 
 		println "Staged qc_json file: ${qc_json}"
+		qc_json = file(qc_json)
+		println "Staged qc_json file after file conversion?: ${qc_json}"
 		qc_json.readLines().each {
 			if (it =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
 				ins_dev = it =~ /\"(ins_size_dev)\" : \"(\S+)\"/
