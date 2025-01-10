@@ -3927,7 +3927,7 @@ process add_to_loqusdb {
 		}
 
 		"""
-		echo "-db $params.loqusdb load -f ${params.accessdir}/ped/${ped} --variant-file ${params.accessdir}/vcf/${vcf}  > ${group}.loqus"
+		echo "-db $params.loqusdb load -f ${params.accessdir}/ped/${ped} --variant-file ${params.accessdir}/vcf/${vcf} ${sv_variants_arg}" > "${group}.loqus"
 		"""
 
 	stub:
