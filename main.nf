@@ -349,47 +349,49 @@ workflow NEXTFLOW_WGS {
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
 		if (params.run_melt) {
 			sentieon_qc_postprocess.out.qc_json.view()
-			ch_melt_qc_vals = sentieon_qc_postprocess.out.qc_json.map {
-				item ->
+		    ch_melt_qc_vals = sentieon_qc_postprocess.out.qc_json.map { item ->
 				def group = item[0]
-				def id    = item[1]
+				def id = item[1]
 				def qc_json = item[2]
 
 				println "qc_json from tuple: ${qc_json}"
 
-
-				def ins_dev
-				def coverage
-				def ins_size
+				def ins_dev = "NA"   // Default value for stub runs
+				def coverage = "NA"
+				def ins_size = "NA"
 
 				def INS_SIZE
 				def MEAN_DEPTH
 				def COV_DEV
 
-				println qc_json
-				println qc_json.readLines()
-				qc_json.readLines().each {
-					line ->
-					if (line =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
-						ins_dev = line =~ /\"(ins_size_dev)\" : \"(\S+)\"/
+				if (qc_json.exists() && qc_json.size() > 0) {
+					println "Reading qc_json file: ${qc_json}"
+
+					qc_json.readLines().each { line ->
+						if (line =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
+							ins_dev = (line =~ /\"(ins_size_dev)\" : \"(\S+)\"/)[0][2]  // Extract matched value
 						}
-					if (line =~ /\"(mean_coverage)\" : \"(\S+)\"/) {
-						coverage = line =~ /\"(mean_coverage)\" : \"(\S+)\"/
+						if (line =~ /\"(mean_coverage)\" : \"(\S+)\"/) {
+							coverage = (line =~ /\"(mean_coverage)\" : \"(\S+)\"/)[0][2]
 						}
-					if (line =~ /\"(ins_size)\" : \"(\S+)\"/) {
-						ins_size = line =~ /\"(ins_size)\" : \"(\S+)\"/
+						if (line =~ /\"(ins_size)\" : \"(\S+)\"/) {
+							ins_size = (line =~ /\"(ins_size)\" : \"(\S+)\"/)[0][2]
 						}
+					}
+
+					INS_SIZE = ins_size ?: "NA"  // Default to "NA" if not present
+					MEAN_DEPTH = coverage ?: "NA"
+					COV_DEV = ins_dev ?: "NA"
+
+				} else {
+					println "Warning: Empty or missing qc_json file for ${id}. Using default stub values."
+					INS_SIZE = "NA"
+					MEAN_DEPTH = "NA"
+					COV_DEV = "NA"
 				}
-
-
-				// might need to be defined for -resume to work "def INS_SIZE" and so on....
-				INS_SIZE = ins_size[0][2]
-				MEAN_DEPTH = coverage[0][2]
-				COV_DEV = ins_dev[0][2]
 				tuple(group, id, INS_SIZE, MEAN_DEPTH, COV_DEV)
-				}
+			}
 
-			//melt_qc_val(sentieon_qc_postprocess.out.qc_json)
 			melt(ch_bam_bai, ch_melt_qc_vals)
 			intersect_melt(melt.out.melt_vcf_nonfiltered)
 		}
