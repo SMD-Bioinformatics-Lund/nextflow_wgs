@@ -343,13 +343,11 @@ workflow NEXTFLOW_WGS {
 			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge.out.merged_vcf)
 		}
 
-		if(params.run_melt) {
+		if (params.run_melt) {
+			sentieon_qc_postprocess.out.qc_json.view()
 			melt_qc_val(sentieon_qc_postprocess.out.qc_json)
 			melt(ch_bam_bai, melt_qc_val.out.qc_melt_val)
 		}
-
-
-
 
 		if (params.antype == "panel") {
 			ch_panel_merge = Channel.empty()
@@ -1389,13 +1387,14 @@ process melt_qc_val {
 
 	script:
 		// Collect qc-data if possible
+		def json_file = file(qc_json)
 		def ins_dev
 		def coverage
 		def ins_size
 		def INS_SIZE
 		def MEAN_DEPTH
 		def COV_DEV
-		qc_json.readLines().each {
+		json_file.readLines().each {
 			if (it =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
 				ins_dev = it =~ /\"(ins_size_dev)\" : \"(\S+)\"/
 			}
