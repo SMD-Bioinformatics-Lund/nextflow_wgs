@@ -1390,11 +1390,15 @@ process melt_qc_val {
 
 	script:
 		// Collect qc-data if possible
-		File qc_json_file = new File(qc_json)
-
 		def ins_dev
 		def coverage
 		def ins_size
+
+		def qc_json_file
+
+		println "converting file:"
+		qc_json_file = file(qc_json)
+		println "reading file:"
 		qc_json_file.readLines().each {
 			if (it =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
 				ins_dev = it =~ /\"(ins_size_dev)\" : \"(\S+)\"/
