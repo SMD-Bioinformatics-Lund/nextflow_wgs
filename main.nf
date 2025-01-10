@@ -93,6 +93,7 @@ workflow NEXTFLOW_WGS {
 
 	// BAM-start
 	copy_bam(ch_bam_start)
+	bamtoyaml(ch_bam_start)
 
 	if(params.run_melt) {
 		dedupdummy(ch_bam_start)
