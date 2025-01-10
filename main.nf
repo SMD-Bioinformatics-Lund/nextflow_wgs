@@ -1397,12 +1397,8 @@ process melt_qc_val {
 		def coverage
 		def ins_size
 
-		def qc_json_file
-
-		println "converting file:"
-		qc_json_file = file(qc_json)
-		println "reading file:"
-		qc_json_file.readLines().each {
+		println "Staged qc_json file: ${qc_json}"
+		qc_json.readLines().each {
 			if (it =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
 				ins_dev = it =~ /\"(ins_size_dev)\" : \"(\S+)\"/
 			}
