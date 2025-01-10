@@ -392,7 +392,7 @@ workflow NEXTFLOW_WGS {
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
 
-			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, melt_qc_val.out.qc_melt_val)
+			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, ch_melt_qc_vals)
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
 
 			ch_panel_merge = ch_panel_merge.mix(ch_cnvkit_out, ch_manta_out).groupTuple()
