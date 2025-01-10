@@ -348,11 +348,15 @@ workflow NEXTFLOW_WGS {
 		// MELT //
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
 		if (params.run_melt) {
+			sentieon_qc_postprocess.out.qc_json.view()
 			ch_melt_qc_vals = sentieon_qc_postprocess.out.qc_json.map {
 				item ->
 				def group = item[0]
 				def id    = item[1]
 				def qc_json = item[2]
+
+				println "qc_json from tuple: ${qc_json}"
+
 
 				def ins_dev
 				def coverage
