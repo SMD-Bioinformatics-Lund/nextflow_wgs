@@ -3987,7 +3987,7 @@ process postprocess_vep_sv {
 		# --notag above will remove set
 		add_vcf_header_info_records.py \\
 			--vcf ${group}.vep.clean.merge.tmp.vcf \\
-			--info tuple 1 String "Source VCF for the merged record in SVDB" '' '' \\
+			--info set 1 String "Source VCF for the merged record in SVDB" '' '' \\
 			--info VARID 1 String "The variant ID of merged samples" '' '' \\
 			--output ${group}.vep.clean.merge.headers.tmp.vcf
 
