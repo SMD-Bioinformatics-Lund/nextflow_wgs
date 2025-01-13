@@ -442,6 +442,7 @@ workflow NEXTFLOW_WGS {
 		ch_prescore_input.view()
 		prescore(ch_prescore_input)
 		score_sv(prescore.out.annotated_sv_vcf)
+		score_sv.out.scored_vcf.view()
 		bgzip_scored_genmod(score_sv.out.scored_vcf)
 
 		ch_compound_finder_input = bgzip_scored_genmod.out.sv_rescore
