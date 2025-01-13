@@ -410,7 +410,9 @@ workflow NEXTFLOW_WGS {
 			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge_panel.out.loqusdb_vcf)
 
 			postprocess_merged_panel_sv_vcf(svdb_merge_panel.out.merged_vcf, intersect_melt.out.merged_intersected_vcf)
-			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf)
+			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(
+				postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf
+			)
 		}
 
 		// ANNOTATE SVs //
@@ -441,16 +443,25 @@ workflow NEXTFLOW_WGS {
 		log.info("prescore ped input after cross:")
 		ch_prescore_input.view()
 		prescore(ch_prescore_input)
+		prescore.out.annotated_sv_vcf.view()
 		score_sv(prescore.out.annotated_sv_vcf)
 		score_sv.out.scored_vcf.view()
 		bgzip_scored_genmod(score_sv.out.scored_vcf)
 
-		ch_compound_finder_input = bgzip_scored_genmod.out.sv_rescore
-			.join(ch_ped_trio, by: [0,1])
-			.join(vcf_completion.out.vcf_tbi, by: [0,1])
+		ch_compound_finder_input = bgzip_scored_genmod.out.sv_rescore  // Take final scored SV VCF
+			.join(ch_ped_trio, by: [0,1])                              // join with correct ped on group, type
+			.join(vcf_completion.out.vcf_tbi, by: [0,1])               // join with final SNV VCF + index on group, type
 
 		ch_compound_finder_input.view()
 		compound_finder(ch_compound_finder_input)
+
+		if(params.antype == "wgs") {
+			plot_pod(
+				fastgnomad.out.vcf,
+				bgzip_scored_genmod.out.sv_rescore_vcf.join(ch_ped_base),
+				ch_meta.filter { row -> row.type == "proband" }
+			)
+		}
 
 	} else {
 		// TODO: move the entire else-block to top w/ if-not at the beginning
