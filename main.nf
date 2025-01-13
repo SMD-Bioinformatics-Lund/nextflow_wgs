@@ -4128,7 +4128,7 @@ process score_sv {
 		tuple val(group), val(type), path(in_vcf)
 
 	output:
-		tuple val(group), val(type), path("${group_score}.sv.scored.vcf"), emit: scored_vcf
+		tuple val(group), val(type), path("*.sv.scored.vcf"), emit: scored_vcf
 		path "*versions.yml", emit: versions
 
 	script:
