@@ -45,9 +45,9 @@ workflow {
 
 	NEXTFLOW_WGS(ch_samplesheet)
 
-	NEXTFLOW_WGS.out.versions.view()
 	ch_versions.mix(NEXTFLOW_WGS.out.versions)
-	// OUTPUT_VERSIONS(ch_versions)
+	combine_versions(ch_versions)
+
 
 }
 
@@ -57,6 +57,10 @@ workflow NEXTFLOW_WGS {
 	ch_samplesheet
 
 	main:
+
+	ch_versions    = Channel.empty() // Gather software versions
+	ch_output_info = Channel.empty() // Gather data for .INFO
+	ch_qc_json     = Channel.empty() // Gather and merge QC JSONs per sample
 
 	// CHANNEL PREP //
 	ch_fastq = ch_samplesheet
@@ -72,9 +76,27 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// TODO: expand and implement across all processes:
-	ch_meta = ch_samplesheet.map{ row->
+	ch_meta = ch_samplesheet.map{ row ->
 		tuple(row.group, row.id, row.sex, row.type)
 	}
+
+	ch_yaml_meta = ch_samplesheet.map { row ->
+		tuple(
+			row.group,
+			row.id,
+			row.sex,
+			row.mother,
+			row.father,
+			row.phenotype,
+			row.diagnosis,
+			row.type,
+			row.assay,
+			row.clarity_sample_id,
+			(row.containsKey("ffpe") ? row.ffpe : false),
+			(row.containsKey("analysis") ? row.analysis : false)
+		)
+	}
+
 
 	ch_bam_start = ch_samplesheet
 		.filter {
@@ -140,6 +162,7 @@ workflow NEXTFLOW_WGS {
 		//TODO: versions!
 		fastp(ch_fastq)
 		ch_fastq = fastp.out.fastq_trimmed_reads
+		ch_versions = ch_versions.mix(fastp.out.versions)
 	}
 
 	// ALIGN //
@@ -192,7 +215,7 @@ workflow NEXTFLOW_WGS {
 		ch_split_normalize_concat_vcf = freebayes.out.freebayes_variants
 	}
 
-	// MITO
+	// MITO SIDE-QUEST
 	if (params.antype == "wgs") { // TODO: if params.mito etc ? will probably mess up split_normalize
 
 		fetch_MTseqs(ch_bam_bai)
@@ -260,6 +283,7 @@ workflow NEXTFLOW_WGS {
 		if (params.antype == "wgs") {
 			// fastgnomad
 			fastgnomad(split_normalize.out.norm_uniq_dpaf_vcf)
+
 			// upd
 			ch_upd_meta = ch_samplesheet
 				.filter { row ->
@@ -401,6 +425,7 @@ workflow NEXTFLOW_WGS {
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
 
+
 			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, ch_melt_qc_vals)
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
 
@@ -473,7 +498,6 @@ workflow NEXTFLOW_WGS {
 			.map { row ->
 				def group = row.group
 				def sv_vcf_dummy = "NA"
-
 				tuple(group, sv_vcf_dummy)
 			}
 
@@ -490,16 +514,14 @@ workflow NEXTFLOW_WGS {
 		ch_loqusdb_sv
 	)
 
+	// MERGE AND OUTPUT TO CDM
+	merge_qc_json(ch_qc_json)
+	qc_to_cdm(merge_qc_json.out.qc_cdm_merged)
 
-	ch_versions = Channel.empty()
-	// ch_versions.mix(fastp.out.versions)
-	ch_versions.mix(bwa_align.out.versions)
-	ch_versions.mix(markdup.out.versions)
-	ch_versions.mix(bqsr.out.versions)
-	ch_versions.mix(dnascope.out.versions)
-	ch_versions.mix(gvcf_combine.out.versions)
-	// TODO: yasnippet this above
-	ch_versions.view()
+	output_files(ch_output_info.groupTuple())
+
+	ch_yaml_meta  = ch_yaml_meta.join(ch_ped_base, by : [0, 1]).join(output_files.out.yaml_INFO)
+	create_yaml(ch_yaml_meta)
 
 	emit:
 		versions = ch_versions
@@ -2211,61 +2233,61 @@ def split_normalize_version(task) {
 
 // /////////////// Collect QC, emit: single file ///////////////
 
-// process merge_qc_json {
-//     cpus 2
-//     errorStrategy 'retry'
-//     maxErrors 5
-//     publishDir "${params.results_output_dir}/qc", mode: 'copy' , overwrite: 'true', pattern: '*.QC'
-//     tag "$id"
-//     time '1h'
-// 	memory '1 GB'
+process merge_qc_json {
+    cpus 2
+    errorStrategy 'retry'
+    maxErrors 5
+    publishDir "${params.results_output_dir}/qc", mode: 'copy' , overwrite: 'true', pattern: '*.QC'
+    tag "$id"
+    time '1h'
+	memory '1 GB'
 
-//     input:
-//         tuple val(group), val(id), path(qc)
+    input:
+        tuple val(group), val(id), path(qc)
 
-//     output:
-//         tuple id, path("${id}.QC"), emit: qc_cdm_merged
+    output:
+    	tuple val(id), path("${id}.QC"), emit: qc_cdm_merged
 
-//     script:
-//         qc_json_files = qc.join(' ')
-// 		"""
-// 		merge_json_files.py ${qc_json_files} > ${id}.QC
-// 		"""
+    script:
+        qc_json_files = qc.join(' ')
+		"""
+		merge_json_files.py ${qc_json_files} > ${id}.QC
+		"""
 
-// 	stub:
-// 		"""
-// 		touch "${id}.QC"
-// 		"""
-// }
+	stub:
+		"""
+		touch "${id}.QC"
+		"""
+}
 
-// // Load QC data, emit: CDM (via middleman)
-// process qc_to_cdm {
-// 	cpus 2
-// 	errorStrategy 'retry'
-// 	maxErrors 5
-// 	publishDir "${params.crondir}/qc", mode: 'copy' , overwrite: 'true'
-// 	tag "$id"
-// 	time '1h'
+// Load QC data, emit: CDM (via middleman)
+process qc_to_cdm {
+	cpus 2
+	errorStrategy 'retry'
+	maxErrors 5
+	publishDir "${params.crondir}/qc", mode: 'copy' , overwrite: 'true'
+	tag "$id"
+	time '1h'
 
-// 	input:
-// 		tuple id, path(qc), diagnosis, r1, r2
+	input:
+		tuple val(id), path(qc_json), val(diagnosis), val(r1), val(r2)
 
-// 	output:
-// 		path("${id}.cdm"), emit: cdm_done
-
-
-// 	when:
-// 		!params.noupload
+	output:
+		path("${id}.cdm"), emit: cdm_done
 
 
-// 	script:
-// 		parts = r1.split('/')
-// 		idx =  parts.findIndexOf {it ==~ /......_......_...._........../}
-// 		rundir = parts[0..idx].join("/")
-// 		"""
-// 		echo "--run-folder $rundir --sample-id $id --subassay $diagnosis --assay $params.assay --qc ${params.results_output_dir}/qc/${id}.QC" > ${id}.cdm
-// 		"""
-// }
+	when:
+		!params.noupload
+
+
+	script:
+		parts = r1.split('/')
+		idx =  parts.findIndexOf {it ==~ /......_......_...._........../}
+		rundir = parts[0..idx].join("/")
+		"""
+		echo "--run-folder $rundir --sample-id $id --subassay $diagnosis --assay $params.assay --qc ${params.results_output_dir}/qc/${id}.QC" > ${id}.cdm
+		"""
+}
 
 
 process annotate_vep {
@@ -3995,7 +4017,7 @@ process postprocess_vep_sv {
 		postprocess_vep_vcf.py $vcf > ${group}.vep.clean.vcf
 		svdb --merge --overlap 0.9 --notag --vcf ${group}.vep.clean.vcf --ins_distance 0 > ${group}.vep.clean.merge.tmp.vcf
 
-		# --notag above will remove set
+	# --notag above will remove set
 		add_vcf_header_info_records.py \\
 			--vcf ${group}.vep.clean.merge.tmp.vcf \\
 			--info set 1 String "Source VCF for the merged record in SVDB" '' '' \\
@@ -4227,7 +4249,7 @@ process compound_finder {
 		tuple val(group), val(type), path(sv_vcf), path(sv_tbi), path(ped), path(snv_vcf), path(snv_tbi)
 
 	output:
-		tuple val(group), path("${group_score}.snv.rescored.sorted.vcf.gz"), path("${group_score}.snv.rescored.sorted.vcf.gz.tbi"), emit: vcf_yaml
+		tuple val(group), path("${group_score}.snv.rescored.sorted.vcf.gz"), path("${group_score}.snv.rescored.sorted.vcf.gz.tbi"), emit: vcf
 		tuple val(group), path("${group}_svp.INFO"), emit: svcompound_INFO
 		path "*versions.yml", emit: versions
 
@@ -4326,93 +4348,93 @@ process svvcf_to_bed {
 		"""
 }
 
-// process plot_pod {
-// 	container  "${params.container_pod}"
-// 	publishDir "${params.results_output_dir}/pod", mode: 'copy' , overwrite: 'true'
-// 	tag "$group"
-// 	time '1h'
-// 	memory '1 GB'
-// 	cpus 2
+process plot_pod {
+	container  "${params.container_pod}"
+	publishDir "${params.results_output_dir}/pod", mode: 'copy' , overwrite: 'true'
+	tag "$group"
+	time '1h'
+	memory '1 GB'
+	cpus 2
 
-// 	input:
-// 		tuple val(group), path(snv)
-// 		tuple val(group), path(cnv), val(type), path(ped)
-// 		tuple val(group), val(id), val(sex), val(type)
+	input:
+		tuple val(group), path(snv)
+		tuple val(group2), path(cnv), val(type), path(ped)
+		tuple val(group3), val(id), val(sex), val(type_)
 
-// 	output:
-// 		tuple path("${id}_POD_karyotype.pdf"), path("${id}_POD_results.html")
+	output:
+		tuple path("${id}_POD_karyotype.pdf"), path("${id}_POD_results.html")
 
-// 	when:
-// 		params.mode == "family" && params.trio
+	when:
+		params.mode == "family" && params.trio
 
-// 	script:
-// 		"""
-// 		parental_origin_of_duplication.pl --snv $snv --cnv $cnv --proband $id --ped $ped
-// 		"""
+	script:
+		"""
+		parental_origin_of_duplication.pl --snv $snv --cnv $cnv --proband $id --ped $ped
+		"""
 
-// 	stub:
-// 		"""
-// 		touch "${id}_POD_karyotype.pdf"
-// 		touch "${id}_POD_results.html"
-// 		"""
-// }
+	stub:
+		"""
+		touch "${id}_POD_karyotype.pdf"
+		touch "${id}_POD_results.html"
+		"""
+}
 
-// process create_yaml {
-// 	publishDir "${params.results_output_dir}/yaml", mode: 'copy' , overwrite: 'true', pattern: '*.yaml'
-// 	publishDir "${params.results_output_dir}/yaml/alt_affect", mode: 'copy' , overwrite: 'true', pattern: '*.yaml.*a'
-// 	publishDir "${params.crondir}/scout", mode: 'copy' , overwrite: 'true', pattern: '*.yaml'
-// 	errorStrategy 'retry'
-// 	maxErrors 5
-// 	tag "$group"
-// 	time '5m'
-// 	memory '1 GB'
+process create_yaml {
+	publishDir "${params.results_output_dir}/yaml", mode: 'copy' , overwrite: 'true', pattern: '*.yaml'
+	publishDir "${params.results_output_dir}/yaml/alt_affect", mode: 'copy' , overwrite: 'true', pattern: '*.yaml.*a'
+	publishDir "${params.crondir}/scout", mode: 'copy' , overwrite: 'true', pattern: '*.yaml'
+	errorStrategy 'retry'
+	maxErrors 5
+	tag "$group"
+	time '5m'
+	memory '1 GB'
 
-// 	input:
-// 		tuple val(group), val(id), val(sex), val(mother), val(father), val(phenotype), val(diagnosis), val(type), val(assay), val(clarity_sample_id), val(ffpe), val(analysis), val(type), path(ped), path(INFO)
+	input:
+		tuple val(group), val(id), val(sex), val(mother), val(father), val(phenotype), val(diagnosis), val(type), val(assay), val(clarity_sample_id), val(ffpe), val(analysis), val(_type), path(ped), path(INFO)
 
-// 	output:
-// 		tuple val(group), path("${group}.yaml*"), emit: scout_yaml
+	output:
+		tuple val(group), path("${group}.yaml*"), emit: scout_yaml
 
-// 	script:
-// 		"""
-// 		create_yml.pl \\
-// 			--g $group,$clarity_sample_id \\
-// 			--d $diagnosis \\
-// 			--panelsdef $params.panelsdef \\
-// 			--out ${group}.yaml \\
-// 			--ped $ped \\
-// 			--files $INFO \\
-// 			--assay $assay,$analysis \\
-// 			--antype $params.antype \\
-// 			--extra_panels $params.extra_panels
-// 		"""
+	script:
+		"""
+		create_yml.pl \\
+			--g $group,$clarity_sample_id \\
+			--d $diagnosis \\
+			--panelsdef $params.panelsdef \\
+			--out ${group}.yaml \\
+			--ped $ped \\
+			--files $INFO \\
+			--assay $assay,$analysis \\
+			--antype $params.antype \\
+			--extra_panels $params.extra_panels
+		"""
 
-// 	stub:
-// 		"""
-// 		touch "${group}.yaml"
-// 		"""
-// }
+	stub:
+		"""
+		touch "${group}.yaml"
+		"""
+}
 
-// process combine_versions {
-// 	publishDir "${params.results_output_dir}/versions", mode: 'copy', overwrite: 'true', pattern: '*.versions.yml'
+process combine_versions {
+	publishDir "${params.results_output_dir}/versions", mode: 'copy', overwrite: 'true', pattern: '*.versions.yml'
 
-// 	// The point of "first" here is that when a process is present in multiple instances
-// 	// there is no need to include more than one instance of the versions
-// 	input:
-// 		tuple val(group), versions
+	// The point of "first" here is that when a process is present in multiple instances
+	// there is no need to include more than one instance of the versions
+	input:
+		tuple val(group), versions
 
-// 	output:
-// 		path("${group}.versions.yml")
+	output:
+		path("${group}.versions.yml")
 
-// 	script:
-// 		// versions_joined = versions.sort( my_it -> my_it.name ).join(" ")
-// 		"""
-// 		cat $versions_joined > ${group}.versions.yml
-// 		"""
+	script:
+		// versions_joined = versions.sort( my_it -> my_it.name ).join(" ")
+		"""
+		cat $versions_joined > ${group}.versions.yml
+		"""
 
-// 	stub:
-// 		// versions_joined = versions.sort( my_it -> my_it.name ).join(" ")
-// 		"""
-// 		cat $versions_joined > ${group}.versions.yml
-// 		"""
-// }
+	stub:
+		// versions_joined = versions.sort( my_it -> my_it.name ).join(" ")
+		"""
+		cat $versions_joined > ${group}.versions.yml
+		"""
+}
