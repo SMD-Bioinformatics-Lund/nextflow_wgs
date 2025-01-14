@@ -308,6 +308,7 @@ workflow NEXTFLOW_WGS {
 
 			// roh
 			roh(fastgnomad.out.vcf)
+			overview_plot(roh.out.roh_plot, gatkcov.out.cov_plot.groupTuple())
 		}
 	}
 
