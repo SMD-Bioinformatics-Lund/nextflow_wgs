@@ -308,7 +308,7 @@ workflow NEXTFLOW_WGS {
 
 			// roh
 			roh(fastgnomad.out.vcf)
-			overview_plot(roh.out.roh_plot, gatkcov.out.cov_plot.groupTuple())
+			overview_plot(upd.out.upd_bed, roh.out.roh_plot, gatkcov.out.cov_plot.groupTuple())
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 		}
 	}
@@ -3091,7 +3091,7 @@ process overview_plot {
 	publishDir "${params.results_output_dir}/plots", mode: 'copy' , overwrite: 'true', pattern: "*.png"
 
 	input:
-		path(upd)
+		path(upd_bed)
 		tuple val(group), path(roh)
 		tuple val(group2), val(id), val(type), val(sex), path(cov_stand), path(cov_denoised)
 
@@ -3104,7 +3104,7 @@ process overview_plot {
 		"""
 		genome_plotter.pl --dict $params.GENOMEDICT \\
 			--sample ${id[proband_idx]} \\
-			--upd $upd \\
+			--upd $upd_bed \\
 			--roh $roh \\
 			--sex ${sex[proband_idx]} \\
 			--cov ${cov_denoised[proband_idx]} \\
