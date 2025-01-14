@@ -544,8 +544,11 @@ workflow NEXTFLOW_WGS {
 	output_files(ch_output_info.groupTuple())
 
 	// SCOUT YAML
-	ch_yaml_meta  = ch_yaml_meta.join(ch_ped_base, by : [0, 1]).join(output_files.out.yaml_INFO)
-	create_yaml(ch_yaml_meta)
+	create_yaml(
+		ch_yaml_meta
+			.join(ch_ped_base, by : [0, 1])
+			.join(output_files.out.yaml_INFO)
+	)
 
 	emit:
 		versions = ch_versions
