@@ -116,6 +116,7 @@ workflow NEXTFLOW_WGS {
 	// BAM-start
 	copy_bam(ch_bam_start)
 	bamtoyaml(ch_bam_start)
+	ch_output_info = ch_output_info.mix(bamtoyaml.out.bamchoice_INFO)
 
 	if(params.run_melt) {
 		dedupdummy(ch_bam_start)
@@ -154,6 +155,7 @@ workflow NEXTFLOW_WGS {
 
 		ch_ped_trio = ch_ped_trio.mix(ch_ped_fa).mix(ch_ped_ma)
 		madeline(ch_ped_trio) // TODO: fetch info
+		ch_output_info = ch_output_info.mix(madeline.out.madde_INFO)
 
 	}
 
@@ -221,6 +223,7 @@ workflow NEXTFLOW_WGS {
 	if (params.antype == "wgs") { // TODO: if params.mito etc ? will probably mess up split_normalize
 
 		fetch_MTseqs(ch_bam_bai)
+		ch_output_info = ch_output_info.mix(fetch_MTseqs.out.mtBAM_INFO)
 
 		// MITO BAM QC
 		sentieon_mitochondrial_qc(fetch_MTseqs.out.bam_bai)
@@ -234,9 +237,11 @@ workflow NEXTFLOW_WGS {
 
 		ch_split_normalize_concat_vcf = run_hmtnote.out.vcf
 		run_haplogrep(run_mutect2.out.vcf)
+		ch_output_info = ch_output_info.mix(run_haplogrep.out.haplogrep_INFO)
 
 		// SVs
 		run_eklipse(fetch_MTseqs.out.bam_bai, ch_meta)
+		ch_output_info = ch_output_info.mix(run_eklipse.out.eklipse_INFO)
 	}
 
 	// SNV ANNOTATION
@@ -273,6 +278,7 @@ workflow NEXTFLOW_WGS {
 		// SCORE VARIANTS //
 		genmodscore(inher_models.out.vcf)
 		vcf_completion(genmodscore.out.scored_vcf)
+		ch_output_info = ch_output_info.mix(vcf_completion.out.snv_INFO)
 		ch_peddy_input_vcf = vcf_completion.out.vcf_tbi
 			.filter { vcf ->
 				def type = vcf[1] // TODO: how to proof against position change?
@@ -281,6 +287,7 @@ workflow NEXTFLOW_WGS {
 
 		// TODO: Move this guy to QC:
 		peddy(ch_peddy_input_vcf, ch_ped_base)
+		ch_output_info = ch_output_info.mix(peddy.out.peddy_INFO)
 
 		if (params.antype == "wgs") {
 			// fastgnomad
