@@ -312,6 +312,7 @@ workflow NEXTFLOW_WGS {
 		if(params.antype  == "wgs") {
 			// SMN CALLING //
 			SMNCopyNumberCaller(ch_bam_bai)
+			ch_output_info = ch_output_info.mix(SMNCopyNumberCaller.out.smn_INFO)
 
 			// Collects each individual's SMNCNC-tsv and creates one tsv-file
 			ch_smn_tsv = ch_smn_tsv.mix(
