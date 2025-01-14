@@ -340,7 +340,10 @@ workflow NEXTFLOW_WGS {
 			stranger(expansionhunter.out.expansionhunter_vcf)
 			vcfbreakmulti_expansionhunter(
 				stranger.out.vcf_annotated.join(
-					ch_yaml_meta.filter { row -> row.type == "proband" }, by: [0, 1]
+					ch_yaml_meta.filter { row ->
+						def type = row[7]
+						type == "proband"
+					}, by: [0, 1]
 				)
 			)
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
@@ -506,7 +509,10 @@ workflow NEXTFLOW_WGS {
 			plot_pod(
 				fastgnomad.out.vcf,
 				bgzip_scored_genmod.out.sv_rescore_vcf.join(ch_ped_base),
-				ch_meta.filter { row -> row.type == "proband" }
+				ch_meta.filter { row ->
+					def type = row[7]
+					type == "proband"
+				}
 			)
 		}
 
