@@ -2297,7 +2297,7 @@ process merge_qc_json {
         tuple val(group), val(id), path(qc)
 
     output:
-    	tuple val(id), path("${id}.QC"), emit: qc_cdm_merged
+    	tuple val(group), val(id), path("${id}.QC"), emit: qc_cdm_merged
 
     script:
         qc_json_files = qc.join(' ')
@@ -3569,7 +3569,7 @@ process cnvkit_panel {
 	output:
 		tuple val(group), val(id), path("${id}.cnvkit_filtered.vcf"), emit: cnvkit_calls
 		tuple val(group), val(id), path("${id}.call.cns"), emit: unfiltered_cns
-		tuple val(group), val(id), path("${group}.genomic_overview.png")
+		tuple val(group), val(id), path("${group}.genomic_overview.png"), emit: genomic_overview_plot
 		tuple val(group), val(id), path("${group}_oplot.INFO"), emit: cnvkit_INFO
 		path "*versions.yml", emit: versions
 
