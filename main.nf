@@ -172,6 +172,7 @@ workflow NEXTFLOW_WGS {
 		bwa_align(ch_fastq)
 		markdup(bwa_align.out.bam_bai)
 		ch_dedup_stats = markdup.out.dedup_metrics
+		ch_output_info = ch_output_info.mix(markdup.out.dedup_bam_INFO)
 
 		ch_bam_bai = ch_bam_bai.mix(markdup.out.dedup_bam_bai)
 	}
@@ -188,6 +189,7 @@ workflow NEXTFLOW_WGS {
 
 	// COVERAGE //
 	d4_coverage(ch_bam_bai)
+	ch_output_info = ch_output_info(d4_coverage.out.d4_INFO)
 
 	if (params.gatkcov) {
 		gatkcov(ch_bam_bai)
@@ -514,12 +516,14 @@ workflow NEXTFLOW_WGS {
 		ch_loqusdb_sv
 	)
 
-	// MERGE AND OUTPUT TO CDM
+	// MERGE QC JSONs AND OUTPUT TO CDM //
 	merge_qc_json(ch_qc_json)
 	qc_to_cdm(merge_qc_json.out.qc_cdm_merged)
 
+	// OUTPUT INFO
 	output_files(ch_output_info.groupTuple())
 
+	// SCOUT YAML
 	ch_yaml_meta  = ch_yaml_meta.join(ch_ped_base, by : [0, 1]).join(output_files.out.yaml_INFO)
 	create_yaml(ch_yaml_meta)
 
