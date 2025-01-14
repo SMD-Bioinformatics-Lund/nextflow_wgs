@@ -189,6 +189,8 @@ workflow NEXTFLOW_WGS {
 		sentieon_qc.out.sentieon_qc_metrics
 	)
 
+	ch_qc_json = ch_qc_json.mix(sentieon_qc_postprocess.out.qc_json)
+
 	// COVERAGE //
 	d4_coverage(ch_bam_bai)
 	ch_output_info = ch_output_info.mix(d4_coverage.out.d4_INFO)
@@ -228,6 +230,7 @@ workflow NEXTFLOW_WGS {
 		// MITO BAM QC
 		sentieon_mitochondrial_qc(fetch_MTseqs.out.bam_bai)
 		build_mitochondrial_qc_json(sentieon_mitochondrial_qc.out.qc_tsv)
+		ch_qc_json = ch_qc_json.mix(build_mitochondrial_qc_json.out.qc_json)
 
 		// SNVs
 		ch_mutect2_input = fetch_MTseqs.out.bam_bai.groupTuple()
