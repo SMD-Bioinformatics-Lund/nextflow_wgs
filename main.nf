@@ -4311,7 +4311,7 @@ process output_files {
 	time '1h'
 
 	input:
-		tuple val(group), files
+		tuple val(group), path(files)
 
 	output:
 		tuple val(group), path("${group}.INFO"), emit: yaml_INFO
@@ -4432,7 +4432,7 @@ process combine_versions {
 	// The point of "first" here is that when a process is present in multiple instances
 	// there is no need to include more than one instance of the versions
 	input:
-		tuple val(group), versions
+		tuple val(group), path(versions)
 
 	output:
 		path("${group}.versions.yml")
