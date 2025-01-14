@@ -57,7 +57,7 @@ workflow NEXTFLOW_WGS {
 	ch_samplesheet
 
 	main:
-
+	// Output channels:
 	ch_versions    = Channel.empty() // Gather software versions
 	ch_output_info = Channel.empty() // Gather data for .INFO
 	ch_qc_json     = Channel.empty() // Gather and merge QC JSONs per sample
@@ -309,6 +309,7 @@ workflow NEXTFLOW_WGS {
 			// roh
 			roh(fastgnomad.out.vcf)
 			overview_plot(roh.out.roh_plot, gatkcov.out.cov_plot.groupTuple())
+			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 		}
 	}
 
@@ -445,6 +446,7 @@ workflow NEXTFLOW_WGS {
 
 			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, ch_melt_qc_vals)
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
+			ch_output_info = ch_output_info.mix(cnvkit_panel.out.cnvkit_INFO)
 
 			ch_panel_merge = ch_panel_merge.mix(ch_cnvkit_out, ch_manta_out).groupTuple()
 			svdb_merge_panel(ch_panel_merge)
@@ -489,13 +491,16 @@ workflow NEXTFLOW_WGS {
 		score_sv(prescore.out.annotated_sv_vcf)
 		score_sv.out.scored_vcf.view()
 		bgzip_scored_genmod(score_sv.out.scored_vcf)
+		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
 
 		ch_compound_finder_input = bgzip_scored_genmod.out.sv_rescore  // Take final scored SV VCF
 			.join(ch_ped_trio, by: [0,1])                              // join with correct ped on group, type
 			.join(vcf_completion.out.vcf_tbi, by: [0,1])               // join with final SNV VCF + index on group, type
 
 		ch_compound_finder_input.view()
+
 		compound_finder(ch_compound_finder_input)
+		ch_output_info = ch_output_info.mix(compound_finder.out.svcompound_INFO)
 
 		if(params.antype == "wgs") {
 			plot_pod(
