@@ -2321,7 +2321,7 @@ process qc_to_cdm {
 	time '1h'
 
 	input:
-		tuple val(id), path(qc_json), val(diagnosis), val(r1), val(r2)
+		tuple val(group), val(id), path(qc_json), val(diagnosis), val(r1), val(r2)
 
 	output:
 		path("${id}.cdm"), emit: cdm_done
