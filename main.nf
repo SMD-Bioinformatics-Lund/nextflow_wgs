@@ -80,9 +80,9 @@ workflow NEXTFLOW_WGS {
 		tuple(row.group, row.id, row.sex, row.type)
 	}
 
-	ch_yaml_meta = ch_samplesheet.map { row ->
-		tuple(
-			row.group,
+	ch_yaml_meta = ch_samplesheet.map { row -> // TODO: Rename this channel
+		tuple(                                 //       as it goes to more
+			row.group,                         //       processes.
 			row.id,
 			row.sex,
 			row.mother,
