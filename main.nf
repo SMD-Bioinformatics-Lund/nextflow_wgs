@@ -329,6 +329,12 @@ workflow NEXTFLOW_WGS {
 				tuple(row.group, row.id, row.sex, row.type)
 			}))
 			stranger(expansionhunter.out.expansionhunter_vcf)
+			vcfbreakmulti_expansionhunter(
+				stranger.out.vcf_annotated.join(
+					ch_yaml_meta.filter { row -> row.type == "proband" }, by: [0, 1]
+				)
+			)
+			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
 			reviewer(expansionhunter.out.bam_vcf)
 		}
 
