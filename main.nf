@@ -68,11 +68,22 @@ workflow NEXTFLOW_WGS {
 			row -> row.read1.endsWith("fastq.gz") && row.read2.endsWith("fastq.gz")
 		}
 		.map { row ->
-		def group = row.group
-		def id = row.id
-		def fastq_r1 = row.read1
-		def fastq_r2 = row.read2
-		tuple(group, id, fastq_r1, fastq_r2) // TODO: filter non fq
+			def group = row.group
+			def id = row.id
+			def fastq_r1 = row.read1
+			def fastq_r2 = row.read2
+			tuple(group, id, fastq_r1, fastq_r2) // TODO: filter non fq
+	}
+
+	// qc_to_cdm
+	ch_qc_extra = ch_samplesheet
+		.map { row ->
+			def group = row.group
+			def id = row.id
+			def diagnosis = row.diagnosis
+			def fastq_r1 = row.read1
+			def fastq_r2 = row.read2
+			tuple(group, id, diagnosis, fastq_r1, fastq_r2)
 	}
 
 	// TODO: expand and implement across all processes:
@@ -547,7 +558,7 @@ workflow NEXTFLOW_WGS {
 
 	// MERGE QC JSONs AND OUTPUT TO CDM //
 	merge_qc_json(ch_qc_json)
-	qc_to_cdm(merge_qc_json.out.qc_cdm_merged)
+	qc_to_cdm(merge_qc_json.out.qc_cdm_merged.join(ch_qc_extra, by: [0,1]))
 
 	// OUTPUT INFO
 	output_files(ch_output_info.groupTuple())
