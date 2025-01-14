@@ -189,7 +189,7 @@ workflow NEXTFLOW_WGS {
 
 	// COVERAGE //
 	d4_coverage(ch_bam_bai)
-	ch_output_info = ch_output_info(d4_coverage.out.d4_INFO)
+	ch_output_info = ch_output_info.mix(d4_coverage.out.d4_INFO)
 
 	if (params.gatkcov) {
 		gatkcov(ch_bam_bai)
