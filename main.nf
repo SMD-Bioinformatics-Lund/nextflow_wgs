@@ -558,7 +558,11 @@ workflow NEXTFLOW_WGS {
 
 	// MERGE QC JSONs AND OUTPUT TO CDM //
 	merge_qc_json(ch_qc_json)
-	qc_to_cdm(merge_qc_json.out.qc_cdm_merged.join(ch_qc_extra, by: [0,1]))
+	merge_qc_json.out.qc_cdm_merged.view()
+	ch_qc_extra.view()
+	ch_qc_to_cdm = merge_qc_json.out.qc_cdm_merged.join(ch_qc_extra, by: [0,1])
+	ch_qc_to_cdm.view()
+	qc_to_cdm(ch_qc_to_cdm)
 
 	// OUTPUT INFO
 	output_files(ch_output_info.groupTuple())
