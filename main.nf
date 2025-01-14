@@ -3070,7 +3070,7 @@ process overview_plot {
 	input:
 		path(upd)
 		tuple val(group), path(roh)
-		tuple val(group2), val(id2), val(type), val(sex), path(cov_stand), path(cov_denoised)
+		tuple val(group2), val(id), val(type), val(sex), path(cov_stand), path(cov_denoised)
 
 	output:
 		path("${group}.genomic_overview.png")
