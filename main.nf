@@ -463,7 +463,7 @@ workflow NEXTFLOW_WGS {
 
 			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, ch_melt_qc_vals)
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
-			ch_output_info = ch_output_info.mix(cnvkit_panel.out.cnvkit_INFO)
+			// ch_output_info = ch_output_info.mix(cnvkit_panel.out.cnvkit_INFO)
 
 			ch_panel_merge = ch_panel_merge.mix(ch_cnvkit_out, ch_manta_out).groupTuple()
 			svdb_merge_panel(ch_panel_merge)
