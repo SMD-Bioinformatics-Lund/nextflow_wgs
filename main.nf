@@ -108,6 +108,18 @@ workflow NEXTFLOW_WGS {
 		)
 	}
 
+	ch_scout_yaml_meta = ch_samplesheet.map { row ->
+		tuple(
+			row.group,
+			row.id,
+			row.diagnosis,
+			row.assay,
+			row.type,
+			row.clarity_sample_id,
+			(row.containsKey("analysis") ? row.analysis : false)
+		)
+	}
+
 
 	ch_bam_start = ch_samplesheet
 		.filter {
@@ -569,9 +581,9 @@ workflow NEXTFLOW_WGS {
 
 	// SCOUT YAML
 	create_yaml(
-		ch_yaml_meta
+		ch_scout_yaml_meta
 			.join(ch_ped_base, by : [0, 1])
-			.join(output_files.out.yaml_INFO)
+			.join(output_files.out.yaml_INFO, by: 0)
 	)
 
 	emit:
@@ -4441,7 +4453,7 @@ process create_yaml {
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(id), val(sex), val(mother), val(father), val(phenotype), val(diagnosis), val(type), val(assay), val(clarity_sample_id), val(ffpe), val(analysis), val(_type), path(ped), path(INFO)
+		tuple val(group), val(id), val(diagnosis), val(assay), val(clarity_sample_id), val(analysis), val(ped), path(INFO)
 
 	output:
 		tuple val(group), path("${group}.yaml*"), emit: scout_yaml
