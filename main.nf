@@ -4351,7 +4351,7 @@ process output_files {
 	time '1h'
 
 	input:
-		tuple val(group), path(files)
+		tuple val(group), path(files, stageAs: "?/*") // Needed to stage files with identical names
 
 	output:
 		tuple val(group), path("${group}.INFO"), emit: yaml_INFO
