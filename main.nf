@@ -75,7 +75,17 @@ workflow NEXTFLOW_WGS {
 			tuple(group, id, fastq_r1, fastq_r2) // TODO: filter non fq
 	}
 
-	// qc_to_cdm
+
+	// TODO: all the meta channels below should be consolidated into some meta object
+
+	// meta sent to split_normalize_mito, eklipse, bgzip_scored_genmod and used
+	// to trigger loqusdb sv dummy
+	ch_meta = ch_samplesheet.map{ row ->
+		tuple(row.group, row.id, row.sex, row.type)
+	}
+
+
+	// meta sent to qc_to_cdm
 	ch_qc_extra = ch_samplesheet
 		.map { row ->
 			def group = row.group
@@ -84,30 +94,32 @@ workflow NEXTFLOW_WGS {
 			def fastq_r1 = row.read1
 			def fastq_r2 = row.read2
 			tuple(group, id, diagnosis, fastq_r1, fastq_r2)
-	}
+		}
 
-	// TODO: expand and implement across all processes:
-	ch_meta = ch_samplesheet.map{ row ->
-		tuple(row.group, row.id, row.sex, row.type)
-	}
+	// meta sent to stranger
+	ch_stranger_meta = ch_samplesheet
+		.map { row -> // TODO: Rename this channel
+			tuple(
+				row.group,
+				row.id,
+				row.sex,
+				row.mother,
+				row.father,
+				row.phenotype,
+				row.diagnosis,
+				row.type,
+				row.assay,
+				row.clarity_sample_id,
+				(row.containsKey("ffpe") ? row.ffpe : false),
+				(row.containsKey("analysis") ? row.analysis : false)
+			)
+		}
+		.filter { row ->
+			def type = row[7]
+			type == "proband"
+		}
 
-	ch_yaml_meta = ch_samplesheet.map { row -> // TODO: Rename this channel
-		tuple(                                 //       as it goes to more
-			row.group,                         //       processes.
-			row.id,
-			row.sex,
-			row.mother,
-			row.father,
-			row.phenotype,
-			row.diagnosis,
-			row.type,
-			row.assay,
-			row.clarity_sample_id,
-			(row.containsKey("ffpe") ? row.ffpe : false),
-			(row.containsKey("analysis") ? row.analysis : false)
-		)
-	}
-
+	// meta sent to create_yml
 	ch_scout_yaml_meta = ch_samplesheet.map { row ->
 		tuple(
 			row.group,
@@ -366,10 +378,7 @@ workflow NEXTFLOW_WGS {
 			stranger(expansionhunter.out.expansionhunter_vcf)
 			vcfbreakmulti_expansionhunter(
 				stranger.out.vcf_annotated.join(
-					ch_yaml_meta.filter { row ->
-						def type = row[7]
-						type == "proband"
-					}, by: [0, 1]
+					ch_stranger_meta,by: [0, 1]
 				)
 			)
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
