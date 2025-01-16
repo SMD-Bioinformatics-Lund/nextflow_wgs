@@ -1177,7 +1177,7 @@ process sentieon_qc_postprocess {
 			--type ${assay} \\
 			--align_metrics_file ${aln_metrics} \\
 			--insert_file ${is_metrics} \\
-			--dedup_metrics_file ${dedup} \\
+			--dedup_metrics_file ${dedup_metrics} \\
 			--metrics_file ${assay_metrics} \\
 			--gcsummary_file ${gc_summary} \\
 			--coverage_file ${cov_metrics} \\
