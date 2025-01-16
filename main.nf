@@ -136,6 +136,16 @@ workflow NEXTFLOW_WGS {
 			type == "proband"
 	}
 
+	ch_gatkcov_meta = ch_samplesheet.map { row ->
+		tuple(
+			row.group,
+			row.id,
+			row.sex,
+			row.type,
+		)
+	}
+
+	ch_expansionhunter_meta = ch_gatkcov_meta // ch group, id, sex, type
 
 	// BAM-start
 	// Check for .bam files in read1 and start from bam if any found.
@@ -236,7 +246,7 @@ workflow NEXTFLOW_WGS {
 	ch_output_info = ch_output_info.mix(d4_coverage.out.d4_INFO)
 
 	if (params.gatkcov) {
-		gatkcov(ch_bam_bai)
+		gatkcov(ch_bam_bai, ch_gatkcov_meta)
 	}
 
 	if (params.assay == "swea") {
@@ -377,9 +387,7 @@ workflow NEXTFLOW_WGS {
 			// CALL REPEATS //
 
 			// TODO: clean up below:
-			expansionhunter(ch_bam_bai.join(ch_samplesheet.map {row ->
-				tuple(row.group, row.id, row.sex, row.type)
-			}))
+			expansionhunter(ch_bam_bai, ch_expansionhunter_meta)
 			stranger(expansionhunter.out.expansionhunter_vcf)
 			vcfbreakmulti_expansionhunter(
 				stranger.out.vcf_annotated.join(
@@ -1327,7 +1335,8 @@ process expansionhunter {
 	memory '40 GB'
 
 	input:
-		tuple val(group), val(id), path(bam), path(bai), val(sex), val(type)
+		tuple val(group), val(id), path(bam), path(bai)
+		tuple val(sex), val(type)
 
 
 	output:
@@ -3070,7 +3079,8 @@ process gatkcov {
 	time '5h'
 
 	input:
-		tuple val(id), val(group), path(bam), path(bai), val(gr), val(sex), val(type)
+		tuple val(group), val(id), path(bam), path(bai)
+		tuple val(group2), val(id2), val(sex), val(type)
 
 	// TODO: kick meta out out output
 	output:
