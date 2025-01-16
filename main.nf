@@ -131,8 +131,8 @@ workflow NEXTFLOW_WGS {
 			(row.containsKey("analysis") ? row.analysis : false)
 		)
 	}
-		.filter { row ->
-			def type = row[7]
+	.filter { row ->
+			def type = row[4]
 			type == "proband"
 	}
 
