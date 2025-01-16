@@ -46,7 +46,7 @@ workflow {
 	NEXTFLOW_WGS(ch_samplesheet)
 
 	ch_versions.mix(NEXTFLOW_WGS.out.versions)
-	combine_versions(ch_versions)
+	combine_versions(ch_versions.groupTuple())
 
 
 }
@@ -213,7 +213,6 @@ workflow NEXTFLOW_WGS {
 		//TODO: versions!
 		fastp(ch_fastq)
 		ch_fastq = fastp.out.fastq_trimmed_reads
-		ch_versions = ch_versions.mix(fastp.out.versions)
 	}
 
 	// ALIGN //
@@ -597,6 +596,60 @@ workflow NEXTFLOW_WGS {
 	output_files.out.yaml_INFO.view()
 	// SCOUT YAML
 	create_yaml(ch_scout_yaml_meta, ch_ped_base, output_files.out.yaml_INFO)
+
+
+	// VERSIONS
+
+	ch_versions = ch_versions.mix(SMNCopyNumberCaller.out.versions).first()
+	ch_versions = ch_versions.mix(add_cadd_scores_to_vcf.out.versions).first()
+	ch_versions = ch_versions.mix(annotate_vep.out.versions).first()
+	ch_versions = ch_versions.mix(annotsv.out.versions).first()
+	ch_versions = ch_versions.mix(artefact.out.versions).first()
+	ch_versions = ch_versions.mix(bgzip_indel_cadd.out.versions).first()
+	ch_versions = ch_versions.mix(bgzip_scored_genmod.out.versions).first()
+	ch_versions = ch_versions.mix(bqsr.out.versions).first()
+	ch_versions = ch_versions.mix(bwa_align.out.versions).first()
+	ch_versions = ch_versions.mix(calculate_indel_cadd.out.versions).first()
+	ch_versions = ch_versions.mix(compound_finder.out.versions).first()
+	ch_versions = ch_versions.mix(d4_coverage.out.versions).first()
+	ch_versions = ch_versions.mix(dnascope.out.versions).first()
+	ch_versions = ch_versions.mix(expansionhunter.out.versions).first()
+	ch_versions = ch_versions.mix(extract_indels_for_cadd.out.versions).first()
+	ch_versions = ch_versions.mix(fetch_MTseqs.out.versions).first()
+	ch_versions = ch_versions.mix(gatk_call_cnv.out.versions).first()
+	ch_versions = ch_versions.mix(gatk_call_ploidy.out.versions).first()
+	ch_versions = ch_versions.mix(gatk_coverage.out.versions).first()
+	ch_versions = ch_versions.mix(gatkcov.out.versions).first()
+	ch_versions = ch_versions.mix(genmodscore.out.versions).first()
+	ch_versions = ch_versions.mix(gvcf_combine.out.versions).first()
+	ch_versions = ch_versions.mix(indel_vep.out.versions).first()
+	ch_versions = ch_versions.mix(inher_models.out.versions).first()
+	ch_versions = ch_versions.mix(madeline.out.versions).first()
+	ch_versions = ch_versions.mix(manta.out.versions).first()
+	ch_versions = ch_versions.mix(markdup.out.versions).first()
+	ch_versions = ch_versions.mix(peddy.out.versions).first()
+	ch_versions = ch_versions.mix(postprocess_vep_sv.out.versions).first()
+	ch_versions = ch_versions.mix(postprocessgatk.out.versions).first()
+	ch_versions = ch_versions.mix(reviewer.out.versions).first()
+	ch_versions = ch_versions.mix(roh.out.versions).first()
+	ch_versions = ch_versions.mix(run_eklipse.out.versions).first()
+	ch_versions = ch_versions.mix(run_haplogrep.out.versions).first()
+	ch_versions = ch_versions.mix(run_hmtnote.out.versions).first()
+	ch_versions = ch_versions.mix(run_mutect2.out.versions).first()
+	ch_versions = ch_versions.mix(score_sv.out.versions).first()
+	ch_versions = ch_versions.mix(sentieon_mitochondrial_qc.out.versions).first()
+	ch_versions = ch_versions.mix(sentieon_qc.out.versions).first()
+	ch_versions = ch_versions.mix(split_normalize.out.versions).first()
+	ch_versions = ch_versions.mix(split_normalize_mito.out.versions).first()
+	ch_versions = ch_versions.mix(stranger.out.versions).first()
+	ch_versions = ch_versions.mix(svdb_merge.out.versions).first()
+	ch_versions = ch_versions.mix(tiddit.out.versions).first()
+	ch_versions = ch_versions.mix(upd.out.versions).first()
+	ch_versions = ch_versions.mix(vcf_completion.out.versions).first()
+	ch_versions = ch_versions.mix(vcfanno.out.versions).first()
+	ch_versions = ch_versions.mix(vcfbreakmulti_expansionhunter.out.versions).first()
+	ch_versions = ch_versions.mix(vep_sv.out.versions).first()
+	ch_versions = ch_versions.mix(verifybamid2.out.versions).first()
 
 	emit:
 		versions = ch_versions
@@ -4505,13 +4558,13 @@ process combine_versions {
 		path("${group}.versions.yml")
 
 	script:
-		// versions_joined = versions.sort( my_it -> my_it.name ).join(" ")
+		versions_joined = versions.sort{ my_it -> my_it.name }.join(" ")
 		"""
 		cat $versions_joined > ${group}.versions.yml
 		"""
 
 	stub:
-		// versions_joined = versions.sort( my_it -> my_it.name ).join(" ")
+		versions_joined = versions.sort{ my_it -> my_it.name }.join(" ")
 		"""
 		cat $versions_joined > ${group}.versions.yml
 		"""
