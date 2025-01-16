@@ -585,7 +585,10 @@ workflow NEXTFLOW_WGS {
 	// OUTPUT INFO
 	output_files(ch_output_info.groupTuple())
 
+	println "yaml inputs"
 	ch_scout_yaml_meta.view()
+	ch_ped_base.view()
+	output_files.out.yaml_INFO.view()
 	// SCOUT YAML
 	create_yaml(ch_scout_yaml_meta, ch_ped_base, output_files.out.yaml_INFO)
 
