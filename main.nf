@@ -1096,10 +1096,10 @@ process sentieon_qc {
 	container  "${params.container_sentieon}"
 
 	input:
-		tuple val(id), val(group), path(bam), path(bai)
+	tuple val(group), val(id), (bam), path(bai)
 
 	output:
-		tuple val(id), val(group), path("mq_metrics.txt"), path("qd_metrics.txt"), path("gc_summary.txt"),
+	tuple val(group), val(id), path("mq_metrics.txt"), path("qd_metrics.txt"), path("gc_summary.txt"),
 		path("gc_metrics.txt"), path("aln_metrics.txt"), path("is_metrics.txt"), path("assay_metrics.txt"),
 		path("cov_metrics.txt"), path("cov_metrics.txt.sample_summary"), emit: sentieon_qc_metrics
 		path "*versions.yml", emit: versions
