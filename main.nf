@@ -544,7 +544,8 @@ workflow NEXTFLOW_WGS {
 		compound_finder(ch_compound_finder_input)
 		ch_output_info = ch_output_info.mix(compound_finder.out.svcompound_INFO)
 
-		if(params.antype == "wgs") {
+		// TODO: streamline if-conditions:
+		if(params.antype == "wgs" && params.trio && params.mode == "family") {
 			plot_pod(
 				fastgnomad.out.vcf,
 				bgzip_scored_genmod.out.sv_rescore_vcf.join(ch_ped_base),
@@ -4492,8 +4493,6 @@ process plot_pod {
 	output:
 		tuple path("${id}_POD_karyotype.pdf"), path("${id}_POD_results.html")
 
-	when:
-		params.mode == "family" && params.trio
 
 	script:
 		"""
