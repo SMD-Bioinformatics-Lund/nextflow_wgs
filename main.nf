@@ -1162,8 +1162,8 @@ process sentieon_qc_postprocess {
 	time '2h'
 
 	input:
-	tuple val(group), val(id), path(dedup)
-	tuple val(_group), val(_id), path(mq_metrics), path(qd_metrics), path(gc_summary), path(gc_metrics), path(aln_metrics),
+	tuple val(group), val(id), path(dedup_metrics)
+	tuple val(group2), val(id2), path(mq_metrics), path(qd_metrics), path(gc_summary), path(gc_metrics), path(aln_metrics),
 		path (is_metrics), path(assay_metrics), path(cov_metrics), path(cov_metrics_sample_summary)
 
 	output:
