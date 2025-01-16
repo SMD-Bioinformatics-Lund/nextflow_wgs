@@ -429,7 +429,7 @@ workflow NEXTFLOW_WGS {
 		// MELT //
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
 		if (params.run_melt) {
-			sentieon_qc_postprocess.out.qc_json.view()
+
 		    ch_melt_qc_vals = sentieon_qc_postprocess.out.qc_json.map { item ->
 				def group = item[0]
 				def id = item[1]
@@ -509,7 +509,7 @@ workflow NEXTFLOW_WGS {
 
 
 		log.info("prescore ped input:")
-		ch_ped_prescore.view()
+
 		ch_prescore_input = artefact.out.vcf.join(annotsv.out.annotsv_tsv) // ch: group, path(annotsv_tsv), path(vcf)
 		ch_prescore_input = ch_prescore_input.cross(ch_ped_prescore)
 			.map{
@@ -524,19 +524,14 @@ workflow NEXTFLOW_WGS {
 			}
 
 		log.info("prescore ped input after cross:")
-		ch_prescore_input.view()
 		prescore(ch_prescore_input)
-		prescore.out.annotated_sv_vcf.view()
 		score_sv(prescore.out.annotated_sv_vcf)
-		score_sv.out.scored_vcf.view()
 		bgzip_scored_genmod(score_sv.out.scored_vcf)
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
 
 		ch_compound_finder_input = bgzip_scored_genmod.out.sv_rescore  // Take final scored SV VCF
 			.join(ch_ped_trio, by: [0,1])                              // join with correct ped on group, type
 			.join(vcf_completion.out.vcf_tbi, by: [0,1])               // join with final SNV VCF + index on group, type
-
-		ch_compound_finder_input.view()
 
 		compound_finder(ch_compound_finder_input)
 		ch_output_info = ch_output_info.mix(compound_finder.out.svcompound_INFO)
@@ -580,10 +575,7 @@ workflow NEXTFLOW_WGS {
 
 	// MERGE QC JSONs AND OUTPUT TO CDM //
 	merge_qc_json(ch_qc_json)
-	merge_qc_json.out.qc_cdm_merged.view()
-	ch_qc_extra.view()
 	ch_qc_to_cdm = merge_qc_json.out.qc_cdm_merged.join(ch_qc_extra, by: [0,1])
-	ch_qc_to_cdm.view()
 	qc_to_cdm(ch_qc_to_cdm)
 
 	// OUTPUT INFO
