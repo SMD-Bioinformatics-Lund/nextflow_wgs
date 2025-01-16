@@ -131,6 +131,10 @@ workflow NEXTFLOW_WGS {
 			(row.containsKey("analysis") ? row.analysis : false)
 		)
 	}
+		.filter { row ->
+			def type = row[7]
+			type == "proband"
+	}
 
 
 	// BAM-start
@@ -581,13 +585,9 @@ workflow NEXTFLOW_WGS {
 	// OUTPUT INFO
 	output_files(ch_output_info.groupTuple())
 
-	ch_scout_yaml_meta = ch_scout_yaml_meta
-			.join(ch_ped_base, by : 0)
-			.join(output_files.out.yaml_INFO, by: 0)
-
 	ch_scout_yaml_meta.view()
 	// SCOUT YAML
-	create_yaml(ch_scout_yaml_meta)
+	create_yaml(ch_scout_yaml_meta, ch_ped_base, output_files.out.yaml_INFO)
 
 	emit:
 		versions = ch_versions
@@ -4455,7 +4455,9 @@ process create_yaml {
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(id), val(diagnosis), val(assay), val(clarity_sample_id), val(analysis), val(ped), path(INFO)
+		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis)
+		tuple val(group2), val(type2), path(ped)
+		tuple val(group3), path(INFO)
 
 	output:
 		tuple val(group), path("${group}.yaml*"), emit: scout_yaml
