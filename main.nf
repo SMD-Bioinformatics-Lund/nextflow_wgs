@@ -1096,7 +1096,7 @@ process sentieon_qc {
 	container  "${params.container_sentieon}"
 
 	input:
-	tuple val(group), val(id), (bam), path(bai)
+		tuple val(group), val(id), path(bam), path(bai)
 
 	output:
 	tuple val(group), val(id), path("mq_metrics.txt"), path("qd_metrics.txt"), path("gc_summary.txt"),
