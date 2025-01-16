@@ -1492,15 +1492,15 @@ process reviewer {
 	script:
 		version_str = reviewer_version(task)
 		"""
-		grep LocusId !{params.expansionhunter_catalog} | sed 's/[",^ ]//g' | cut -d':' -f2 | perl -na -e 'chomp; \
-		system("REViewer --reads !{bam} \
-		--vcf !{vcf} \
-		--reference !{genome_file} \
-		--catalog !{params.expansionhunter_catalog} \
+		grep LocusId ${params.expansionhunter_catalog} | sed 's/[",^ ]//g' | cut -d':' -f2 | perl -na -e 'chomp; \
+		system("REViewer --reads ${bam} \
+		--vcf ${vcf} \
+		--reference ${params.genome_file} \
+		--catalog ${params.expansionhunter_catalog} \
 		--locus \$_ \
-		--output-prefix !{id}");'
+		--output-prefix ${id}");'
 
-		echo "!{version_str}" > "!{task.process}_versions.yml"
+		echo "${version_str}" > "${task.process}_versions.yml"
 		"""
 
 	stub:
