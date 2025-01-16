@@ -133,6 +133,8 @@ workflow NEXTFLOW_WGS {
 	}
 
 
+	// BAM-start
+	// Check for .bam files in read1 and start from bam if any found.
 	ch_bam_start = ch_samplesheet
 		.filter {
 			row -> row.read1.endsWith("bam")
@@ -148,7 +150,7 @@ workflow NEXTFLOW_WGS {
 
 	ch_bam_start_dedup_dummy = Channel.empty()
 
-	// BAM-start
+
 	copy_bam(ch_bam_start)
 	bamtoyaml(ch_bam_start)
 	ch_output_info = ch_output_info.mix(bamtoyaml.out.bamchoice_INFO)
@@ -210,7 +212,6 @@ workflow NEXTFLOW_WGS {
 		markdup(bwa_align.out.bam_bai)
 		ch_dedup_stats = markdup.out.dedup_metrics
 		ch_output_info = ch_output_info.mix(markdup.out.dedup_bam_INFO)
-
 		ch_bam_bai = ch_bam_bai.mix(markdup.out.dedup_bam_bai)
 	}
 
@@ -611,7 +612,6 @@ workflow NEXTFLOW_WGS {
 	// 	.set { ch_samplesheet }
 
 	// fastq = Channel.create()
-
 
 	// fastq_sharded = Channel.create()
 	// fastq_umi = Channel.create()
