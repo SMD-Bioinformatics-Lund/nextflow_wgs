@@ -221,7 +221,7 @@ workflow NEXTFLOW_WGS {
 	if (params.align) {
 		bwa_align(ch_fastq)
 		markdup(bwa_align.out.bam_bai)
-		ch_dedup_stats = markdup.out.dedup_metrics
+		ch_dedup_stats = ch_dedup_stats.mix(markdup.out.dedup_metrics)
 		ch_output_info = ch_output_info.mix(markdup.out.dedup_bam_INFO)
 		ch_bam_bai = ch_bam_bai.mix(markdup.out.dedup_bam_bai)
 	}
@@ -230,7 +230,6 @@ workflow NEXTFLOW_WGS {
 
 	// POST SEQ QC //
 	sentieon_qc(ch_bam_bai)
-	// TODO: dedupmetrics wont be in bam start, send in dummy file
 	sentieon_qc_postprocess(
 		ch_dedup_stats.mix(ch_bam_start_dedup_dummy),
 		sentieon_qc.out.sentieon_qc_metrics
