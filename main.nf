@@ -162,22 +162,20 @@ workflow NEXTFLOW_WGS {
 			tuple(group, id, bam, bai)
 		}
 
-	ch_bam_start_dedup_dummy = Channel.empty()
 
-
+	ch_bam_start.view()
 	copy_bam(ch_bam_start)
 	bamtoyaml(ch_bam_start)
 	ch_output_info = ch_output_info.mix(bamtoyaml.out.bamchoice_INFO)
 
+	ch_bam_start_dedup_dummy = Channel.empty()
 	if(params.run_melt) {
 		dedupdummy(ch_bam_start)
 		ch_bam_start_dedup_dummy = dedupdummy.out.dedup_dummy
 	}
 
-	ch_bam_start = ch_bam_start.mix(copy_bam.out.bam_bai)
-
 	ch_bam_bai = Channel.empty()
-	ch_bam_bai = ch_bam_bai.mix(ch_bam_start)
+	ch_bam_bai = ch_bam_bai.mix(copy_bam.out.bam_bai)
 
 	// PED //
 	ch_ped_input = ch_samplesheet
