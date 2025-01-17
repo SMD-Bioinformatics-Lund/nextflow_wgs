@@ -43,9 +43,10 @@ workflow {
 		.set { ch_samplesheet }
 
 
+
 	NEXTFLOW_WGS(ch_samplesheet)
 
-	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect{ it[0] }
+	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect{ it }
 	ch_versions.view()
 
 	combine_versions(ch_versions)
