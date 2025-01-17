@@ -432,7 +432,6 @@ workflow NEXTFLOW_WGS {
 
 			// CALL REPEATS //
 
-			// TODO: clean up below:
 			expansionhunter(ch_bam_bai, ch_expansionhunter_meta)
 			stranger(expansionhunter.out.expansionhunter_vcf)
 			vcfbreakmulti_expansionhunter(
@@ -1411,7 +1410,7 @@ process expansionhunter {
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
-		tuple val(sex), val(type)
+		tuple val(group2), val(id2), val(sex), val(type)
 
 
 	output:
