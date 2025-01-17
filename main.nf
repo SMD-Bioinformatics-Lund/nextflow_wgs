@@ -45,8 +45,7 @@ workflow {
 
 	NEXTFLOW_WGS(ch_samplesheet)
 
-	ch_versions.mix(NEXTFLOW_WGS.out.versions)
-
+	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions)
 	ch_versions.view()
 
 	combine_versions(ch_versions.groupTuple())
