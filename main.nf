@@ -45,7 +45,7 @@ workflow {
 
 	NEXTFLOW_WGS(ch_samplesheet)
 
-	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions)
+	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions.first())
 	ch_versions.view()
 
 	combine_versions(ch_versions)
@@ -206,7 +206,7 @@ workflow NEXTFLOW_WGS {
 		ch_ped_trio = ch_ped_trio.mix(ch_ped_fa).mix(ch_ped_ma)
 		madeline(ch_ped_trio) // TODO: fetch info
 
-		ch_versions = ch_versions.mix(madeline.out.versions).first()
+		ch_versions = ch_versions.mix(madeline.out.versions.first())
 		ch_output_info = ch_output_info.mix(madeline.out.madde_INFO)
 
 	}
@@ -215,7 +215,7 @@ workflow NEXTFLOW_WGS {
 	if (params.umi) {
 		fastp(ch_fastq)
 		ch_fastq = fastp.out.fastq_trimmed_reads
-		ch_versions = ch_versions.mix(fastp.out.versions).first()
+		ch_versions = ch_versions.mix(fastp.out.versions.first())
 	}
 
 	// ALIGN //
@@ -228,12 +228,12 @@ workflow NEXTFLOW_WGS {
 		ch_output_info = ch_output_info.mix(markdup.out.dedup_bam_INFO)
 		ch_bam_bai = ch_bam_bai.mix(markdup.out.dedup_bam_bai)
 
-		ch_versions = ch_versions.mix(bwa_align.out.versions).first()
-		ch_versions = ch_versions.mix(markdup.out.versions).first()
+		ch_versions = ch_versions.mix(bwa_align.out.versions.first())
+		ch_versions = ch_versions.mix(markdup.out.versions.first())
 	}
 
 	bqsr(ch_bam_bai)
-	ch_versions = ch_versions.mix(bqsr.out.versions).first()
+	ch_versions = ch_versions.mix(bqsr.out.versions.first())
 
 	// POST SEQ QC //
 	sentieon_qc(ch_bam_bai)
@@ -246,12 +246,12 @@ workflow NEXTFLOW_WGS {
 
 	// COVERAGE //
 	d4_coverage(ch_bam_bai)
-	ch_versions = ch_versions.mix(d4_coverage.out.versions).first()
+	ch_versions = ch_versions.mix(d4_coverage.out.versions.first())
 	ch_output_info = ch_output_info.mix(d4_coverage.out.d4_INFO)
 
 	if (params.gatkcov) {
 		gatkcov(ch_bam_bai, ch_gatkcov_meta)
-		ch_versions = ch_versions.mix(gatkcov.out.versions).first()
+		ch_versions = ch_versions.mix(gatkcov.out.versions.first())
 	}
 
 	if (params.assay == "swea") {
@@ -261,14 +261,14 @@ workflow NEXTFLOW_WGS {
 	// CONTAMINATION //
 	if (params.antype == "wgs") {
 		verifybamid2(ch_bam_bai)
-		ch_versions = ch_versions.mix(verifybamid2.out.versions).first()
+		ch_versions = ch_versions.mix(verifybamid2.out.versions.first())
 	}
 
 	// SNV CALLING //
 	dnascope(ch_bam_bai, bqsr.out.dnascope_bqsr)
-	ch_versions = ch_versions.mix(dnascope.out.versions).first()
+	ch_versions = ch_versions.mix(dnascope.out.versions.first())
 	gvcf_combine(dnascope.out.gvcf_tbi.groupTuple())
-	ch_versions = ch_versions.mix(gvcf_combine.out.versions).first()
+	ch_versions = ch_versions.mix(gvcf_combine.out.versions.first())
 
 	ch_split_normalize = gvcf_combine.out.combined_vcf
 	ch_split_normalize_concat_vcf = Channel.empty()
@@ -276,7 +276,7 @@ workflow NEXTFLOW_WGS {
 	// TODO: move antypes and similar to constants?
 	if (params.antype == "panel") {
 		freebayes(ch_bam_bai)
-		ch_versions = ch_versions.mix(freebayes.out.versions).first()
+		ch_versions = ch_versions.mix(freebayes.out.versions.first())
 		ch_split_normalize_concat_vcf = freebayes.out.freebayes_variants
 	}
 
@@ -313,13 +313,13 @@ workflow NEXTFLOW_WGS {
 		ch_output_info = ch_output_info.mix(run_eklipse.out.eklipse_INFO)
 
 		// MITO VERSIONS
-		ch_versions = ch_versions.mix(run_hmtnote.out.versions).first()
-		ch_versions = ch_versions.mix(split_normalize_mito.out.versions).first()
-		ch_versions = ch_versions.mix(run_mutect2.out.versions).first()
-		ch_versions = ch_versions.mix(sentieon_mitochondrial_qc.out.versions).first()
-		ch_versions = ch_versions.mix(fetch_MTseqs.out.versions).first()
-		ch_versions = ch_versions.mix(run_eklipse.out.versions).first()
-		ch_versions = ch_versions.mix(run_haplogrep.out.versions).first()
+		ch_versions = ch_versions.mix(run_hmtnote.out.versions.first())
+		ch_versions = ch_versions.mix(split_normalize_mito.out.versions.first())
+		ch_versions = ch_versions.mix(run_mutect2.out.versions.first())
+		ch_versions = ch_versions.mix(sentieon_mitochondrial_qc.out.versions.first())
+		ch_versions = ch_versions.mix(fetch_MTseqs.out.versions.first())
+		ch_versions = ch_versions.mix(run_eklipse.out.versions.first())
+		ch_versions = ch_versions.mix(run_haplogrep.out.versions.first())
 	}
 
 	// SNV ANNOTATION
@@ -331,9 +331,9 @@ workflow NEXTFLOW_WGS {
 		modify_vcf(vcfanno.out.vcf)
 		mark_splice(modify_vcf.out.vcf)
 
-		ch_versions = ch_versions.mix(split_normalize.out.versions).first()
-		ch_versions = ch_versions.mix(annotate_vep.out.versions).first()
-		ch_versions = ch_versions.mix(vcfanno.out.versions).first()
+		ch_versions = ch_versions.mix(split_normalize.out.versions.first())
+		ch_versions = ch_versions.mix(annotate_vep.out.versions.first())
+		ch_versions = ch_versions.mix(vcfanno.out.versions.first())
 
 		//INDELS
 		extract_indels_for_cadd(split_normalize.out.intersected_vcf)
@@ -342,10 +342,10 @@ workflow NEXTFLOW_WGS {
 		bgzip_indel_cadd(calculate_indel_cadd.out.cadd_gz)
 		add_cadd_scores_to_vcf(mark_splice.out.splice_marked.join(bgzip_indel_cadd.out.cadd_tbi))
 
-		ch_versions = ch_versions.mix(extract_indels_for_cadd.out.versions).first()
-		ch_versions = ch_versions.mix(indel_vep.out.versions).first()
-		ch_versions = ch_versions.mix(calculate_indel_cadd.out.versions).first()
-		ch_versions = ch_versions.mix(bgzip_indel_cadd.out.versions).first()
+		ch_versions = ch_versions.mix(extract_indels_for_cadd.out.versions.first())
+		ch_versions = ch_versions.mix(indel_vep.out.versions.first())
+		ch_versions = ch_versions.mix(calculate_indel_cadd.out.versions.first())
+		ch_versions = ch_versions.mix(bgzip_indel_cadd.out.versions.first())
 
 		// INHERITANCE MODELS
 
@@ -399,8 +399,8 @@ workflow NEXTFLOW_WGS {
 			overview_plot(upd.out.upd_bed, roh.out.roh_plot, gatkcov.out.cov_plot.groupTuple())
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 
-			ch_versions = ch_versions.mix(upd.out.versions).first()
-			ch_versions = ch_versions.mix(roh.out.versions).first()
+			ch_versions = ch_versions.mix(upd.out.versions.first())
+			ch_versions = ch_versions.mix(roh.out.versions.first())
 
 
 		}
@@ -437,11 +437,11 @@ workflow NEXTFLOW_WGS {
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
 			reviewer(expansionhunter.out.bam_vcf)
 
-			ch_versions = ch_versions.mix(SMNCopyNumberCaller.out.versions).first()
-			ch_versions = ch_versions.mix(reviewer.out.versions).first()
-			ch_versions = ch_versions.mix(expansionhunter.out.versions).first()
-			ch_versions = ch_versions.mix(vcfbreakmulti_expansionhunter.out.versions).first()
-			ch_versions = ch_versions.mix(stranger.out.versions).first()
+			ch_versions = ch_versions.mix(SMNCopyNumberCaller.out.versions.first())
+			ch_versions = ch_versions.mix(reviewer.out.versions.first())
+			ch_versions = ch_versions.mix(expansionhunter.out.versions.first())
+			ch_versions = ch_versions.mix(vcfbreakmulti_expansionhunter.out.versions.first())
+			ch_versions = ch_versions.mix(stranger.out.versions.first())
 		}
 
 
@@ -471,9 +471,9 @@ workflow NEXTFLOW_WGS {
 		ch_filtered_merged_gatk_calls = filter_merge_gatk.out.merged_filtered_vcf
 
 
-		ch_versions = ch_versions.mix(gatk_coverage.out.versions)
-		ch_versions = ch_versions.mix(gatk_call_ploidy.out.versions)
-		ch_versions = ch_versions.mix(postprocessgatk.out.versions)
+		ch_versions = ch_versions.mix(gatk_coverage.out.versions.first())
+		ch_versions = ch_versions.mix(gatk_call_ploidy.out.versions.first())
+		ch_versions = ch_versions.mix(postprocessgatk.out.versions.first())
 
 
 		ch_manta_out = Channel.empty()
@@ -489,9 +489,9 @@ workflow NEXTFLOW_WGS {
 			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(svdb_merge.out.merged_bndless_vcf)
 			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge.out.merged_vcf)
 
-			ch_versions = ch_versions.mix(manta.out.versions)
-			ch_versions = ch_versions.mix(tiddit.out.versions)
-			ch_versions = ch_versions.mix(svdb_merge.out.versions)
+			ch_versions = ch_versions.mix(manta.out.versions.first())
+			ch_versions = ch_versions.mix(tiddit.out.versions.first())
+			ch_versions = ch_versions.mix(svdb_merge.out.versions.first())
 		}
 
 		// MELT //
@@ -544,8 +544,8 @@ workflow NEXTFLOW_WGS {
 			melt(ch_bam_bai, ch_melt_qc_vals)
 			intersect_melt(melt.out.melt_vcf_nonfiltered)
 
-			ch_versions = ch_versions.mix(melt.out.versions)
-			ch_versions = ch_versions.mix(intersect_melt.out.versions)
+			ch_versions = ch_versions.mix(melt.out.versions.first())
+			ch_versions = ch_versions.mix(intersect_melt.out.versions.first())
 		}
 
 		if (params.antype == "panel") {
@@ -568,10 +568,10 @@ workflow NEXTFLOW_WGS {
 				postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf
 			)
 
-			ch_versions = ch_versions.mix(manta_panel.out.versions)
-			ch_versions = ch_versions.mix(cnvkit_panel.out.versions)
-			ch_versions = ch_versions.mix(svdb_merge_panel.out.versions)
-			ch_versions = ch_versions.mix(postprocess_merged_panel_sv_vcf.out.versions)
+			ch_versions = ch_versions.mix(manta_panel.out.versions.first())
+			ch_versions = ch_versions.mix(cnvkit_panel.out.versions.first())
+			ch_versions = ch_versions.mix(svdb_merge_panel.out.versions.first())
+			ch_versions = ch_versions.mix(postprocess_merged_panel_sv_vcf.out.versions.first())
 		}
 
 		// ANNOTATE SVs //
@@ -581,10 +581,10 @@ workflow NEXTFLOW_WGS {
 		add_omim(postprocess_vep_sv.out.merged_processed_vcf)
 		artefact(add_omim.out.vcf)
 
-		ch_versions = ch_versions.mix(annotsv.out.versions)
-		ch_versions = ch_versions.mix(vep_sv.out.versions)
-		ch_versions = ch_versions.mix(postprocess_vep_sv.out.versions)
-		ch_versions = ch_versions.mix(artefact.out.versions)
+		ch_versions = ch_versions.mix(annotsv.out.versions.first())
+		ch_versions = ch_versions.mix(vep_sv.out.versions.first())
+		ch_versions = ch_versions.mix(postprocess_vep_sv.out.versions.first())
+		ch_versions = ch_versions.mix(artefact.out.versions.first())
 
 		ch_ped_prescore = ch_ped_trio
 
@@ -614,9 +614,9 @@ workflow NEXTFLOW_WGS {
 		ch_output_info = ch_output_info.mix(compound_finder.out.svcompound_INFO)
 
 
-		ch_versions = ch_versions.mix(score_sv.out.versions)
-		ch_versions = ch_versions.mix(bgzip_scored_genmod.out.versions)
-		ch_versions = ch_versions.mix(compound_finder.out.versions)
+		ch_versions = ch_versions.mix(score_sv.out.versions.first())
+		ch_versions = ch_versions.mix(bgzip_scored_genmod.out.versions.first())
+		ch_versions = ch_versions.mix(compound_finder.out.versions.first())
 
 		// TODO: streamline if-conditions:
 		if(params.antype == "wgs" && params.trio && params.mode == "family") {
