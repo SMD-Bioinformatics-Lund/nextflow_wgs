@@ -195,7 +195,7 @@ workflow NEXTFLOW_WGS {
 	ch_ped_fa = Channel.empty()
 	ch_ped_ma = Channel.empty()
 
-	ch_ped_trio = Channel.empty()
+	ch_ped_trio = Channel.empty()  //TODO: better name for this channel
 	ch_ped_trio = ch_ped_trio.mix(ch_ped_base)
 	if(params.mode == "family" && params.assay == "wgs") {
 
@@ -210,13 +210,12 @@ workflow NEXTFLOW_WGS {
 
 	// FASTQ //
 	if (params.umi) {
-		//TODO: versions!
 		fastp(ch_fastq)
 		ch_fastq = fastp.out.fastq_trimmed_reads
 	}
 
 	// ALIGN //
-	//TODO: handle false or remove?
+	//TODO: why do we have a params.align conditional anyway?
 	ch_dedup_stats = Channel.empty()
 	if (params.align) {
 		bwa_align(ch_fastq)
