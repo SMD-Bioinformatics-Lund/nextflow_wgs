@@ -45,10 +45,10 @@ workflow {
 
 	NEXTFLOW_WGS(ch_samplesheet)
 
-	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions)
+	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).groupTuple()
 	ch_versions.view()
 
-	combine_versions(ch_versions.groupTuple())
+	combine_versions(ch_versions)
 
 
 }
@@ -666,6 +666,8 @@ workflow NEXTFLOW_WGS {
 	output_files(ch_output_info.groupTuple())
 	// SCOUT YAML
 	create_yaml(ch_scout_yaml_meta, ch_ped_base, output_files.out.yaml_INFO)
+
+	ch_versions.view()
 
 	emit:
 		versions = ch_versions
