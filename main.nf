@@ -46,6 +46,9 @@ workflow {
 	NEXTFLOW_WGS(ch_samplesheet)
 
 	ch_versions.mix(NEXTFLOW_WGS.out.versions)
+
+	ch_versions.view()
+
 	combine_versions(ch_versions.groupTuple())
 
 
@@ -163,7 +166,6 @@ workflow NEXTFLOW_WGS {
 		}
 
 
-	ch_bam_start.view()
 	copy_bam(ch_bam_start)
 	bamtoyaml(ch_bam_start)
 	ch_output_info = ch_output_info.mix(bamtoyaml.out.bamchoice_INFO)
@@ -663,11 +665,6 @@ workflow NEXTFLOW_WGS {
 
 	// OUTPUT INFO
 	output_files(ch_output_info.groupTuple())
-
-	println "yaml inputs"
-	ch_scout_yaml_meta.view()
-	ch_ped_base.view()
-	output_files.out.yaml_INFO.view()
 	// SCOUT YAML
 	create_yaml(ch_scout_yaml_meta, ch_ped_base, output_files.out.yaml_INFO)
 
