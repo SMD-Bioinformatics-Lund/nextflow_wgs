@@ -4549,17 +4549,18 @@ process create_yaml {
 		tuple val(group), path("${group}.yaml*"), emit: scout_yaml
 
 	script:
+		def assay = params.dev ? "dev,${analysis}" : "${assay},${analysis}"
 		"""
 		create_yml.pl \\
-			--g $group,$clarity_sample_id \\
-			--d $diagnosis \\
-			--panelsdef $params.panelsdef \\
-			--out ${group}.yaml \\
-			--ped $ped \\
-			--files $INFO \\
-			--assay $assay,$analysis \\
-			--antype $params.antype \\
-			--extra_panels $params.extra_panels
+			--g "${group},${clarity_sample_id}" \\
+			--d "$diagnosis" \\
+			--panelsdef "$params.panelsdef" \\
+			--out "${group}.yaml" \\
+			--ped "$ped" \\
+			--files "$INFO" \\
+			--assay "$assay" \\
+			--antype "$params.antype" \\
+			--extra_panels "$params.extra_panels"
 		"""
 
 	stub:

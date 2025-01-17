@@ -7,6 +7,12 @@
 * Remove `melt_qc_val` process (now exists in main workflow)
 * Remove `dummy_svvcf_for_loqusdb` process
 
+### 3.14.3
+* Fix rankscore parsing in `cnv2bed.pl`
+
+### 3.14.2
+* dev-assay for create-yaml, triggered when running with `--dev` flag
+
 ### 3.14.1
 
 * Adds basic flake8-based linting 

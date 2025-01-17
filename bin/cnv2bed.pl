@@ -36,7 +36,7 @@ if( defined($opt{cnv}) ){
             next if( $cols[ $labels{ $opt{pb} } ] =~/^\.\// );
             if( $row =~/SVTYPE=(\w+);/ ) { $svtype = $1; next if( $svtype eq 'BND' ); }
             if( $row =~/END=(\d+);/ ){ $end = $1; }
-            if( $row =~/RankScore=$opt{pb}:([\d-]+);/ ){ $score = $1; next if( $score <= $SCORE ); }
+            if( $row =~/RankScore=$opt{pb}:([\d-.]+);/ ){ $score = $1; next if( $score <= $SCORE ); }
             if( $row =~/RankResult=([\d-]+)\|/ ){ $rank = $1; }
             if( $svtype =~/DEL/ ){ $color = '204,0,0'; }elsif( $svtype =~/DUP/ ){ $color = '0,0,153'; }
             print "chr$cols[0]\t".( $cols[1] - 1 )."\t$end\t\"$svtype,score=$score\"\t0\t\.\t0\t0\t$color\n";
