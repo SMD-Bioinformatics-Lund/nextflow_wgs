@@ -56,6 +56,36 @@ workflow {
 		ch_versions
 	)
 
+	workflow.onComplete {
+
+		def msg = """\
+			Pipeline execution summary
+		---------------------------
+			Completed at: ${workflow.complete}
+		Duration    : ${workflow.duration}
+		Success     : ${workflow.success}
+		scriptFile  : ${workflow.scriptFile}
+		workDir     : ${workflow.workDir}
+		csv         : ${params.csv}
+		exit status : ${workflow.exitStatus}
+		errorMessage: ${workflow.errorMessage}
+		errorReport :
+			"""
+			.stripIndent()
+		def error = """\
+			${workflow.errorReport}
+		"""
+			.stripIndent()
+
+		def base = params.csv.getBaseName()
+		File logFile = new File("${params.crondir}/logs/${base}.complete")
+		if (!logFile.getParentFile().exists()) {
+			logFile.getParentFile().mkdirs()
+		}
+		logFile.text = msg
+		logFile.append(error)
+	}
+
 
 }
 
@@ -749,35 +779,6 @@ workflow NEXTFLOW_WGS {
 
 //}
 
-// workflow.onComplete {
-
-// 	def msg = """\
-// 		Pipeline execution summary
-// 		---------------------------
-// 		Completed at: ${workflow.complete}
-// 		Duration    : ${workflow.duration}
-// 		Success     : ${workflow.success}
-// 		scriptFile  : ${workflow.scriptFile}
-// 		workDir     : ${workflow.workDir}
-// 		csv         : ${params.csv}
-// 		exit status : ${workflow.exitStatus}
-// 		errorMessage: ${workflow.errorMessage}
-// 		errorReport :
-// 		"""
-// 		.stripIndent()
-// 	def error = """\
-// 		${workflow.errorReport}
-// 		"""
-// 		.stripIndent()
-
-// 	def base = csv.getBaseName()
-// 	File logFile = new File("${params.crondir}/logs/${base}.complete")
-// 	if (!logFile.getParentFile().exists()) {
-// 		logFile.getParentFile().mkdirs()
-// 	}
-// 	logFile.text = msg
-// 	logFile.append(error)
-// }
 
 
 process fastp {
