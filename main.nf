@@ -49,7 +49,12 @@ workflow {
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect{ it }
 	ch_versions.view()
 
-	combine_versions(ch_versions)
+	combine_versions(
+		ch_samplesheet
+			.first()
+			.map{ row -> row.group },
+		ch_versions
+	)
 
 
 }
@@ -4566,10 +4571,9 @@ process create_yaml {
 process combine_versions {
 	publishDir "${params.results_output_dir}/versions", mode: 'copy', overwrite: 'true', pattern: '*.versions.yml'
 
-	// The point of "first" here is that when a process is present in multiple instances
-	// there is no need to include more than one instance of the versions
 	input:
-		tuple val(group), path(versions)
+		val(group)
+		val(versions)
 
 	output:
 		path("${group}.versions.yml")
