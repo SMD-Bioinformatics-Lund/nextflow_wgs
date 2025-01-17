@@ -550,7 +550,7 @@ workflow NEXTFLOW_WGS {
 				fastgnomad.out.vcf,
 				bgzip_scored_genmod.out.sv_rescore_vcf.join(ch_ped_base, by: 0),
 				ch_meta.filter { row ->
-					def type = row[7]
+					def type = row[3]
 					type == "proband"
 				}
 			)
