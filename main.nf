@@ -4504,7 +4504,7 @@ process svvcf_to_bed {
 
 	script:
 		"""
-	cnv2bed.pl --cnv ${vcf} --pb ${proband_id} > ${group}.sv.bed
+		cnv2bed.pl --cnv ${vcf} --pb ${proband_id} > ${group}.sv.bed
 		"""
 
 	stub:
