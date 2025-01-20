@@ -86,7 +86,14 @@ workflow.onComplete {
 			logFile.getParentFile().mkdirs()
 		}
 		logFile.text = msg
-		logFile.append(error)
+
+	if (error) {
+		def error_report = """\
+		errorReport :
+			${error}
+			"""
+		logFile.append(error_report)
+	}
 }
 
 
