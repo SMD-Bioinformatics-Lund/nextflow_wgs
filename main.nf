@@ -196,6 +196,9 @@ workflow NEXTFLOW_WGS {
 	}
 
 	ch_expansionhunter_meta = ch_gatkcov_meta // ch group, id, sex, type
+	ch_svvcf_to_bed_meta = ch_gatkcov_meta.filter { it ->
+		it[3] == "proband"
+	}
 
 	// BAM-start
 	// Check for .bam files in read1 and start from bam if any found.
@@ -651,6 +654,8 @@ workflow NEXTFLOW_WGS {
 		score_sv(prescore.out.annotated_sv_vcf)
 		bgzip_scored_genmod(score_sv.out.scored_vcf)
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
+
+		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf, ch_svvcf_to_bed_meta)
 
 		ch_compound_finder_input = bgzip_scored_genmod.out.sv_rescore  // Take final scored SV VCF
 			.join(ch_ped_trio, by: [0,1])                              // join with correct ped on group, type
@@ -1787,7 +1792,7 @@ process create_ped {
 	memory '1 GB'
 
 	input:
-	tuple val(group), val(id), val(type), val(sex), val(mother), val(father)
+		tuple val(group), val(id), val(type), val(sex), val(mother), val(father)
 
 	output:
 		tuple val(group), val(type), path("${group}_base.ped"), emit: ped_base
@@ -1808,6 +1813,7 @@ process create_ped {
 		"""
 
 	stub:
+		// TODO: _ma and _fa.ped should only be created for trios:
 		type_fa = "fa"
 		type_ma = "ma"
 		"""
@@ -4486,7 +4492,7 @@ process svvcf_to_bed {
 
 	input:
 		tuple val(group), path(vcf)
-		tuple val(group2), val(id), val(sex), val(type)
+		tuple val(group2), val(proband_id), val(sex), val(type)
 
 	output:
 		path("${group}.sv.bed")
@@ -4497,7 +4503,7 @@ process svvcf_to_bed {
 
 	script:
 		"""
-		cnv2bed.pl --cnv $vcf --pb $id > ${group}.sv.bed
+	cnv2bed.pl --cnv ${vcf} --pb ${proband_id} > ${group}.sv.bed
 		"""
 
 	stub:
