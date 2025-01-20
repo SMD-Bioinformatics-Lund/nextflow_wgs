@@ -483,9 +483,8 @@ workflow NEXTFLOW_WGS {
 			expansionhunter(ch_bam_bai, ch_expansionhunter_meta)
 			stranger(expansionhunter.out.expansionhunter_vcf)
 			vcfbreakmulti_expansionhunter(
-				stranger.out.vcf_annotated.join(
-					ch_stranger_meta,by: [0, 1]
-				)
+				stranger.out.vcf_annotated,
+				ch_stranger_meta
 			)
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
 			reviewer(expansionhunter.out.bam_vcf)
@@ -1565,7 +1564,8 @@ process vcfbreakmulti_expansionhunter {
 	memory '50 GB'
 
 	input:
-		tuple val(group), val(id), path(eh_vcf_anno), val(sex), val(mother), val(father), val(phenotype), val(diagnosis), val(type), val(assay), val(clarity_sample_id), val(ffpe), val(analysis)
+		tuple val(group), val(id), path(eh_vcf_anno)
+		tuple val(group2), val(id2), val(sex), val(mother), val(father), val(phenotype), val(diagnosis), val(type), val(assay), val(clarity_sample_id), val(ffpe), val(analysis)
 
 	output:
 		path("${group}.expansionhunter.vcf.gz"), emit: expansionhunter_scout
