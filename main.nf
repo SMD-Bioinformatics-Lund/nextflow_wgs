@@ -195,10 +195,10 @@ workflow NEXTFLOW_WGS {
 		)
 	}
 
-	ch_expansionhunter_meta = ch_gatkcov_meta // ch group, id, sex, type
-	ch_svvcf_to_bed_meta = ch_gatkcov_meta.filter { it ->
+	ch_expansionhunter_meta = ch_gatkcov_meta.filter { it ->
 		it[3] == "proband"
-	}
+	} // ch group, id, sex, type
+	ch_svvcf_to_bed_meta = ch_expansionhunter_meta
 
 	// BAM-start
 	// Check for .bam files in read1 and start from bam if any found.
