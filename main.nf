@@ -1813,7 +1813,8 @@ process create_ped {
 		"""
 
 	stub:
-		// TODO: _ma and _fa.ped should only be created for trios:
+		// TODO: _ma and _fa.ped stub files should only be created for trios.
+		//       otherwise risk for messing up wgs-single/panel stub runs.
 		type_fa = "fa"
 		type_ma = "ma"
 		"""
