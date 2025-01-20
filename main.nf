@@ -448,6 +448,9 @@ workflow NEXTFLOW_WGS {
 			// roh
 			roh(fastgnomad.out.vcf)
 			overview_plot(upd.out.upd_bed, roh.out.roh_plot, gatkcov.out.cov_plot.groupTuple())
+
+			generate_gens_data(dnascope.out.gvcf_tbi, gatkcov.out.cov_gens)
+
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 
 			ch_versions = ch_versions.mix(upd.out.versions.first())
