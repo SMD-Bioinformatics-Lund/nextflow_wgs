@@ -58,10 +58,12 @@ workflow {
 
 	workflow.onComplete {
 
+		def completed_at = "${workflow.complete}"
+
 		def msg = """\
-			Pipeline execution summary
+		Pipeline execution summary
 		---------------------------
-			Completed at: ${workflow.complete}
+		Completed at: ${completed_at}
 		Duration    : ${workflow.duration}
 		Success     : ${workflow.success}
 		scriptFile  : ${workflow.scriptFile}
