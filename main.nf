@@ -674,7 +674,6 @@ workflow NEXTFLOW_WGS {
 
 		// TODO: streamline if-conditions:
 		if(params.antype == "wgs" && params.trio && params.mode == "family") {
-			println "plot_pod:"
 			plot_pod(
 				fastgnomad.out.vcf,
 				bgzip_scored_genmod.out.sv_rescore_vcf.join(ch_ped_base, by: 0),
