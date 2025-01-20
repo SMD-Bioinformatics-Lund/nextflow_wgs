@@ -113,7 +113,7 @@ workflow.onComplete {
 		"""
 			.stripIndent()
 
-		def base = params.csv.getBaseName()
+		def base = file(params.csv).getBaseName()
 		File logFile = new File("${params.crondir}/logs/${base}.complete")
 		if (!logFile.getParentFile().exists()) {
 			logFile.getParentFile().mkdirs()
