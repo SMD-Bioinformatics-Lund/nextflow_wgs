@@ -120,6 +120,11 @@ workflow NEXTFLOW_WGS {
 			tuple(group, id, fastq_r1, fastq_r2) // TODO: filter non fq
 	}
 
+	// GATK Ref:
+	ch_gatk_ref = Channel
+		.fromPath(params.gatkreffolders)
+		.splitCsv(header:true)
+		.map{ row-> tuple(row.i, row.refpart) }
 
 	// TODO: all the meta channels below should be consolidated into some meta object
 
@@ -488,12 +493,6 @@ workflow NEXTFLOW_WGS {
 
 
 		// BIG SV //
-		// TODO: define elsewhere
-		ch_gatk_ref = Channel
-			.fromPath(params.gatkreffolders)
-			.splitCsv(header:true)
-			.map{ row-> tuple(row.i, row.refpart) }
-
 
 		gatk_coverage(ch_bam_bai)
 		ch_gatk_coverage = gatk_coverage.out.coverage_tsv
