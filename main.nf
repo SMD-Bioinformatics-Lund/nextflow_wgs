@@ -599,7 +599,12 @@ workflow NEXTFLOW_WGS {
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
 			// ch_output_info = ch_output_info.mix(cnvkit_panel.out.cnvkit_INFO)
 
-			ch_panel_merge = ch_panel_merge.mix(ch_cnvkit_out, ch_manta_out).groupTuple()
+			ch_panel_merge = ch_panel_merge.mix(
+				ch_cnvkit_out,
+				ch_manta_out,
+				ch_filtered_merged_gatk_calls
+			).groupTuple()
+
 			svdb_merge_panel(ch_panel_merge)
 
 			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge_panel.out.loqusdb_vcf)
@@ -778,7 +783,6 @@ workflow NEXTFLOW_WGS {
 	// 		.fromPath("${params.genome_file}.bwt")
 	// 		.ifEmpty { exit 1, "BWA index not found: ${params.genome_file}.bwt" }
 	// }
-
 
 //}
 
@@ -3751,14 +3755,14 @@ process svdb_merge_panel {
 
 			"""
 			svdb \\
-			  --merge \\
-			  --vcf $vcfs_svdb \\
-			  --no_intra \\
-			  --pass_only \\
-			  --bnd_distance 2500 \\
-			  --overlap 0.7 \\
-			  --priority $priority \\
-			  --ins_distance 0 > ${group}.merged.tmp
+				--merge \\
+				--vcf ${vcfs_svdb} \\
+				--no_intra \\
+				--pass_only \\
+				--bnd_distance 2500 \\
+				--overlap 0.7 \\
+				--priority ${priority} \\
+				--ins_distance 0 > ${group}.merged.tmp
 
 
 			# copy callers out of INFO.tuple to INFO.SCOUT_CUSTOM
