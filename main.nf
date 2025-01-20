@@ -37,12 +37,11 @@ workflow {
 	println("container: " + file(params.container).toRealPath())
 
 	ch_versions = Channel.empty()
+
 	Channel
 		.fromPath(params.csv)
 		.splitCsv(header: true)
 		.set { ch_samplesheet }
-
-
 
 	NEXTFLOW_WGS(ch_samplesheet)
 
@@ -685,7 +684,6 @@ workflow NEXTFLOW_WGS {
 
 	}
 
-	log.info("loqusdb input:")
 	//TODO: make work w/ dummy
 	// LOQUSDB //
 	add_to_loqusdb(
@@ -1056,6 +1054,7 @@ process dnascope {
 	when:
 		params.varcall
 
+	// TODO: Move shards out to some config file:
 	script:
 		"""
 		sentieon driver \\
@@ -1745,7 +1744,6 @@ process gvcf_combine {
 
 	script:
 		all_gvcfs = gvcfs.collect { it.toString() }.sort().join(' -v ')
-		println(all_gvcfs)
 		"""
 		sentieon driver \\
 			-t ${task.cpus} \\
@@ -1758,7 +1756,6 @@ process gvcf_combine {
 
 	stub:
 		all_gvcfs = gvcfs.collect { it.toString() }.sort().join(' -v ')
-		println(all_gvcfs)
 		"""
 		touch "${group}.combined.vcf"
 		touch "${group}.combined.vcf.idx"
@@ -2082,7 +2079,6 @@ process run_mutect2 {
 
 	stub:
 		bams = bam.join(' -I ')
-		println(bams)
 		"""
 		source activate gatk4-env
 		touch "${group}.mutect2.vcf"
