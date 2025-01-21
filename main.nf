@@ -2338,7 +2338,7 @@ process split_normalize {
 		path "*versions.yml", emit: versions
 
 	script:
-	def id = ids[0]
+	id = ids[0]
 	// rename M to MT because genmod does not recognize M
 	if (params.onco || params.assay == "modycf") {
 		"""
@@ -2374,7 +2374,7 @@ process split_normalize {
 	}
 
 	stub:
-		def id = ids[0]
+		id = ids[0]
 		"""
 		echo ${id} > id.val
 		touch "${group}.norm.uniq.DPAF.vcf"
