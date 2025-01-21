@@ -3166,8 +3166,7 @@ process gatkcov {
 	time '5h'
 
 	input:
-		tuple val(group), val(id), val(sex), val(type), path(bam), path(bai),
-
+		tuple val(group), val(id), val(sex), val(type), path(bam), path(bai)
 
 	// TODO: kick meta out out output
 	output:
