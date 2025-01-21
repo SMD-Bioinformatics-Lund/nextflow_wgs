@@ -1427,7 +1427,7 @@ process expansionhunter {
 	memory '40 GB'
 
 	input:
-		tuple val(group), val(id), path(bam), path(bai), val(sex), val(type)
+		tuple val(group), val(id), path(bam), path(bai), val(sex), val(type) // TODO: sex + type are not needed here
 
 
 	output:
