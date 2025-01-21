@@ -349,9 +349,11 @@ workflow NEXTFLOW_WGS {
 		ch_mutect2_input = fetch_MTseqs.out.bam_bai.groupTuple()
 		run_mutect2(ch_mutect2_input)
 
-		split_normalize_mito(run_mutect2.out.vcf, ch_meta)
-
-
+		split_normalize_mito(
+			run_mutect2.out.vcf,
+			ch_meta.filter{ it ->
+				it[3] == "proband"
+			})
 		run_hmtnote(split_normalize_mito.out.vcf)
 
 
@@ -2118,30 +2120,29 @@ process split_normalize_mito {
 
 	input:
 		tuple val(group), val(id), path(mito_snv_vcf)
-		tuple val(g2), val(id2), val(sex), val(type)
+		tuple val(group2), val(proband_id), val(sex), val(type)
 
 	output:
 		tuple val(group), path("${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"), emit: vcf
 		path "*versions.yml", emit: versions
 
 	script:
-		proband_idx = type.findIndexOf{ it == "proband" }
-
 		"""
-		grep -vP "^M\\s+955" $mito_snv_vcf > ${mito_snv_vcf}.fix
+		grep -vP "^M\\s+955" ${mito_snv_vcf} > ${mito_snv_vcf}.fix
 		bcftools norm -m-both -o ${mito_snv_vcf}.breakmulti ${mito_snv_vcf}.fix
 		bcftools sort ${mito_snv_vcf}.breakmulti | bgzip > ${mito_snv_vcf}.breakmulti.fix
 		tabix -p vcf ${mito_snv_vcf}.breakmulti.fix
 		bcftools norm -f $params.rCRS_fasta -o ${mito_snv_vcf.baseName}.adjusted.vcf ${mito_snv_vcf}.breakmulti.fix
 		bcftools view -i 'FMT/AF[*]>0.05' ${mito_snv_vcf.baseName}.adjusted.vcf -o ${group}.mutect2.breakmulti.filtered5p.vcf
 		bcftools filter -S 0 --exclude 'FMT/AF[*]<0.05' ${group}.mutect2.breakmulti.filtered5p.vcf -o ${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf
-		filter_mutect2_mito.pl ${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf ${id2[proband_idx]} > ${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf
+		filter_mutect2_mito.pl ${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf ${proband_id} > ${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf
 
 		${split_normalize_mito_version(task)}
 		"""
 
 	stub:
 		"""
+		echo "${proband_id}" > proband.id
 		touch "${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"
 		${split_normalize_mito_version(task)}
 		"""
