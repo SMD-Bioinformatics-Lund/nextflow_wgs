@@ -303,7 +303,7 @@ workflow NEXTFLOW_WGS {
 	ch_output_info = ch_output_info.mix(d4_coverage.out.d4_INFO)
 
 	if (params.gatkcov) {
-		gatkcov(ch_bam_bai, ch_gatkcov_meta)
+		gatkcov(ch_gatkcov_meta.join(ch_bam_bai, by: [0, 1]))
 		ch_versions = ch_versions.mix(gatkcov.out.versions.first())
 	}
 
@@ -3166,8 +3166,8 @@ process gatkcov {
 	time '5h'
 
 	input:
-		tuple val(group), val(id), path(bam), path(bai)
-		tuple val(group2), val(id2), val(sex), val(type)
+		tuple val(group), val(id), val(sex), val(type), path(bam), path(bai),
+
 
 	// TODO: kick meta out out output
 	output:
