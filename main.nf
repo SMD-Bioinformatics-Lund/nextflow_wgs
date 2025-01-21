@@ -288,9 +288,11 @@ workflow NEXTFLOW_WGS {
 
 	// POST SEQ QC //
 	sentieon_qc(ch_bam_bai)
+
+	ch_dedup_stats = ch_dedup_stats.mix(ch_bam_start_dedup_dummy)
+
 	sentieon_qc_postprocess(
-		ch_dedup_stats.mix(ch_bam_start_dedup_dummy),
-		sentieon_qc.out.sentieon_qc_metrics
+		sentieon_qc.out.sentieon_qc_metrics.join(ch_dedup_stats, by: [0,1])
 	)
 
 	ch_qc_json = ch_qc_json.mix(sentieon_qc_postprocess.out.qc_json)
@@ -1203,9 +1205,8 @@ process sentieon_qc_postprocess {
 	time '2h'
 
 	input:
-	tuple val(group), val(id), path(dedup_metrics)
-	tuple val(group2), val(id2), path(mq_metrics), path(qd_metrics), path(gc_summary), path(gc_metrics), path(aln_metrics),
-		path (is_metrics), path(assay_metrics), path(cov_metrics), path(cov_metrics_sample_summary)
+	tuple val(group), val(id), path(mq_metrics), path(qd_metrics), path(gc_summary), path(gc_metrics), path(aln_metrics),
+		path (is_metrics), path(assay_metrics), path(cov_metrics), path(cov_metrics_sample_summary), path(dedup_metrics)
 
 	output:
 		tuple val(group), val(id), path("${id}_qc.json"), emit: qc_json
