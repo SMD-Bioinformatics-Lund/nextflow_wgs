@@ -459,7 +459,7 @@ workflow NEXTFLOW_WGS {
 				upd.out.upd_bed
 			)
 
-			generate_gens_data(dnascope.out.gvcf_tbi, gatkcov.out.cov_gens)
+			generate_gens_data(dnascope.out.gvcf_tbi.join(gatkcov.out.cov_gens, by: [0,1]))
 
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 
@@ -3270,8 +3270,7 @@ process generate_gens_data {
 	memory '5 GB'
 
 	input:
-		tuple val(group), val(id), path(gvcf), path(gvcf_index)
-		tuple val(group2), val(id2), path(cov_stand), path(cov_denoise)
+		tuple val(group), val(id), path(gvcf), path(gvcf_index), path(cov_stand), path(cov_denoise)
 
 	output:
 		tuple path("${id}.cov.bed.gz"), path("${id}.baf.bed.gz"), path("${id}.cov.bed.gz.tbi"), path("${id}.baf.bed.gz.tbi"), path("${id}.overview.json.gz")
