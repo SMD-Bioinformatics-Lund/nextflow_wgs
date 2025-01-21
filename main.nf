@@ -713,8 +713,7 @@ workflow NEXTFLOW_WGS {
 	//TODO: make work w/ dummy
 	// LOQUSDB //
 	add_to_loqusdb(
-		ch_ped_base,
-		vcf_completion.out.vcf_tbi,
+		ch_ped_base.join(vcf_completion.out.vcf_tbi, by: [0,1]),
 		ch_loqusdb_sv
 	)
 
@@ -4026,13 +4025,11 @@ process add_to_loqusdb {
 	memory '100 MB'
 	time '25m'
 	input:
-		tuple val(group), val(type), path(ped)
-		tuple val(group2), val(type2), path(vcf), path(tbi)
+		tuple val(group), val(type), path(ped), path(vcf), path(tbi)
 		tuple val(group3), path(svvcf)
 
 	output:
 		path("${group}*.loqus"), emit: loqusdb_done
-
 
 	when:
 		!params.noupload && !params.reanalyze
