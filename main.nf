@@ -3415,13 +3415,13 @@ process gatk_call_cnv {
 	tag "$id"
 
 	input:
-	tuple val(group), val(id), path(tsv), path(ploidy), val(i), val(refpart) //TODO: is reffart a path or val
+		tuple val(group), val(id), path(tsv), path(ploidy), val(i), val(refpart) //TODO: is reffart a path or val
 
 
 	output:
 	//TODO: wtf is i
-	tuple val(group), val(id), val(i), path("${group}_${i}.tar"), emit: gatk_calls
-	path "*versions.yml", emit: versions
+		tuple val(group), val(id), val(i), path("${group}_${i}.tar"), emit: gatk_calls
+		path "*versions.yml", emit: versions
 
 	script:
 		"""
@@ -3510,15 +3510,15 @@ process postprocessgatk {
 		export MKL_NUM_THREADS=${task.cpus}
 		export OMP_NUM_THREADS=${task.cpus}
 
-		gatk --java-options "-Xmx25g" PostprocessGermlineCNVCalls \
-			--allosomal-contig X --allosomal-contig Y \
-			--contig-ploidy-calls ploidy/${group}-calls/ \
+		gatk --java-options "-Xmx25g" PostprocessGermlineCNVCalls \\
+			--allosomal-contig X --allosomal-contig Y \\
+			--contig-ploidy-calls ploidy/${group}-calls/ \\
 			--sample-index 0 \\
-			--output-genotyped-intervals genotyped-intervals-${group}-vs-cohort30.vcf.gz \
-			--output-genotyped-segments genotyped-segments-${group}-vs-cohort30.vcf.gz \
-			--output-denoised-copy-ratios denoised-${group}-vs-cohort30.vcf.gz \
-			--sequence-dictionary ${params.GENOMEDICT} \
-			--calls-shard-path ${caseshards} \
+			--output-genotyped-intervals genotyped-intervals-${group}-vs-cohort30.vcf.gz \\
+			--output-genotyped-segments genotyped-segments-${group}-vs-cohort30.vcf.gz \\
+			--output-denoised-copy-ratios denoised-${group}-vs-cohort30.vcf.gz \\
+			--sequence-dictionary ${params.GENOMEDICT} \\
+			--calls-shard-path ${caseshards} \\
 			--model-shard-path ${modelshards}
 
 		echo "${version_str}" > "${task.process}_versions.yml"
