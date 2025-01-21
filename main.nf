@@ -428,7 +428,7 @@ workflow NEXTFLOW_WGS {
 			}
 
 		// TODO: Move this guy to QC:
-		peddy(ch_peddy_input_vcf, ch_ped_base)
+		peddy(ch_peddy_input_vcf.join(ch_ped_base, by: [0,1]))
 		ch_output_info = ch_output_info.mix(peddy.out.peddy_INFO)
 
 		if (params.antype == "wgs") {
@@ -2973,8 +2973,7 @@ process peddy {
 	memory '20GB'
 
 	input:
-		tuple val(group), val(type), path(vcf), path(idx)
-		tuple val(group1), val(type1), path(ped)
+		tuple val(group), val(type), path(vcf), path(idx), path(ped)
 
 	output:
 		tuple path("${group}.ped_check.csv"),path("${group}.peddy.ped"), path("${group}.sex_check.csv"), emit: peddy_files
