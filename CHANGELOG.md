@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### TBD
+* Update bed intersect
+
 ### 3.14.3
 * Fix rankscore parsing in `cnv2bed.pl`
 
