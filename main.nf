@@ -452,7 +452,7 @@ workflow NEXTFLOW_WGS {
 			// roh
 			roh(fastgnomad.out.vcf)
 			overview_plot(
-				gatkcov.out.filter{ it ->
+				gatkcov.out.cov_plot.filter{ it ->
 					it[2] == "proband"
 				},
 				roh.out.roh_plot,
