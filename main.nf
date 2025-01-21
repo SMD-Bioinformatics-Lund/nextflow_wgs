@@ -255,7 +255,7 @@ workflow NEXTFLOW_WGS {
 		ch_ped_ma = create_ped.out.ped_ma
 
 		ch_ped_trio = ch_ped_trio.mix(ch_ped_fa).mix(ch_ped_ma)
-		madeline(ch_ped_trio) // TODO: fetch info
+		madeline(ch_ped_trio)
 
 		ch_versions = ch_versions.mix(madeline.out.versions.first())
 		ch_output_info = ch_output_info.mix(madeline.out.madde_INFO)
@@ -422,8 +422,8 @@ workflow NEXTFLOW_WGS {
 		vcf_completion(genmodscore.out.scored_vcf)
 		ch_output_info = ch_output_info.mix(vcf_completion.out.snv_INFO)
 		ch_peddy_input_vcf = vcf_completion.out.vcf_tbi
-			.filter { vcf ->
-				def type = vcf[1] // TODO: how to proof against position change?
+			.filter { it ->
+				def type = it[1]
 				type == "proband"
 			}
 
@@ -1485,7 +1485,6 @@ process stranger {
 
 	output:
 		tuple val(group), val(id), path("${group}.fixinfo.eh.stranger.vcf"), emit: vcf_annotated
-
 		path "*versions.yml", emit: versions
 
 	script:
