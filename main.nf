@@ -2339,7 +2339,7 @@ process split_normalize {
 		path "*versions.yml", emit: versions
 
 	script:
-	id = ids[0]
+	def id = ids[0]
 	// rename M to MT because genmod does not recognize M
 	if (params.onco || params.assay == "modycf") {
 		"""
@@ -2355,9 +2355,7 @@ process split_normalize {
 
 		${split_normalize_version(task)}
 		"""
-	}
-
-	else {
+	} else {
 		"""
 		vcfbreakmulti ${vcf} > ${group}.multibreak.vcf
 		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
@@ -2377,8 +2375,9 @@ process split_normalize {
 	}
 
 	stub:
-	id = ids[0]
+		def id = ids[0]
 		"""
+		echo ${id} > id.val
 		touch "${group}.norm.uniq.DPAF.vcf"
 		touch "${group}.intersected.vcf"
 		touch "${group}.multibreak.vcf"
