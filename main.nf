@@ -451,7 +451,13 @@ workflow NEXTFLOW_WGS {
 
 			// roh
 			roh(fastgnomad.out.vcf)
-			overview_plot(upd.out.upd_bed, roh.out.roh_plot, gatkcov.out.cov_plot.groupTuple())
+			overview_plot(
+				gatkcov.out.filter{ it ->
+					it[2] == "proband"
+				},
+				roh.out.roh_plot,
+				upd.out.upd_bed
+			)
 
 			generate_gens_data(dnascope.out.gvcf_tbi, gatkcov.out.cov_gens)
 
@@ -3228,23 +3234,22 @@ process overview_plot {
 	publishDir "${params.results_output_dir}/plots", mode: 'copy' , overwrite: 'true', pattern: "*.png"
 
 	input:
+		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoised)
+		tuple val(group2), path(roh)
 		path(upd_bed)
-		tuple val(group), path(roh)
-		tuple val(group2), val(id), val(type), val(sex), path(cov_stand), path(cov_denoised)
 
 	output:
 		path("${group}.genomic_overview.png")
 		tuple val(group), path("${group}_oplot.INFO"), emit: oplot_INFO
 
 	script:
-		proband_idx = type.findIndexOf{ it == "proband" }
 		"""
-		genome_plotter.pl --dict $params.GENOMEDICT \\
-			--sample ${id[proband_idx]} \\
-			--upd $upd_bed \\
-			--roh $roh \\
-			--sex ${sex[proband_idx]} \\
-			--cov ${cov_denoised[proband_idx]} \\
+		genome_plotter.pl --dict ${params.GENOMEDICT} \\
+			--sample ${id} \\
+			--upd ${upd_bed} \\
+			--roh ${roh} \\
+			--sex ${sex} \\
+			--cov ${cov_denoised} \\
 			--out ${group}.genomic_overview.png
 		echo "IMG overviewplot	${params.accessdir}/plots/${group}.genomic_overview.png" > ${group}_oplot.INFO
 		"""
