@@ -480,7 +480,7 @@ workflow NEXTFLOW_WGS {
 
 			// CALL REPEATS //
 
-			expansionhunter(ch_bam_bai, ch_expansionhunter_meta)
+			expansionhunter(ch_bam_bai.join(ch_expansionhunter_meta, by: [0,1]))
 			stranger(expansionhunter.out.expansionhunter_vcf)
 			vcfbreakmulti_expansionhunter(
 				stranger.out.vcf_annotated,
@@ -1424,8 +1424,7 @@ process expansionhunter {
 	memory '40 GB'
 
 	input:
-		tuple val(group), val(id), path(bam), path(bai)
-		tuple val(group2), val(id2), val(sex), val(type)
+		tuple val(group), val(id), path(bam), path(bai), val(sex), val(type)
 
 
 	output:
