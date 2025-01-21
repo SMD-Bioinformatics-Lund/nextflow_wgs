@@ -2133,7 +2133,10 @@ process split_normalize_mito {
 
 	script:
 		"""
+		# Old workaround to remove false-positive that crashes bcftools norm:
+		# TODO: deal w/ this in some better way
 		grep -vP "^M\\s+955" ${mito_snv_vcf} > ${mito_snv_vcf}.fix
+
 		bcftools norm -m-both -o ${mito_snv_vcf}.breakmulti ${mito_snv_vcf}.fix
 		bcftools sort ${mito_snv_vcf}.breakmulti | bgzip > ${mito_snv_vcf}.breakmulti.fix
 		tabix -p vcf ${mito_snv_vcf}.breakmulti.fix
