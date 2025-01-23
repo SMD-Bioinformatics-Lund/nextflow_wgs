@@ -2355,9 +2355,9 @@ process split_normalize {
 		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
 		bcftools sort ${group}.norm.vcf | vcfuniq > ${group}.norm.uniq.vcf
 		wgs_DPAF_filter.pl ${group}.norm.uniq.vcf > ${group}.norm.uniq.DPAF.vcf
-		bedtools intersect \
+		bedtools intersect \\
 			-a ${group}.norm.uniq.DPAF.vcf \\
-			-b $params.intersect_bed \\
+			-b ${params.intersect_bed} \\
 			-u -header > ${group}.intersected.vcf
 
 		${split_normalize_version(task)}
@@ -2370,9 +2370,9 @@ process split_normalize {
 		wgs_DPAF_filter.pl ${group}.norm.uniq.vcf > ${group}.norm.uniq.DPAF.vcf
 		bedtools intersect \\
 			-a ${group}.norm.uniq.DPAF.vcf \\
-			-b $params.intersect_bed \\
+			-b ${params.intersect_bed} \\
 			-u -header > ${group}.intersected_diploid.vcf
-		java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \
+		java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \\
 		I=${group}.intersected_diploid.vcf I=$vcfconcat O=${group}.intersected.vcf
 		sed 's/^M/MT/' -i ${group}.intersected.vcf
 		sed 's/ID=M,length/ID=MT,length/' -i ${group}.intersected.vcf
@@ -3379,10 +3379,10 @@ process gatk_call_ploidy {
 		set +u
 		source activate gatk
 		gatk --java-options "-Xmx20g" DetermineGermlineContigPloidy \\
-			--model $params.ploidymodel \\
-			-I $coverage_tsv \\
+			--model ${params.ploidymodel} \\
+			-I ${coverage_tsv} \\
 			-O ploidy/ \\
-			--output-prefix $group
+			--output-prefix ${group}
 		tar -cvf ploidy.tar ploidy/
 
 		${gatk_call_ploidy_version(task)}
