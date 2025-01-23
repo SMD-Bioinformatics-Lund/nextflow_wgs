@@ -331,7 +331,7 @@ workflow NEXTFLOW_WGS {
 	if (params.antype == "panel") {
 		freebayes(ch_bam_bai)
 		ch_versions = ch_versions.mix(freebayes.out.versions.first())
-		ch_split_normalize_concat_vcf = freebayes.out.freebayes_variants
+		ch_split_normalize_concat_vcf = ch_split_normalize_concat_vcf.mix(freebayes.out.freebayes_variants)
 	}
 
 	// MITO SIDE-QUEST
@@ -357,10 +357,10 @@ workflow NEXTFLOW_WGS {
 			ch_meta.filter{ it ->
 				it[3] == "proband"
 			})
+
 		run_hmtnote(split_normalize_mito.out.vcf)
+		ch_split_normalize_concat_vcf = ch_split_normalize_concat_vcf.mix(run_hmtnote.out.vcf)
 
-
-		ch_split_normalize_concat_vcf = run_hmtnote.out.vcf
 		run_haplogrep(run_mutect2.out.vcf)
 		ch_output_info = ch_output_info.mix(run_haplogrep.out.haplogrep_INFO)
 
@@ -2373,7 +2373,7 @@ process split_normalize {
 			-b ${params.intersect_bed} \\
 			-u -header > ${group}.intersected_diploid.vcf
 		java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \\
-		I=${group}.intersected_diploid.vcf I=$vcfconcat O=${group}.intersected.vcf
+		I=${group}.intersected_diploid.vcf I=${vcfconcat} O=${group}.intersected.vcf
 		sed 's/^M/MT/' -i ${group}.intersected.vcf
 		sed 's/ID=M,length/ID=MT,length/' -i ${group}.intersected.vcf
 
