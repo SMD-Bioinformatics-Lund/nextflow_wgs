@@ -365,7 +365,7 @@ workflow NEXTFLOW_WGS {
 		ch_output_info = ch_output_info.mix(run_haplogrep.out.haplogrep_INFO)
 
 		// SVs
-		run_eklipse(fetch_MTseqs.out.bam_bai, ch_meta)
+		run_eklipse(ch_meta.join(fetch_MTseqs.out.bam_bai, by : [0, 1]))
 		ch_output_info = ch_output_info.mix(run_eklipse.out.eklipse_INFO)
 
 		// MITO VERSIONS
@@ -2275,8 +2275,7 @@ process run_eklipse {
 	publishDir "${params.results_output_dir}/plots/mito", mode: 'copy', overwrite: 'true', pattern: '*.png'
 
 	input:
-		tuple val(group), val(id), path(bam), path(bai)
-		tuple val(group2), val(id2), val(sex), val(type)
+		tuple val(group), val(id), val(sex), val(type), path(bam), path(bai)
 
 	output:
 		tuple path("*.png"), path("${id}.hetplasmid_frequency.txt")
