@@ -319,7 +319,7 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// SNV CALLING //
-	dnascope(ch_bam_bai.join(bqsr.out.dnascope_bqsr, by : [0, 1])
+	dnascope(ch_bam_bai.join(bqsr.out.dnascope_bqsr, by: [0, 1]))
 	ch_versions = ch_versions.mix(dnascope.out.versions.first())
 	gvcf_combine(dnascope.out.gvcf_tbi.groupTuple())
 	ch_versions = ch_versions.mix(gvcf_combine.out.versions.first())
