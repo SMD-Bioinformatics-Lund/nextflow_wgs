@@ -2343,6 +2343,7 @@ process split_normalize {
 	output:
 		tuple val(group), path("${group}.norm.uniq.DPAF.vcf"), emit: norm_uniq_dpaf_vcf
 		tuple val(group), val(id), path("${group}.intersected.vcf"), emit: intersected_vcf
+		tuple val(group), path("${group}.multibreak.vcf"), emit: multibreak_vcf
 		path "*versions.yml", emit: versions
 
 	script:
