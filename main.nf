@@ -136,14 +136,13 @@ workflow NEXTFLOW_WGS {
 		.splitCsv(header:true)
 		.map{ row-> tuple(row.i, row.refpart) }
 
-	// TODO: all the meta channels below should be consolidated into some meta object
+	// TODO: all the meta channels below should be consolidated into some meta object?
 
 	// meta sent to split_normalize_mito, eklipse, bgzip_scored_genmod and used
 	// to trigger loqusdb sv dummy
 	ch_meta = ch_samplesheet.map{ row ->
 		tuple(row.group, row.id, row.sex, row.type)
 	}
-
 
 	// meta sent to qc_to_cdm
 	ch_qc_extra = ch_samplesheet
@@ -298,6 +297,7 @@ workflow NEXTFLOW_WGS {
 
 	// POST SEQ QC //
 	sentieon_qc(ch_bam_bai)
+	ch_versions = ch_versions.mix(sentieon_qc.out.versions.first())
 
 	ch_dedup_stats = ch_dedup_stats.mix(ch_bam_start_dedup_dummy)
 
@@ -411,6 +411,7 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(indel_vep.out.versions.first())
 		ch_versions = ch_versions.mix(calculate_indel_cadd.out.versions.first())
 		ch_versions = ch_versions.mix(bgzip_indel_cadd.out.versions.first())
+		ch_versions = ch_versions.mix(add_cadd_scores_to_vcf.out.versions.first())
 
 		// INHERITANCE MODELS
 
@@ -430,6 +431,7 @@ workflow NEXTFLOW_WGS {
 		// SCORE VARIANTS //
 		genmodscore(inher_models.out.vcf)
 		vcf_completion(genmodscore.out.scored_vcf)
+		ch_versions = ch_versions.mix(vcf_completion.out.versions.first())
 		ch_output_info = ch_output_info.mix(vcf_completion.out.snv_INFO)
 		ch_peddy_input_vcf = vcf_completion.out.vcf_tbi
 			.filter { it ->
@@ -440,6 +442,9 @@ workflow NEXTFLOW_WGS {
 		// TODO: Move this guy to QC:
 		peddy(ch_peddy_input_vcf.join(ch_ped_base, by: [0,1]))
 		ch_output_info = ch_output_info.mix(peddy.out.peddy_INFO)
+
+		ch_versions = ch_versions.mix(genmodscore.out.versions.first())
+		ch_versions = ch_versions.mix(peddy.out.versions.first())
 
 		if (params.antype == "wgs") {
 			// fastgnomad
