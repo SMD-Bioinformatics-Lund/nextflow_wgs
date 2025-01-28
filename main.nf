@@ -18,8 +18,14 @@ workflow {
 
 	log.info("Hello.")
 
-	// Count lines of input csv, if more than 2(header + 1 ind) then mode is set to family //
+	// Check whether genome assembly is indexed //
+	if(params.genome_file) {
+		bwaId = Channel
+			.fromPath("${params.genome_file}.bwt")
+			.ifEmpty { exit 1, "BWA index not found: ${params.genome_file}.bwt" }
+	}
 
+	// Count lines of input csv, if more than 2(header + 1 ind) then mode is set to family //
 	log.info("Input CSV: " + params.csv)
 	log.info("mode: " + params.mode)
 	log.info("trio analysis: " + params.trio)
@@ -792,13 +798,6 @@ workflow NEXTFLOW_WGS {
 	// 	.map{ row-> tuple(row.i, row.refpart) }
 	// 	.into{ gatk_ref; gatk_postprocess }
 
-
-	// // Check whether genome assembly is indexed //
-	// if(params.genome_file) {
-	// 	bwaId = Channel
-	// 		.fromPath("${params.genome_file}.bwt")
-	// 		.ifEmpty { exit 1, "BWA index not found: ${params.genome_file}.bwt" }
-	// }
 
 //}
 
