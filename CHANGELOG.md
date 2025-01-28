@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.14.5
+* Reproducibility fix: ensure `compound_finder.pl` iterates over SVs in the same order between runs.
+
 ### 3.14.4
 * Routine update of bed intersect file
 
