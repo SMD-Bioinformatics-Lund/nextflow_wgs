@@ -1610,7 +1610,7 @@ process melt {
 	// memory seems to scale with less number of reads?
 	memory '70 GB'
 	time '3h'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: 'true', vcf: '*.pattern'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: 'true', pattern: '*.vcf'
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
