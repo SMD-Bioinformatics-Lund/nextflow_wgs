@@ -21,6 +21,7 @@ workflow {
 	log.info("Hello.")
 
 	// Check whether genome assembly is indexed //
+	// TODO: Move to some pre-processing workflow:
 	if(params.genome_file) {
 		bwaId = Channel
 			.fromPath("${params.genome_file}.bwt")
@@ -39,10 +40,10 @@ workflow {
 	// TODO: stuff this one into versions too, for good measure.
 	file(params.git)
 		.readLines()
-		.each { println "git commit-hash: "+it }
+		.each { println "git commit-hash: " + it }
 
 	// Print active container
-	println("container: " + file(params.container).toRealPath())
+	log.info("container: " + file(params.container).toRealPath())
 
 	ch_versions = Channel.empty()
 
