@@ -13,6 +13,8 @@ workflow {
 	//       params.outdir won't work.
 	params.results_output_dir = params.outdir + '/' + params.subdir
 	params.cron_output_dir = params.crondir // TODO: switch back to crondir
+
+	// TODO: Pass these to processes in meta?
 	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
 	params.trio = file(params.csv).countLines() > 3 ? true : false
 
@@ -740,18 +742,8 @@ workflow NEXTFLOW_WGS {
 
 
 	// Input channels for alignment, variant calling and annotation //
-	// Channel
-	// 	.fromPath(params.csv)
-	// 	.splitCsv(header:true)
-	// 	.map{ row-> tuple(row.group,
-	// 					  row.id,
-	// 					  (row.containsKey("bam") ? file(row.bam) : (row.containsKey("vcf") ? file(row.vcf) : file(row.read1) ) ),
-	// 					  (row.containsKey("bai") ? file(row.bai) : (row.containsKey("idx") ? file(row.idx) : file(row.read2) ) ) ) }
-	// 	.set { ch_samplesheet }
 
 	// fastq = Channel.create()
-
-	// fastq_sharded = Channel.create()
 	// fastq_umi = Channel.create()
 	// annotate_only = Channel.create()
 
@@ -770,36 +762,6 @@ workflow NEXTFLOW_WGS {
 	// 	.splitCsv(header:true)
 	// 	.map{ row-> tuple(row.group, row.assay) }
     //     .set{ meta_loqusdb_no_sv_calling }
-
-	// // Input channels for various meta information //
-	// Channel
-	// 	.fromPath(params.csv)
-	// 	.splitCsv(header:true)
-	// 	.map{ row-> tuple(row.id, row.diagnosis, row.read1, row.read2) }
-	// 	.set{ qc_extra }
-
-	// Channel
-	// 	.fromPath(params.csv)
-	// 	.splitCsv(header:true)
-	// 	.map{ row-> tuple(row.group, row.id, row.sex, row.mother, row.father, row.phenotype, row.diagnosis, row.type, row.assay, row.clarity_sample_id, (row.containsKey("ffpe") ? row.ffpe : false), (row.containsKey("analysis") ? row.analysis : false) ) }
-	// 	.set { ped; yml_diag; meta_upd; meta_str }
-
-
-	// Channel
-	// 	.fromPath(params.csv)
-	// 	.splitCsv(header:true)
-	// 	.map{ row-> tuple(row.group, row.id, row.sex, row.type) }
-	// 	.into { meta_gatkcov; meta_exp; meta_svbed; meta_pod; meta_mutect2; meta_eklipse}
-
-
-	// Channel
-	// 	.fromPath(params.gatkreffolders)
-	// 	.splitCsv(header:true)
-	// 	.map{ row-> tuple(row.i, row.refpart) }
-	// 	.into{ gatk_ref; gatk_postprocess }
-
-
-//}
 
 
 
