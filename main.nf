@@ -629,7 +629,7 @@ workflow NEXTFLOW_WGS {
 
 			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, ch_melt_qc_vals)
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
-			// ch_output_info = ch_output_info.mix(cnvkit_panel.out.cnvkit_INFO)
+			ch_output_info = ch_output_info.mix(cnvkit_panel.out.cnvkit_INFO)
 
 			ch_panel_merge = ch_panel_merge.mix(
 				ch_cnvkit_out,
@@ -3657,7 +3657,7 @@ process cnvkit_panel {
 		tuple val(group), val(id), path("${id}.cnvkit_filtered.vcf"), emit: cnvkit_calls
 		tuple val(group), val(id), path("${id}.call.cns"), emit: unfiltered_cns
 		tuple val(group), val(id), path("${group}.genomic_overview.png"), emit: genomic_overview_plot
-		tuple val(group), val(id), path("${group}_oplot.INFO"), emit: cnvkit_INFO
+		tuple val(group), path("${group}_oplot.INFO"), emit: cnvkit_INFO
 		path "*versions.yml", emit: versions
 
 
