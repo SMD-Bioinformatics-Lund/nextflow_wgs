@@ -80,7 +80,7 @@ while ( my $b = $vcf2->next_var() ) {
 	## if gene-match check compounding
 	## else check overlap
 	## else not confounding
-	foreach my $SVvar (keys %{$svc}) {
+	foreach my $SVvar (sort keys %{$svc}) {
 		my $svPOS = $svc->{$SVvar}->{POS};
 		my $svEND = $svc->{$SVvar}->{END};
 		my $svlen = $svc->{$SVvar}->{SVLEN};
