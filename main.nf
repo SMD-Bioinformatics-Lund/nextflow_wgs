@@ -431,7 +431,6 @@ workflow NEXTFLOW_WGS {
 		// SCORE VARIANTS //
 		genmodscore(inher_models.out.vcf)
 		vcf_completion(genmodscore.out.scored_vcf)
-		ch_versions = ch_versions.mix(vcf_completion.out.versions.first())
 		ch_output_info = ch_output_info.mix(vcf_completion.out.snv_INFO)
 		ch_peddy_input_vcf = vcf_completion.out.vcf_tbi
 			.filter { it ->
@@ -443,6 +442,8 @@ workflow NEXTFLOW_WGS {
 		peddy(ch_peddy_input_vcf.join(ch_ped_base, by: [0,1]))
 		ch_output_info = ch_output_info.mix(peddy.out.peddy_INFO)
 
+		ch_versions = ch_versions.mix(inher_models.out.versions.first())
+		ch_versions = ch_versions.mix(vcf_completion.out.versions.first())
 		ch_versions = ch_versions.mix(genmodscore.out.versions.first())
 		ch_versions = ch_versions.mix(peddy.out.versions.first())
 
@@ -542,6 +543,7 @@ workflow NEXTFLOW_WGS {
 		ch_filtered_merged_gatk_calls = filter_merge_gatk.out.merged_filtered_vcf
 
 
+		ch_versions = ch_versions.mix(gatk_call_cnv.out.versions.first())
 		ch_versions = ch_versions.mix(gatk_coverage.out.versions.first())
 		ch_versions = ch_versions.mix(gatk_call_ploidy.out.versions.first())
 		ch_versions = ch_versions.mix(postprocessgatk.out.versions.first())
@@ -690,7 +692,6 @@ workflow NEXTFLOW_WGS {
 
 		compound_finder(ch_compound_finder_input)
 		ch_output_info = ch_output_info.mix(compound_finder.out.svcompound_INFO)
-
 
 		ch_versions = ch_versions.mix(score_sv.out.versions.first())
 		ch_versions = ch_versions.mix(bgzip_scored_genmod.out.versions.first())
