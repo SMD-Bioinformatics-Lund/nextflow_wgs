@@ -2490,7 +2490,7 @@ def annotate_vep_version(task) {
 }
 
 
-// // gene, clinvar, loqusdb, enigma(onco)
+// gene, clinvar, loqusdb, enigma(onco)
 process vcfanno {
 	memory '1GB'
 	time '1h'
