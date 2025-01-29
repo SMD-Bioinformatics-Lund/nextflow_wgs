@@ -2558,9 +2558,9 @@ def vcfanno_version(task) {
 }
 
 
-// // Extracting most severe consequence:
-// // Modifying annotations by VEP-plugins, and adding to info-field:
-// // Modifying CLNSIG field to allow it to be used by genmod score properly:
+// Extracting most severe consequence:
+// Modifying annotations by VEP-plugins, and adding to info-field:
+// Modifying CLNSIG field to allow it to be used by genmod score properly:
 // TODO: give process better name
 process modify_vcf {
 	cpus 2
