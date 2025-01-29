@@ -144,6 +144,15 @@ workflow NEXTFLOW_WGS {
 		tuple(row.group, row.id, row.sex, row.type)
 	}
 
+	ch_split_normalize_meta = ch_samplesheet
+		.filter { row ->
+			row.type == "proband"
+		}
+		.map{ row ->
+			tuple(row.group, row.id, row.sex, row.type)
+		}
+
+
 	// meta sent to qc_to_cdm
 	ch_qc_extra = ch_samplesheet
 		.map { row ->
@@ -205,6 +214,7 @@ workflow NEXTFLOW_WGS {
 	ch_expansionhunter_meta = ch_gatkcov_meta.filter { row ->
 		row.type == "proband"
 	} // ch group, id, sex, type
+
 	ch_svvcf_to_bed_meta = ch_expansionhunter_meta
 
 	// BAM-start
@@ -361,9 +371,8 @@ workflow NEXTFLOW_WGS {
 
 		split_normalize_mito(
 			run_mutect2.out.vcf,
-			ch_meta.filter{ row ->
-				row.type == "proband"
-			})
+			ch_split_normalize_meta
+			)
 
 		run_hmtnote(split_normalize_mito.out.vcf)
 		ch_split_normalize_concat_vcf = ch_split_normalize_concat_vcf.mix(run_hmtnote.out.vcf)
