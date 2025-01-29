@@ -1534,12 +1534,12 @@ process reviewer {
 		version_str = reviewer_version(task)
 		"""
 		grep LocusId ${params.expansionhunter_catalog} | sed 's/[",^ ]//g' | cut -d':' -f2 | perl -na -e 'chomp; \
-		system("REViewer --reads ${bam} \
-		--vcf ${vcf} \
-		--reference ${params.genome_file} \
-		--catalog ${params.expansionhunter_catalog} \
-		--locus \$_ \
-		--output-prefix ${id}");'
+		system("REViewer --reads ${bam} \\
+			--vcf ${vcf} \\
+			--reference ${params.genome_file} \\
+			--catalog ${params.expansionhunter_catalog} \\
+			--locus \$_ \\
+			--output-prefix ${id}");'
 
 		echo "${version_str}" > "${task.process}_versions.yml"
 		"""
