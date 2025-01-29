@@ -174,8 +174,7 @@ workflow NEXTFLOW_WGS {
 			)
 		}
 		.filter { row ->
-			def type = row[7]
-			type == "proband"
+			row.type == "proband"
 		}
 
 	// meta sent to create_yml
@@ -191,8 +190,7 @@ workflow NEXTFLOW_WGS {
 		)
 	}
 	.filter { row ->
-			def type = row[4]
-			type == "proband"
+			row.type == "proband"
 	}
 
 	ch_gatkcov_meta = ch_samplesheet.map { row ->
@@ -205,7 +203,7 @@ workflow NEXTFLOW_WGS {
 	}
 
 	ch_expansionhunter_meta = ch_gatkcov_meta.filter { it ->
-		it[3] == "proband"
+		row.type == "proband"
 	} // ch group, id, sex, type
 	ch_svvcf_to_bed_meta = ch_expansionhunter_meta
 
