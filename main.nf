@@ -2711,7 +2711,6 @@ process calculate_indel_cadd {
 		tuple val(group), path("${group}.indel_cadd.gz"), emit: cadd_gz
 		path "*versions.yml", emit: versions
 
-	//TODO: does this output a VCF? if so fix file ending.
 	script:
 		"""
 		/CADD-scripts/CADD.sh -c ${task.cpus} -g GRCh38 -o ${group}.indel_cadd.gz $vcf
