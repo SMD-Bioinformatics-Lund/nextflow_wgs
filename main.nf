@@ -539,14 +539,10 @@ workflow NEXTFLOW_WGS {
 		// TODO: do the joining and combining outside
 		gatk_call_cnv(ch_gatk_coverage.join(ch_gatk_ploidy, by: [0,1]).combine(ch_gatk_ref))
 
-		ch_gatk_ref.view()
-		ch_test = ch_gatk_ref.groupTuple(by : 3).view()
-
 		ch_gatk_postprocess_input = gatk_call_cnv.out.gatk_calls
 			.groupTuple(by : [0,1])
 			.join(ch_gatk_ploidy, by: [0, 1])
-			.combine(ch_gatk_ref.groupTuple(by : 3))
-			.view()
+			.combine(ch_gatk_ref.groupTuple(by : [3])) // TODO: Explanation here.
 
 		postprocessgatk(ch_gatk_postprocess_input)
 		filter_merge_gatk(postprocessgatk.out.called_gatk)
