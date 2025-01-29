@@ -920,7 +920,7 @@ process markdup {
 			--metrics dedup_metrics.txt \\
 			--rmdup ${id}_dedup.bam
 
-		# TODO: To some separate process?
+		# TODO: Build this and other INFO outputs in separate workflow/process.
 		echo "BAM	$id	/access/${params.subdir}/bam/${id}_dedup.bam" > ${group}_bam.INFO
 
 		${markdup_versions(task)}
