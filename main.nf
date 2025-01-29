@@ -141,17 +141,30 @@ workflow NEXTFLOW_WGS {
 	// meta sent to split_normalize_mito, eklipse, bgzip_scored_genmod and used
 	// to trigger loqusdb sv dummy
 	ch_meta = ch_samplesheet.map{ row ->
-		tuple(row.group, row.id, row.sex, row.type)
+		tuple(
+			row.group,
+			row.id,
+			row.sex,
+			row.type)
 	}
+
+	ch_gatkcov_meta = ch_meta
 
 	ch_split_normalize_meta = ch_samplesheet
 		.filter { row ->
 			row.type == "proband"
 		}
 		.map{ row ->
-			tuple(row.group, row.id, row.sex, row.type)
+			tuple(
+				row.group,
+				row.id,
+				row.sex,
+				row.type
+			)
 		}
 
+	ch_expansionhunter_meta = ch_split_normalize_meta
+	ch_svvcf_to_bed_meta  = ch_split_normalize_meta
 
 	// meta sent to qc_to_cdm
 	ch_qc_extra = ch_samplesheet
@@ -187,35 +200,21 @@ workflow NEXTFLOW_WGS {
 		}
 
 	// meta sent to create_yml
-	ch_scout_yaml_meta = ch_samplesheet.map { row ->
-		tuple(
-			row.group,
-			row.id,
-			row.diagnosis,
-			row.assay,
-			row.type,
-			row.clarity_sample_id,
-			(row.containsKey("analysis") ? row.analysis : false)
-		)
-	}
-	.filter { row ->
+	ch_scout_yaml_meta = ch_samplesheet
+		.filter { row ->
 			row.type == "proband"
-	}
-
-	ch_gatkcov_meta = ch_samplesheet.map { row ->
-		tuple(
-			row.group,
-			row.id,
-			row.sex,
-			row.type,
-		)
-	}
-
-	ch_expansionhunter_meta = ch_gatkcov_meta.filter { row ->
-		row.type == "proband"
-	} // ch group, id, sex, type
-
-	ch_svvcf_to_bed_meta = ch_expansionhunter_meta
+		}
+		.map { row ->
+			tuple(
+				row.group,
+				row.id,
+				row.diagnosis,
+				row.assay,
+				row.type,
+				row.clarity_sample_id,
+				(row.containsKey("analysis") ? row.analysis : false)
+			)
+		}
 
 	// BAM-start
 	// Check for .bam files in read1 and start from bam if any found.
