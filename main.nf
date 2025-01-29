@@ -361,8 +361,8 @@ workflow NEXTFLOW_WGS {
 
 		split_normalize_mito(
 			run_mutect2.out.vcf,
-			ch_meta.filter{ it ->
-				it[3] == "proband"
+			ch_meta.filter{ row ->
+				row.type == "proband"
 			})
 
 		run_hmtnote(split_normalize_mito.out.vcf)
