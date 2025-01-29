@@ -202,7 +202,7 @@ workflow NEXTFLOW_WGS {
 		)
 	}
 
-	ch_expansionhunter_meta = ch_gatkcov_meta.filter { it ->
+	ch_expansionhunter_meta = ch_gatkcov_meta.filter { row ->
 		row.type == "proband"
 	} // ch group, id, sex, type
 	ch_svvcf_to_bed_meta = ch_expansionhunter_meta
