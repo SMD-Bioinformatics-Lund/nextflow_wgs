@@ -1121,9 +1121,21 @@ process sentieon_qc {
 		tuple val(group), val(id), path(bam), path(bai)
 
 	output:
-	tuple val(group), val(id), path("mq_metrics.txt"), path("qd_metrics.txt"), path("gc_summary.txt"),
-		path("gc_metrics.txt"), path("aln_metrics.txt"), path("is_metrics.txt"), path("assay_metrics.txt"),
-		path("cov_metrics.txt"), path("cov_metrics.txt.sample_summary"), emit: sentieon_qc_metrics
+		tuple (
+			val(group),
+			val(id),
+			path("mq_metrics.txt"),
+			path("qd_metrics.txt"),
+			path("gc_summary.txt"),
+			path("gc_metrics.txt"),
+			path("aln_metrics.txt"),
+			path("is_metrics.txt"),
+			path("assay_metrics.txt"),
+			path("cov_metrics.txt"),
+			path("cov_metrics.txt.sample_summary"),
+			emit: sentieon_qc_metrics
+		)
+
 		path "*versions.yml", emit: versions
 
 	script:
