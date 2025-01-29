@@ -1323,7 +1323,7 @@ def verifybamid2_version(task) {
 	"""
 }
 
-// // Calculate coverage for paneldepth
+// Calculate coverage for paneldepth
 process depth_onco {
 	cpus 2
 	time '1h'
