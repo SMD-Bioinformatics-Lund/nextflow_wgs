@@ -157,6 +157,9 @@ workflow NEXTFLOW_WGS {
 
 	// meta sent to stranger
 	ch_stranger_meta = ch_samplesheet
+		.filter { row ->
+			row.type == "proband"
+		}
 		.map { row -> // TODO: Rename this channel
 			tuple(
 				row.group,
@@ -172,9 +175,6 @@ workflow NEXTFLOW_WGS {
 				(row.containsKey("ffpe") ? row.ffpe : false),
 				(row.containsKey("analysis") ? row.analysis : false)
 			)
-		}
-		.filter { row ->
-			row.type == "proband"
 		}
 
 	// meta sent to create_yml
