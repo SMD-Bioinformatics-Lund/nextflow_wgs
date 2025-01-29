@@ -2401,7 +2401,7 @@ def split_normalize_version(task) {
 	"""
 }
 
-// /////////////// Collect QC, emit: single file ///////////////
+/////////////// Collect QC, emit: single file ///////////////
 
 process merge_qc_json {
     cpus 2
