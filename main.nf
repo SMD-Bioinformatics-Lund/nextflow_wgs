@@ -1184,9 +1184,20 @@ process sentieon_qc_postprocess {
 	time '2h'
 
 	input:
-	tuple val(group), val(id), path(mq_metrics), path(qd_metrics), path(gc_summary), path(gc_metrics), path(aln_metrics),
-		path (is_metrics), path(assay_metrics), path(cov_metrics), path(cov_metrics_sample_summary), path(dedup_metrics)
-
+		tuple(
+			val(group),
+			val(id),
+			path(mq_metrics),
+			path(qd_metrics),
+			path(gc_summary),
+			path(gc_metrics),
+			path(aln_metrics),
+			path(is_metrics),
+			path(assay_metrics),
+			path(cov_metrics),
+			path(cov_metrics_sample_summary),
+			path(dedup_metrics)
+		)
 	output:
 		tuple val(group), val(id), path("${id}_qc.json"), emit: qc_json
 
