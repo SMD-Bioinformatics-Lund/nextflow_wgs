@@ -258,18 +258,18 @@ workflow NEXTFLOW_WGS {
 
 	create_ped(ch_ped_input)
 	ch_ped_base = create_ped.out.ped_base
-	ch_ped_fa = Channel.empty()
-	ch_ped_ma = Channel.empty()
+	ch_ped_father_affected = Channel.empty()
+	ch_ped_mother_affected = Channel.empty()
 
-	ch_ped_trio = Channel.empty()  //TODO: better name for this channel
-	ch_ped_trio = ch_ped_trio.mix(ch_ped_base)
+	ch_ped_trio_affected_permutations = Channel.empty()  // Channel for base ped + father and mother set as affected peds
+	ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations.mix(ch_ped_base)
 	if(params.mode == "family" && params.assay == "wgs") {
 
-		ch_ped_fa = create_ped.out.ped_fa
-		ch_ped_ma = create_ped.out.ped_ma
+		ch_ped_father_affected = create_ped.out.ped_fa
+		ch_ped_mother_affected = create_ped.out.ped_ma
 
-		ch_ped_trio = ch_ped_trio.mix(ch_ped_fa).mix(ch_ped_ma)
-		madeline(ch_ped_trio)
+		ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations.mix(ch_ped_father_affected).mix(ch_ped_mother_affected)
+		madeline(ch_ped_trio_affected_permutations)
 
 		ch_versions = ch_versions.mix(madeline.out.versions.first())
 		ch_output_info = ch_output_info.mix(madeline.out.madde_INFO)
@@ -420,7 +420,7 @@ workflow NEXTFLOW_WGS {
 		// INHERITANCE MODELS
 
 		ch_inher_models_input = add_cadd_scores_to_vcf.out.vcf
-			.cross(ch_ped_trio)
+			.cross(ch_ped_trio_affected_permutations)
 			.map { vcf_tuple, ped_tuple ->
 				def group = vcf_tuple[0]
 				def vcf = vcf_tuple[1]
@@ -668,7 +668,7 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(postprocess_vep_sv.out.versions.first())
 		ch_versions = ch_versions.mix(artefact.out.versions.first())
 
-		ch_ped_prescore = ch_ped_trio
+		ch_ped_prescore = ch_ped_trio_affected_permutations
 
 		ch_prescore_input = artefact.out.vcf.join(annotsv.out.annotsv_tsv) // ch: group, path(annotsv_tsv), path(vcf)
 		ch_prescore_input = ch_prescore_input.cross(ch_ped_prescore)
@@ -691,7 +691,7 @@ workflow NEXTFLOW_WGS {
 		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf, ch_svvcf_to_bed_meta)
 
 		ch_compound_finder_input = bgzip_scored_genmod.out.sv_rescore  // Take final scored SV VCF
-			.join(ch_ped_trio, by: [0,1])                              // join with correct ped on group, type
+			.join(ch_ped_trio_affected_permutations, by: [0,1])        // join with correct ped on group, type
 			.join(vcf_completion.out.vcf_tbi, by: [0,1])               // join with final SNV VCF + index on group, type
 
 		compound_finder(ch_compound_finder_input)
