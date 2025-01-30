@@ -1550,8 +1550,7 @@ process reviewer {
 		"""
 }
 def reviewer_version(task) {
-	// This docstring looks different
-	// If spaces similarly to the others, this leads to additional whitespace above and below the version text
+	// TODO: Reconcile this version stub with others.
 	"""${task.process}:
 	    reviewer: \$(echo \$(REViewer --version 2>&1) | sed 's/^.*REViewer v//')"""
 }
@@ -2251,8 +2250,7 @@ process run_haplogrep {
 		"""
 }
 def run_haplogrep_version(task) {
-	// This docstring looks different
-	// If spaces similarly to the others, this leads to additional whitespace above and below the version text
+	// TODO: Reconcile this version stub with others.
 	"""${task.process}:
 	    haplogrep: \$(echo \$(java -jar /opt/bin/haplogrep.jar classify 2>&1) | sed "s/htt.*Classify v// ; s/ .*//")
 	    montage: \$(echo \$(gm -version 2>&1) | head -1 | sed -e "s/GraphicsMagick //" | cut -d" " -f1 )"""
@@ -3548,8 +3546,7 @@ process postprocessgatk {
 		"""
 }
 def postprocessgatk_version(task) {
-	// This docstring looks different
-	// If spaces similarly to the others, this leads to additional whitespace above and below the version text
+	// TODO: Reconcile this version stub with others.
 	"""${task.process}:
 	    gatk: \$(echo \$(gatk --version 2>&1) | sed 's/^.*(GATK) v//; s/ .*\$// ; s/-SNAPSHOT//')"""
 }
