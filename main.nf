@@ -2781,7 +2781,7 @@ process generate_gens_data {
 	script:
 		"""
 		generate_gens_data.pl $cov_stand $gvcf $id $params.GENS_GNOMAD
-		echo "gens load sample --sample-id $id --genome-build 38 --baf ${params.gens_accessdir}/${id}.baf.bed.gz --coverage ${params.gens_accessdir}/${id}.cov.bed.gz --overview-json ${params.gens_accessdir}/${id}.overview.json.gz" > ${id}.gens
+		echo "gens load sample --sample-id $id --case-id $group --genome-build 38 --baf ${params.gens_accessdir}/${id}.baf.bed.gz --coverage ${params.gens_accessdir}/${id}.cov.bed.gz --overview-json ${params.gens_accessdir}/${id}.overview.json.gz" > ${id}.gens
 		"""
 
 	stub:
