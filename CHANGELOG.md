@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.14.5
+* Include --case-id flag with group-ID in Gens load command
+
 ### 3.14.4
 * Routine update of bed intersect file
 
