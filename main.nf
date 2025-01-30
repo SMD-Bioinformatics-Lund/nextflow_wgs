@@ -18,8 +18,6 @@ workflow {
 	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
 	params.trio = file(params.csv).countLines() > 3 ? true : false
 
-	log.info("Hello.")
-
 	// Check whether genome assembly is indexed //
 	// TODO: Move to some pre-processing workflow:
 	if(params.genome_file) {
