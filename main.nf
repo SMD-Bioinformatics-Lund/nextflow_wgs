@@ -21,7 +21,7 @@ workflow {
 	// Check whether genome assembly is indexed //
 	// TODO: Move to some pre-processing workflow:
 	if(params.genome_file) {
-		bwaId = Channel
+		_bwaId = Channel
 			.fromPath("${params.genome_file}.bwt")
 			.ifEmpty { exit 1, "BWA index not found: ${params.genome_file}.bwt" }
 	}
