@@ -50,6 +50,7 @@ workflow {
 		.splitCsv(header: true)
 		.set { ch_samplesheet }
 
+	ch_samplesheet.view()
 	NEXTFLOW_WGS(ch_samplesheet)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect{ it }
@@ -718,10 +719,11 @@ workflow NEXTFLOW_WGS {
 
 		// add_to_loqusb won't run if no svvcf is generated
 		// the code below creates dummy svvcf for no-SV runs
+		def dummy_file = file("NA")
 		ch_loqusdb_no_sv_dummy = ch_samplesheet
 			.map { row ->
 				def group = row.group
-				def sv_vcf_dummy = "NA"
+				def sv_vcf_dummy = dummy_file
 				tuple(group, sv_vcf_dummy)
 			}
 			.first()
@@ -4019,7 +4021,7 @@ process add_to_loqusdb {
 	time '25m'
 	input:
 		tuple val(group), val(type), path(ped), path(vcf), path(tbi)
-		tuple val(group3), path(svvcf)
+		tuple val(group2), path(svvcf)
 
 	output:
 		path("${group}*.loqus"), emit: loqusdb_done
