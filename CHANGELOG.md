@@ -9,6 +9,8 @@
 * Remove `dummy_svvcf_for_loqusdb` process
 * Temp disable annotation-only runs (will be re-added later)
 
+### 3.14.5
+* Include --case-id flag with group-ID in Gens load command
 
 ### 3.14.4
 * Routine update of bed intersect file
