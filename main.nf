@@ -731,7 +731,6 @@ workflow NEXTFLOW_WGS {
 
 	}
 
-	//TODO: make work w/ dummy
 	// LOQUSDB //
 	add_to_loqusdb(
 		ch_ped_base.join(vcf_completion.out.vcf_tbi, by: [0,1]),
@@ -751,7 +750,6 @@ workflow NEXTFLOW_WGS {
 	emit:
 		versions = ch_versions
 }
-
 
 	// TODO: re-implement annotation-only runs and sort out remainder of this block:
 	// Input channels for alignment, variant calling and annotation //
