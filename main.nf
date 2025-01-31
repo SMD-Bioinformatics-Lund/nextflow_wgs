@@ -718,13 +718,13 @@ workflow NEXTFLOW_WGS {
 
 		// add_to_loqusb won't run if no svvcf is generated
 		// the code below creates dummy svvcf for no-SV runs
-		ch_loqusdb_no_sv_dummy = ch_meta
-			.first()
+		ch_loqusdb_no_sv_dummy = ch_samplesheet
 			.map { row ->
 				def group = row.group
 				def sv_vcf_dummy = "NA"
 				tuple(group, sv_vcf_dummy)
 			}
+			.first()
 
 		ch_loqusdb_sv = ch_loqusdb_sv.mix(ch_loqusdb_no_sv_dummy)
 
