@@ -753,27 +753,19 @@ workflow NEXTFLOW_WGS {
 }
 
 
+	// TODO: re-implement annotation-only runs and sort out remainder of this block:
 	// Input channels for alignment, variant calling and annotation //
 
-	// fastq = Channel.create()
-	// fastq_umi = Channel.create()
 	// annotate_only = Channel.create()
 
 	// If input-files has bam files bypass alignment, otherwise go for fastq-channels => three options for fastq, sharded bwa, normal bwa or umi trimming
-	// TODO: move this out into workflow?
 	// input_files.view().choice(bam_choice, fastq, fastq_sharded, fastq_umi, annotate_only ) { it[2] =~ /\.bam/ ? 0 : ( it[2] =~ /\.vcf.gz/ ? 4 : (params.shardbwa ? 2 : (params.umi ? 3 : 1) )) }
 
-	// TODO: annotate-only
 	// annotate_only.into{
 	// 	annotate_only_vep;
 	// 	annotate_only_cadd
 	// }
 
-	// Channel
-	// 	.fromPath(params.csv)
-	// 	.splitCsv(header:true)
-	// 	.map{ row-> tuple(row.group, row.assay) }
-    //     .set{ meta_loqusdb_no_sv_calling }
 
 
 
