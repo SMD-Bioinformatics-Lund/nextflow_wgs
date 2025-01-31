@@ -679,7 +679,6 @@ workflow NEXTFLOW_WGS {
 				def annotsv_tsv = item[0][2]
 				def type = item[1][1]
 				def ped = item[1][2]
-				log.info(type)
 				tuple(group, type, ped, annotsv_tsv, artefact_vcf)
 			}
 
