@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.15.1
+* Update VEP to 113.3
+* Update VEP fasta/cache to 113.0
+
 ### 3.15.0
 
 * Rewrite main.nf to DSL2
