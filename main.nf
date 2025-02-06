@@ -2309,7 +2309,6 @@ def run_eklipse_version(task) {
 	"""
 }
 
-//eklipseM_INFO.collectPath(name: "eklipse.INFO").set{ eklipse_INFO }
 
 // Splitting & normalizing variants, merging with Freebayes/Mutect2, intersecting against exome/clinvar introns
 process split_normalize {
