@@ -4098,13 +4098,6 @@ process vep_sv {
 
 	script:
 		"""
-
-		# Temporary fix for VEP 111.0 annotation bug, where certain MANTA indels are being skipped by VEP
-		# See: https://github.com/Ensembl/ensembl-vep/issues/1631#issuecomment-1985973568
-		# Edit 2024-11-01: Fixed in VEP 112.0
-
-		sed 's/SVTYPE=/BAZBAZ=/' $vcf > ${group}.vep111-workaround.vcf
-
 		vep \\
 			-i ${group}.vep111-workaround.vcf \\
 			-o ${group}.vep.vcf \\
@@ -4125,8 +4118,6 @@ process vep_sv {
 			-cache \\
 			--format vcf
 
-		# Re-enable SVTYPE:
-		sed -i 's/BAZBAZ=/SVTYPE=/' ${group}.vep.vcf
 		${vep_sv_version(task)}
 		"""
 
