@@ -1,0 +1,2 @@
+clarity_sample_id,id,type,sex,assay,diagnosis,phenotype,group,father,mother,clarity_pool_id,platform,read1,read2,analysis,priority
+CMDFOOXBAR,hg002,proband,M,dev,OMIM-AUTO,healthy,giab,0,0,NA,illumina,/fs2/jakob/data/giab_runner/giab_hg002/R1_001.fastq.gz,/fs2/jakob/data/giab_runner/giab_hg002/R2_001.fastq.gz,wgs,grace-lowest
