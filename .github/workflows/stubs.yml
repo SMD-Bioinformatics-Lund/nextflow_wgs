@@ -11,4 +11,4 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: nf-core/setup-nextflow@v1
-      - run: nextflow run ${GITHUB_WORKSPACE}
+      - run: nextflow run ${GITHUB_WORKSPACE} -stub -profile wgs --csv ${GITHUB_WORKSPACE}/tests/data/stub-run-wgs-single.csv
