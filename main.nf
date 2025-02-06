@@ -4099,7 +4099,7 @@ process vep_sv {
 	script:
 		"""
 		vep \\
-			-i ${group}.vep111-workaround.vcf \\
+			-i ${vcf} \\
 			-o ${group}.vep.vcf \\
 			--offline \\
 			--merged \\
