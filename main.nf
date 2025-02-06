@@ -2309,6 +2309,58 @@ def run_eklipse_version(task) {
 	"""
 }
 
+process vcflib_vcfbreakmulti {
+	cpus 2
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	tag "$group"
+	memory '50 GB'
+	time '1h'
+	input:
+		tuple val(group), val(id), path(vcf)
+
+	output:
+		tuple val(group), val(id), path("${group}.multibreak.vcf"), emit: multibreak_vcf
+
+	script:
+	output_vcf_filepath = (params.onco || params.assay == "modycf") ? "${id}.concat.freebayes.vcf" : "${group}.multibreak.vcf"
+		"""
+		vcfbreakmulti ${id}
+		"""
+}
+
+process bcftools_norm {
+	cpus 2
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	tag "$group"
+	memory '50 GB'
+	time '1h'
+	input:
+		tuple val(group), val(id), val(vcf)
+	output:
+		tuple val(group), val(id), path("${group}.norm.vcf")
+
+	script:
+	"""
+	bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
+	"""
+}
+
+process bcftools_sort {
+	cpus 2
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	tag "$group"
+	memory '50 GB'
+	time '1h'
+	input:
+		tuple val(group), val(id), val(vcf)
+	output:
+		tuple val(group), val(id), path("${group}.norm.vcf")
+
+	script:
+	"""
+	bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
+	"""
+}
 
 // Splitting & normalizing variants, merging with Freebayes/Mutect2, intersecting against exome/clinvar introns
 process split_normalize {
@@ -2356,6 +2408,8 @@ process split_normalize {
 			-u -header > ${group}.intersected_diploid.vcf
 		java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \\
 		I=${group}.intersected_diploid.vcf I=${vcfconcat} O=${group}.intersected.vcf
+
+		# Can be in onko too:
 		sed 's/^M/MT/' -i ${group}.intersected.vcf
 		sed 's/ID=M,length/ID=MT,length/' -i ${group}.intersected.vcf
 
