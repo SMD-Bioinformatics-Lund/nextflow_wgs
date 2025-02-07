@@ -38,33 +38,38 @@ my %rank = (
     'splice_donor_variant' => 8,
     'inframe_deletion' => 9,
     'transcript_amplification' => 10,
-    'splice_region_variant' => 11,
-    'missense_variant' => 12,
-    'protein_altering_variant' => 13,
-    'inframe_insertion' => 14,
-    'incomplete_terminal_codon_variant' => 15,
-    'non_coding_transcript_exon_variant' => 16,
-    'synonymous_variant' => 17,
-    'mature_mirna_variant' => 18,
-    'non_coding_transcript_variant' => 19,
-    'regulatory_region_variant' => 20,
-    'upstream_gene_variant' => 21,
-    'regulatory_region_amplification' => 22,
-    'tfbs_amplification' => 23,
-    '5_prime_utr_variant' => 24,
-    'intron_variant' => 25,
-    '3_prime_utr_variant' => 26,
-    'feature_truncation' => 27,
-    'tf_binding_site_variant' => 28,
-    'start_retained_variant' => 29,
-    'stop_retained_variant' => 30,
-    'feature_elongation' => 31,
-    'regulatory_region_ablation' => 32,
-    'tfbs_ablation' => 33,
-    'coding_sequence_variant' => 34,
-    'downstream_gene_variant' => 35,
-    'nmd_transcript_variant' => 36,
-    'intergenic_variant' => 37
+    'splice_donor_5th_base_variant' => 11,
+    'splice_region_variant' => 12,
+    'splice_donor_region_variant' => 13,
+    'splice_polypyrimidine_tract_variant' => 14,
+    'missense_variant' => 15,
+    'protein_altering_variant' => 16,
+    'inframe_insertion' => 17,
+    'incomplete_terminal_codon_variant' => 18,
+    'non_coding_transcript_exon_variant' => 19,
+    'synonymous_variant' => 20,
+    'mature_mirna_variant' => 21,
+    'non_coding_transcript_variant' => 22,
+    'regulatory_region_variant' => 23,
+    'upstream_gene_variant' => 24,
+    'regulatory_region_amplification' => 25,
+    'tfbs_amplification' => 26,
+    '5_prime_utr_variant' => 27,
+    'intron_variant' => 28,
+    '3_prime_utr_variant' => 29,
+    'feature_truncation' => 30,
+    'coding_transcript_variant' => 31,
+    'tf_binding_site_variant' => 32,
+    'start_retained_variant' => 33,
+    'stop_retained_variant' => 34,
+    'feature_elongation' => 35,
+    'regulatory_region_ablation' => 36,
+    'tfbs_ablation' => 37,
+    'coding_sequence_variant' => 38,
+    'downstream_gene_variant' => 39,
+    'nmd_transcript_variant' => 40,
+    'intergenic_variant' => 41,
+    'sequence_variant' => 42
     );
 
 my $vep_csq;
@@ -220,7 +225,7 @@ while( <VEP>) {
             }
             push @add_info_field, "CLNSIG_MOD=".join('|',@mods);
         }
-        ## MOST SEVERE CONEQUENCE
+        ## MOST SEVERE CONSEQUENCE
         my $csq_ref = $doobi->{INFO}->{CSQ};
         my $m_s_c = CSQ($csq_ref);
         my $most_severe = ".";

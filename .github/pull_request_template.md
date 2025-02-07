@@ -26,7 +26,6 @@ What is changed? How does this update improve the pipeline? (For reviewers) How 
 - [ ] Self-review of my code
 - [ ] Update the CHANGELOG
 - [ ] Tag the latest commit (vX.Y.Z format)
-- [ ] Log samples used for testing in the `Verification_samples_log` Excel sheet
 
 <!--
     Select a checklist below based on selection under # Type of change
@@ -40,16 +39,13 @@ What is changed? How does this update improve the pipeline? (For reviewers) How 
 - [ ] Stub run completes without errors or new warnings
 - [ ] At least one other person has reviewed and approved my code (not required for trivial changes)
 
-
-
 ## Major / Minor change
 - [ ] Stub run completes without errors or new warnings
-- [ ] `onco` run finishes without any new warnings/errors and the results can 
-       be loaded into scout
-- [ ] `wgs` single run finishes without any new warnings/errors and the results 
-       can be loaded into scout
-- [ ] `wgs` trio run finishes without any new warnings/errors and the results 
-       can be loaded into scout
+- [ ] GIAB single (wgs) finishes and differences to current master branch have been investigated (using [PipeEval](https://github.com/Clinical-Genomics-Lund/PipeEval))
+- [ ] GIAB trio (wgs) finishes and differences to current master branch have been investigated
+- [ ] Seracare (onco) sample finishes and differences to current master branch have been investigated
+- [ ] Output from processes with altered code have been inspected (i.e. in the work folder: .command.sh, .command.log, .command.err and result files)
+- [ ] All three samples can be loaded into Scout
 - [ ] At least one other person has reviewed and approved my code
 - [ ] I have made corresponding changes to the documentation (software versions, etc.)
 

@@ -3,6 +3,7 @@ use warnings;
 use strict;
 use Data::Dumper;
 use JSON;# qw( encode_json );
+use Getopt::Long;
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # General QC-script for sentieon-data. Takes two arguments: SAMPLE-ID, TYPE(panel or wgs)
@@ -27,8 +28,47 @@ use JSON;# qw( encode_json );
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 
-my $SID = $ARGV[0];
-my $type = $ARGV[1];
+my $SID;
+my $type;
+
+my $align_metrics_file;
+my $insert_file;
+my $dedup_metrics_file;
+my $metrics_file;
+my $gcsummary_file;
+my $coverage_file_summary;
+my $coverage_file;
+
+GetOptions(
+    "SID=s"                   => \$SID,
+    "type=s"                  => \$type,
+    "align_metrics_file=s"    => \$align_metrics_file,
+    "insert_file=s"           => \$insert_file,
+    "dedup_metrics_file=s"    => \$dedup_metrics_file,
+    "metrics_file=s"          => \$metrics_file,
+    "gcsummary_file=s"        => \$gcsummary_file,
+    "coverage_file_summary=s" => \$coverage_file_summary,
+    "coverage_file=s"         => \$coverage_file
+);
+
+unless ($SID && $type && $align_metrics_file && $insert_file && $dedup_metrics_file && $metrics_file && $gcsummary_file) {
+    die "Usage: $0 --SID <sample_id> --type <panel|wgs> --align_metrics_file <file> --insert_file <file> --dedup_metrics_file <file> --metrics_file <file> --gcsummary_file <file> [--coverage_file file] [--coverage_file_summary file]\n"
+}
+
+unless ($type eq "panel" || $type eq "wgs") { die "--type must be 'panel' or 'wgs'" }
+unless (-f $align_metrics_file) { die "--align_metrics_file does not point to a file" }
+unless (-f $insert_file)        { die "--insert_file does not point to a file" }
+unless (-f $dedup_metrics_file) { die "--dedup_metrics_file does not point to a file" }
+unless (-f $metrics_file)       { die "--metrics_file does not point to a file" }
+unless (-f $gcsummary_file)     { die "--gcsummary_file does not point to a file" }
+
+if ($type eq "panel") {
+    unless ($coverage_file && $coverage_file_summary) {
+        die "If running a panel, --coverage_file and --coverage_file_summary must be provided"
+    }
+    unless (-f $coverage_file) { die "--coverage_file_summary does not point to a file" }
+    unless (-f $coverage_file_summary) { die "--coverage_file_summary does not point to a file" }
+}
 
 my %pct_above_x;
 my $median;
@@ -39,16 +79,9 @@ if ($type eq "panel") {
     %pct_above_x = %$pct_above_panel;
 }
 
-
-my $align_metrics_file = "aln_metrics.txt";
-my $insert_file = "is_metrics.txt";
-my $dedup_metrics_file = "dedup_metrics.txt";
 my %results;
-my $metrics_file;
-my $gcsummary_file;
 
 if ($type eq "wgs") {
-    $metrics_file = "wgs_metrics.txt";
     my ( $sum, %quartiles, $pct25_obs, $pct50_obs, $pct75_obs );
     open( HS, $metrics_file );
     while( <HS> ) {
@@ -94,7 +127,6 @@ if ($type eq "wgs") {
     close HS;
     $results{'iqr'} = ( $quartiles{ 'R_75' } - $quartiles{ 'R_25' } );
 
-    $gcsummary_file = "gc_summary.txt";
     open( GC, $gcsummary_file );
     while( <GC> ) {
         if( /^\#SentieonCommandLine/ ) {
@@ -109,7 +141,6 @@ if ($type eq "wgs") {
 
 }
 elsif ($type eq "panel") {
-    $metrics_file = "hs_metrics.txt";
     open( HS, $metrics_file );
     while( <HS> ) {
         if( /^\#SentieonCommandLine/ ) {
@@ -189,8 +220,6 @@ close ALIGN;
 
 sub coverage_calc {
 
-    my $coverage_file_summary = "cov_metrics.txt.sample_summary";
-    my $coverage_file = "cov_metrics.txt";
     my @cov;
     open( COV, $coverage_file );
     while( <COV> ) {

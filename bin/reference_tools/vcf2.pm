@@ -27,30 +27,30 @@ sub _open {
     my $full_header_str;
 
     while( readline($$self{fh}) ) {
-	chomp;
+    chomp;
 
-	# Skip empty lines
-	next if /^\s*$/;
+    # Skip empty lines
+    next if /^\s*$/;
 
-	$full_header_str .= $_."\n" if /^#/;
-	
-	# Header row with meta data.
-	if( /^##/ ) {
-	    my( $type, $meta, $val ) = parse_metainfo( $_ );
-	    if( $type ne "NONE" ) {
-		$$self{meta}->{$type}->{$meta->{ID}} = $meta;
-	    }
-	    else {
-		$$self{meta}->{$meta} = $val;
-	    }
-	}
+    $full_header_str .= $_."\n" if /^#/;
+    
+    # Header row with meta data.
+    if( /^##/ ) {
+        my( $type, $meta, $val ) = parse_metainfo( $_ );
+        if( $type ne "NONE" ) {
+        $$self{meta}->{$type}->{$meta->{ID}} = $meta;
+        }
+        else {
+        $$self{meta}->{$meta} = $val;
+        }
+    }
 
-	# Header with column description.
-	elsif( /^#/ ) {
-	    $_ =~ s/^#//;
-	    @head = split /\t/;
-	    last;
-	}
+    # Header with column description.
+    elsif( /^#/ ) {
+        $_ =~ s/^#//;
+        @head = split /\t/;
+        last;
+    }
     }
 
     @{$$self{head}} = @head;
@@ -65,14 +65,15 @@ sub next_var {
     my ($self) = @_;
     
     my $line = readline($$self{fh});
+
     if ($line) {
-	chomp $line;
+        chomp $line;
 
-	my $variant = parse_variant( $line, $$self{head}, $$self{meta} );
+        my $variant = parse_variant( $line, $$self{head}, $$self{meta} );
 
-	if( $variant->{CHROM} ) {
-	    return $variant if defined $variant;
-	}
+        if( $variant->{CHROM} ) {
+            return $variant if defined $variant;
+        }
     }
     return 0;
 }
@@ -89,41 +90,41 @@ sub parse_vcf {
     my $vcf_fh;
     if( is_gzipped($fn) ) {
 #    if( $fn =~ /\.gz/ ) {
-	open( $vcf_fh, "zcat $fn |" );
+    open( $vcf_fh, "zcat $fn |" );
     }
     else {
-	open( $vcf_fh, $fn );
+    open( $vcf_fh, $fn );
     }
-	
+    
     while( <$vcf_fh> ) {
-	chomp;
+    chomp;
 
-	# Skip empty lines
-	next if /^\s*$/;
+    # Skip empty lines
+    next if /^\s*$/;
 
-	$full_header_str .= $_."\n" if /^#/;
-	
-	# Header row with meta data.
-	if( /^##/ ) {
-	    my( $type, $meta ) = parse_metainfo( $_ );
-	    $vcf_meta{$type}->{$meta->{ID}} = $meta if defined $type;
-	}
+    $full_header_str .= $_."\n" if /^#/;
+    
+    # Header row with meta data.
+    if( /^##/ ) {
+        my( $type, $meta ) = parse_metainfo( $_ );
+        $vcf_meta{$type}->{$meta->{ID}} = $meta if defined $type;
+    }
 
-	# Header with column description.
-	elsif( /^#/ ) {
-	    #print STDERR $_;
-	    $_ =~ s/^#//;
-	    @head = split /\t/;
-	}
+    # Header with column description.
+    elsif( /^#/ ) {
+        #print STDERR $_;
+        $_ =~ s/^#//;
+        @head = split /\t/;
+    }
 
-	# Actual variant data
-	else {
-	    die "Malformed VCF: No column description header." unless @head;
-	    my $variant = parse_variant( $_, \@head, \%vcf_meta );
-	    if( $variant->{CHROM} ) {
-		push @vcf_data, $variant if defined $variant;
-	    }
-	}
+    # Actual variant data
+    else {
+        die "Malformed VCF: No column description header." unless @head;
+        my $variant = parse_variant( $_, \@head, \%vcf_meta );
+        if( $variant->{CHROM} ) {
+        push @vcf_data, $variant if defined $variant;
+        }
+    }
     }
 
     my @samples = splice @head, 9;
@@ -144,14 +145,14 @@ sub parse_metainfo {
 
 
     if( $type eq "FORMAT" or $type eq "INFO" or $type eq "SAMPLE" or $type eq "FILTER" ) {
-	$data = remove_surrounding( $data, '<', '>' );
-	my( $pairs, $order ) = keyval( $data, '=', ',' );
-	return $type, $pairs, 0;
+    $data = remove_surrounding( $data, '<', '>' );
+    my( $pairs, $order ) = keyval( $data, '=', ',' );
+    return $type, $pairs, 0;
     } 
     elsif( $type and $data ) {
-	return "NONE", $type, $data;
+    return "NONE", $type, $data;
     }
-	
+    
 
     return undef, undef, undef;
 }
@@ -167,7 +168,7 @@ sub parse_variant {
     
     # First seven fields
     for ( 0..6 ) {
-	$var{ $head->[$_] } = $var_data[$_];
+        $var{ $head->[$_] } = $var_data[$_];
     }
 
     # Eigth field, INFO
@@ -176,7 +177,7 @@ sub parse_variant {
     # Parse VEP annotation field, if any
     if( $var{ INFO }->{ CSQ } ) {
         $var{ _CSQstr } = $var{INFO}->{CSQ};
-	    $var{ INFO }->{ CSQ } = parse_VEP_CSQ( $var{INFO}->{CSQ}, $meta->{INFO}->{CSQ} );
+        $var{ INFO }->{ CSQ } = parse_VEP_CSQ( $var{INFO}->{CSQ}, $meta->{INFO}->{CSQ} );
     }
 
     #my @FORMAT = split /:/, $var_data[8];
@@ -184,7 +185,7 @@ sub parse_variant {
     
     # Genotypes for each sample
     for ( 9 .. (@var_data-1) ) {
-	    push @{$var{ GT }}, parse_genotype( $var_data[8], $var_data[$_], $head->[$_] );
+        push @{$var{ GT }}, parse_genotype( $var_data[8], $var_data[$_], $head->[$_] );
     }
 
     return \%var;
@@ -226,20 +227,20 @@ sub parse_VEP_CSQ {
 
     my @data_transcripts;
     foreach my $transcript_CSQ ( @transcripts ) {
-	my @values = split /\|/, $transcript_CSQ;
+    my @values = split /\|/, $transcript_CSQ;
 
-	my %data;
-	for( 0 .. $#field_names ) {
-	    if( $field_names[$_] eq "Consequence" ) {
-		my @conseq_array = split '&', $values[$_];
-		$data{ $field_names[$_] } = \@conseq_array;
-	    }
-	    else {
-		$data{ $field_names[$_] } = ( $values[$_] or "" );
-	    }
-	}
+    my %data;
+    for( 0 .. $#field_names ) {
+        if( $field_names[$_] eq "Consequence" ) {
+        my @conseq_array = split '&', $values[$_];
+        $data{ $field_names[$_] } = \@conseq_array;
+        }
+        else {
+        $data{ $field_names[$_] } = ( $values[$_] or "" );
+        }
+    }
 
-	push( @data_transcripts, \%data )
+    push( @data_transcripts, \%data )
     }
     return \@data_transcripts;
 }
@@ -265,17 +266,17 @@ sub keyval {
     my @order;
     foreach( @pair_str ) {
 
-	# If key-value separator exists, save the value for the key
-	if( /$keyval_sep/ ) {
-	    my( $key, $val ) = split /$keyval_sep/;
-	    $pairs{$key} = $val;
-	    push @order, $key;
-	}
+    # If key-value separator exists, save the value for the key
+    if( /$keyval_sep/ ) {
+        my( $key, $val ) = split /$keyval_sep/;
+        $pairs{$key} = $val;
+        push @order, $key;
+    }
 
-	# Otherwise treat the whole string as a flag and set it to one (true).
-	else {
-	    $pairs{$_} = 1;
-	}
+    # Otherwise treat the whole string as a flag and set it to one (true).
+    else {
+        $pairs{$_} = 1;
+    }
     }
     return \%pairs, \@order;
 }

@@ -69,7 +69,8 @@ while ( my $b = $vcf2->next_var() ) {
 	my $svref = \%SV;
 	my $gene = $b->{INFO}->{Annotation};
 	my @rs = split/:/,$b->{INFO}->{RankScore};
-	my $rankscore = $rs[1];
+	# Updated genmod outputs float RankScore values
+	my $rankscore = int($rs[1]);
 	my $rankresult = $b->{INFO}->{RankResult};
 	my $svc = $svref->{$chrom};
 	my $snvGT = $b->{GT};
