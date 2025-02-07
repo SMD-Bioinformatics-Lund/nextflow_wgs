@@ -2358,7 +2358,7 @@ process bcftools_sort {
 
 	script:
 	"""
-	bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
+	bcftools sort ${group}.norm.vcf | vcfuniq > ${group}.norm.uniq.vcf
 	"""
 }
 
