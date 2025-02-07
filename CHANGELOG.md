@@ -3,6 +3,7 @@
 ### 3.15.1
 * Update VEP to 113.3
 * Update VEP fasta/cache to 113.0
+* Remove `SVTYPE` bug workaround from `vep_sv`
 
 ### 3.15.0
 
