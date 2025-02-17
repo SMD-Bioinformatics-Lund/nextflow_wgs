@@ -19,13 +19,21 @@ def main(args: object):
         "String",
         "Genetic model for variant"
     )
+    vcf_object.header.info.add(
+        "HOMHEM",
+        ".",
+        "String",
+        "If variant follows geneticmodel and is a homo- or hemi-zygous deletion"
+    )
     vcf_out = VariantFile(args.out_vcf, "w", header=vcf_object.header)
     vcf_out.close()
     with open(args.out_vcf, "a") as vcf_out:
         for var in vcf_object.fetch():
             var_dict = cmdvcf.parse_variant(var,vcf_object.header)
-            genetic_model = genetic_model_of_variant(var_dict,ped,individuals)
+            genetic_model, is_del_hemi_homo = genetic_model_of_variant(var_dict,ped,individuals)
             var_dict['INFO']['GeneticModel'] = genetic_model
+            if is_del_hemi_homo is not None:
+                var_dict['INFO']['HOMHEM'] = is_del_hemi_homo
             vcf_str = cmdvcf.vcf_string(var_dict,vcf_object.header)
             vcf_out.write(vcf_str)
 
@@ -47,7 +55,7 @@ def genotype_sum_per_individual(gt:dict):
 
 def genetic_model_of_variant(var_dict:dict,ped:dict,individuals:dict):
     """
-    
+    Returns a genetic model that is compliant with disease
     """
     sample_gt_sum = genotype_sum_per_individual(var_dict['GT'])
     chrom = var_dict['CHROM']
@@ -66,8 +74,26 @@ def genetic_model_of_variant(var_dict:dict,ped:dict,individuals:dict):
     genetic_model = GM.get(gm_search,'NA')
     # at the moment rediculous genetic patterns including homozygous dominant traits are marked *, compound finder cannot handle these
     genetic_model = genetic_model.replace('*','')
-    return genetic_model
+    hemi_homo_del = None
+    if var_dict['INFO']['SVTYPE'] == 'DEL':
+        hemi_homo_del = is_del_hemi_homo(proband_gt,proband_sex,x)
+    return genetic_model, hemi_homo_del
     
+def is_del_hemi_homo(proband_gt,proband_sex,x):
+    """
+    checks if deletion is complete loss of genetic material
+    Boys on X special, ladies on X maybe not needed to check
+    """
+    is_del_hemi_homo = None
+    if x:
+        if proband_sex == 1 and proband_gt < 0:
+            is_del_hemi_homo = 'LOSS'
+        elif proband_sex == 2 and proband_gt == 2:
+            is_del_hemi_homo = 'LOSS'
+    elif proband_gt == 2:
+        is_del_hemi_homo = 'LOSS'
+    return is_del_hemi_homo
+        
 
 def read_ped(pedfile: str):
     ped = {}
