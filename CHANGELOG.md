@@ -1,8 +1,11 @@
 # CHANGELOG
 
-### 3.15.2
+### 3.15.3
 * Update dbSNFP to 4.9
 * Add BayesDel vep annotations to SNVs
+
+### 3.15.2
+* Re-add GERP++ snv/indel annotations
 
 ### 3.15.1
 * Update VEP to 113.3
