@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.15.2
+* Update dbSNFP to 4.9
+* Add BayesDel vep annotations to SNVs
+
 ### 3.15.1
 * Update VEP to 113.3
 * Update VEP fasta/cache to 113.0
