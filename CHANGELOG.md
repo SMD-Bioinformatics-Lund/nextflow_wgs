@@ -1,9 +1,12 @@
 # CHANGELOG
 
-### 3.15.3
+### 3.15.4
 * Update dbSNFP to 4.9
 * Add BayesDel vep annotations to SNVs
   - Adds BayesDel addAF/noAF predictions and scores
+
+### 3.15.3 [HOTFIX]
+* Match `*q.gz*` files as fastq.gz
 
 ### 3.15.2
 * Re-add GERP++ snv/indel annotations
