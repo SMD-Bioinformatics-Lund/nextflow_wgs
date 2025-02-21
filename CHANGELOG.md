@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.15.3 [HOTFIX]
+* Match `*q.gz*` files as fastq.gz
+
 ### 3.15.2
 * Re-add GERP++ snv/indel annotations
 
