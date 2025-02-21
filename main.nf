@@ -116,9 +116,10 @@ workflow NEXTFLOW_WGS {
 	ch_qc_json     = Channel.empty() // Gather and merge QC JSONs per sample
 
 	// CHANNEL PREP //
+	// TODO: Better solution for this. Assume shomehow that everything non-bam/non-vcf is fq.
 	ch_fastq = ch_samplesheet
 		.filter {
-			row -> (row.read1.endsWith("fastq.gz") || row.read1.endsWith("fq.gz")) && (row.read2.endsWith("fq.gz") ||row.read2.endsWith("fastq.gz"))
+			row -> row.read1.endsWith("q.gz") && read2.endsWith("q.gz")
 		}
 		.map { row ->
 			def group = row.group
