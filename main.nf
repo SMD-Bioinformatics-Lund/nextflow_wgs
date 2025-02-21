@@ -119,7 +119,7 @@ workflow NEXTFLOW_WGS {
 	// TODO: Better solution for this. Assume shomehow that everything non-bam/non-vcf is fq.
 	ch_fastq = ch_samplesheet
 		.filter {
-			row -> row.read1.endsWith("q.gz") && read2.endsWith("q.gz")
+			row -> row.read1.endsWith("q.gz") && row.read2.endsWith("q.gz")
 		}
 		.map { row ->
 			def group = row.group
