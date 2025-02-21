@@ -118,7 +118,7 @@ workflow NEXTFLOW_WGS {
 	// CHANNEL PREP //
 	ch_fastq = ch_samplesheet
 		.filter {
-			row -> row.read1.endsWith("fastq.gz") && row.read2.endsWith("fastq.gz")
+			row -> (row.read1.endsWith("fastq.gz") || row.read1.endsWith("fq.gz")) && (row.read2.endsWith("fq.gz") ||row.read2.endsWith("fastq.gz"))
 		}
 		.map { row ->
 			def group = row.group
