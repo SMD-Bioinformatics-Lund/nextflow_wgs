@@ -79,11 +79,9 @@ singularity pull docker://broadinstitute/gatk
 
 ## Sentieon
 
-A Sentieon container can be retrieved from the [Galaxy Project](https://depot.galaxyproject.org/singularity/)
+Normally, Sentieon containers are retrieved from the [Galaxy Project](https://depot.galaxyproject.org/singularity/)
 
-This pipeline currently uses version 202112.
-
-The container for the 2023 version seems not to work correctly (i.e. it crashes when running `sentieon driver`). An alternative container can be built from the Docker container found [here](https://github.com/Sentieon/sentieon-docker).
+The container for the 2023 version seems not to work correctly (i.e. it crashes when running `sentieon driver`). An alternative container was be built from the Docker container found [here](https://github.com/Sentieon/sentieon-docker) for the 2023 version.
 
 ## Stranger
 

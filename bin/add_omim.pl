@@ -5,11 +5,16 @@ use File::Basename qw( basename dirname );
 use File::Spec;
 use Data::Dumper;
 
-my $omim_db = File::Spec->rel2abs(dirname($0))."/omim_genes.txt";
+# This script annotates a VCF (Variant Call Format) file with gene information from the OMIM database.
+# It searches for gene IDs in the VCF's CSQ field, checks for matches in the OMIM database file,
+# and adds matching OMIM gene symbols as annotations in the VCF's INFO field under a new field called OMIM_GENES.
+
+# Usage:
+my $omim_db = shift @ARGV or die "Usage: $0 <path/to/omim_genes.txt> < input_file.vcf > output_file.vcf\n";
 my %omim = get_omim($omim_db);
 
 
-my $hgncid_idx;
+my $hgncid_idx; # Stores the index of the HGNC_ID field in the VEP CSQ annotation
 while(<>) {
     if( /^##INFO=<ID=CSQ/ ) {
         my( $vep_fields_str ) = ( $_ =~ /Format: (.*?)">/ );
@@ -28,6 +33,7 @@ while(<>) {
         my @info = split /;/, $info;
         my @omim_matches;
 
+        # Look for HGNC_ID matches in CSQ field and annotate with OMIM gene symbols
         foreach my $i ( @info ) {
             if( $i =~ /^CSQ=(.*)$/ ) {
                 my @csqs = split /,/, $1;
@@ -40,6 +46,7 @@ while(<>) {
                 }
             }
         }
+        # Add OMIM_GENES annotation to INFO field if any matches were found
         if( @omim_matches ) {
             $v[7] .= ";OMIM_GENES=".join(",", @omim_matches);
         }
@@ -47,9 +54,6 @@ while(<>) {
         print join("\t", @v);
     }
 }
-
-
-
 
 sub get_omim {
     my $fn = shift;

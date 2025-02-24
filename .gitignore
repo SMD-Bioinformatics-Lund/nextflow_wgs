@@ -1,14 +1,28 @@
+# Files
+git.hash
+nextflow.config
+todo
+mito_full.nf
+
+# Suffix
 *~
 container/*.sif
 *.sif
 .nextflow*
-nextflow.config
-work/
 *.html
 *#
-git.hash
-todo
-mito_full.nf
-## ref tools
+*.orig
+*.tbi
+
+# Folders
+__pycache__/
+work/
+data/
+output/
+.vscode/
+
+# Ref tools
 bin/reference_tools/*.log
 bin/reference_tools/*.bed
+bin/reference_tools/refdata/*.vcf.gz
+
