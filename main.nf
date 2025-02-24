@@ -3078,12 +3078,13 @@ def genmodscore_version(task) {
 
 // Bgzipping and indexing VCF:
 process vcf_completion {
-	container  "${params.container_bcftools}"
 	cpus 16
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz*'
 	tag "$group"
 	time '1h'
 	memory '5 GB'
+	container  "${params.container_bcftools}"
+
 	input:
 		tuple val(group), val(type), path(vcf)
 
