@@ -2446,6 +2446,40 @@ workflow SPLIT_NORMALIZE  {
 
 }
 
+process DP_AF_filter {
+	cpus 2
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	tag "$group"
+	memory '50 GB'
+
+	input:
+		tuple val(group), val(ids), path(vcf)
+	output:
+		tuple val(group), val(ids), path("${group}.norm.uniq.DPAF.vcf")
+
+	script:
+		"""
+		wgs_DPAF_filter.pl ${vcf} > ${group}.norm.uniq.DPAF.vcf
+		"""
+}
+
+
+process bedtools_intersect {
+
+	container "${params.container_bedtools}"
+	cpus 2
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	tag "$group"
+	memory '50 GB'3	tuple val(group), val(id), path("${group}.intersected.vcf"), emit: intersected_vcf
+
+	input:
+
+	output:
+
+	script:
+}
+
+
 
 
 // Splitting & normalizing variants, merging with Freebayes/Mutect2, intersecting against exome/clinvar introns
