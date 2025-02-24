@@ -2329,6 +2329,8 @@ process vcflib_vcfbreakmulti {
 }
 
 process bcftools_norm {
+	// Left-align indels and split up multiallelic sites
+	// into multiple biallelic records for both SNPs and indels
 	cpus 2
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
 	tag "$group"
