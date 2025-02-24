@@ -2394,10 +2394,10 @@ workflow SPLIT_NORMALIZE  {
 	// intersecting against exome/clinvar introns
 
 	take:
-		ch_reference_genome
-		ch_intersect_bed
 		ch_snv_indel_vcf_idx   // group, id, vcf, tbi
 		ch_panel_vcf_no_header // group, vcf
+		//ch_intersect_bed
+		// ch_reference_genome
 
 	main:
 
