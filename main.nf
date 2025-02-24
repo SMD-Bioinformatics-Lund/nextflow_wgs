@@ -2337,14 +2337,14 @@ process vcflib_vcfuniq {
 	memory '50 GB'
 	time '1h'
 	input:
-		tuple val(group), val(id), path(vcf)
+		tuple val(group), val(id), path(sorted_vcf)
 
 	output:
-		tuple val(group), val(id), path("${id}.uniq.vcf")
+		tuple val(group), val(id), path("${id}.uniq.vcf"), emit: vcf
 
 	script:
 		"""
-		cat ${vcf} | vcfuniq > "${id}.uniq.vcf"
+		cat ${sorted_vcf} | vcfuniq > "${id}.uniq.vcf"
 		"""
 }
 
