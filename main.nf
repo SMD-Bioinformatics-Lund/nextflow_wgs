@@ -2416,23 +2416,36 @@ workflow SPLIT_NORMALIZE  {
 				def vcf_with_header = it[2]
 				def vcf_no_header = it[3]
 
-				def output_vcf = new File("${id}.concatenated.vcf")
-				output_vcf.withWriter {
-					writer ->
-					new File(vcf_with_header).eachLine
-				}
+				def merged_vcf = new File("${id}.concatenated.vcf")
+
 				new File(vcf_with_header).withInputStream { inputStream ->
-                    output_vcf.append(inputStream)
+                    merged_vcf.append(inputStream)
                 }
+
                 new File(vcf_no_header).withInputStream { inputStream ->
-                    output_vcf.append(inputStream)
+                    merged_vcf.append(inputStream)
                 }
-				tuple(group, id, output_vcf)
+
+				tuple(group, id, merged_vcf)
+			}.set{
+				ch_concatenated_vcfs
 			}
 
+			ch_input_split_multiallelics = ch_input_split_multiallelics.mix(ch_concatenated_vcfs)
+
+		} else {
+			ch_input_split_multiallelics =  ch_input_split_multiallelics.mix(ch_snv_indel_vcf_idx)
 		}
 
+		vcflib_vcfbreakmulti(ch_input_split_multiallelics)
+		bcftools_norm(vcflib_vcfbreakmulti.out.multibreak_vcf)
+		bcftools_sort(bcftools_norm.out.sorted_vcf)
+		vcflib_vcfuniq(bcftools_norm.out.sorted_vcf)
+		DP_AF_filter(vcflib_vcfuniq.out.vcf)
+
 }
+
+
 
 // Splitting & normalizing variants, merging with Freebayes/Mutect2, intersecting against exome/clinvar introns
 process split_normalize {
