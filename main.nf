@@ -2310,6 +2310,7 @@ def run_eklipse_version(task) {
 }
 
 process vcflib_vcfbreakmulti {
+	container "${params.container_vcflib}"
 	cpus 2
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
 	tag "$group"
@@ -2358,7 +2359,7 @@ process bcftools_norm {
 	input:
 		tuple val(group), val(id), val(vcf)
 	output:
-		tuple val(group), val(id), path("${group}.norm.vcf")
+		tuple val(group), val(id), path("${group}.norm.vcf"), emit: normalized_vcf
 
 	script:
 	"""
@@ -2375,7 +2376,7 @@ process bcftools_sort {
 	input:
 		tuple val(group), val(id), val(vcf)
 	output:
-		tuple val(group), val(id), path("${group}.norm.vcf")
+		tuple val(group), val(id), path("${group}.norm.vcf"), emit: sorted_vcf
 
 	script:
 	"""
