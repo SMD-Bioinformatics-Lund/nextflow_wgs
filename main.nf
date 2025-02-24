@@ -2322,9 +2322,28 @@ process vcflib_vcfbreakmulti {
 		tuple val(group), val(id), path("${group}.multibreak.vcf"), emit: multibreak_vcf
 
 	script:
-	output_vcf_filepath = (params.onco || params.assay == "modycf") ? "${id}.concat.freebayes.vcf" : "${group}.multibreak.vcf"
+		output_vcf_filepath = (params.onco || params.assay == "modycf") ? "${id}.concat.freebayes.vcf" : "${group}.multibreak.vcf"
 		"""
 		vcfbreakmulti ${id}
+		"""
+}
+
+process vcflib_vcfuniq {
+	container "${params.container_vcflib}"
+	cpus 2
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	tag "$group"
+	memory '50 GB'
+	time '1h'
+	input:
+		tuple val(group), val(id), path(vcf)
+
+	output:
+		tuple val(group), val(id), path("${id}.uniq.vcf")
+
+	script:
+		"""
+		cat ${vcf} | vcfuniq > "${id}.uniq.vcf"
 		"""
 }
 
