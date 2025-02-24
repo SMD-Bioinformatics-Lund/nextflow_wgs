@@ -394,7 +394,7 @@ workflow NEXTFLOW_WGS {
 	// SNV ANNOTATION
 	if (params.annotate) {
 		// SNPs
-		split_normalize(ch_split_normalize, ch_split_normalize_concat_vcf)
+		SPLIT_NORMALIZE(ch_split_normalize, ch_split_normalize_concat_vcf)
 		annotate_vep(split_normalize.out.intersected_vcf)
 		vcfanno(annotate_vep.out.vcf)
 		modify_vcf(vcfanno.out.vcf)
@@ -1742,7 +1742,7 @@ process gvcf_combine {
 	input:
 		tuple val(group), val(id), path(gvcfs), path(gvcf_idxs)
 
-	output: // Off to split_normalize, together with other stuff
+	output:
 		tuple val(group), val(id), path("${group}.combined.vcf"), path("${group}.combined.vcf.idx"), emit: combined_vcf
 		path "*versions.yml", emit: versions
 
@@ -2360,6 +2360,56 @@ process bcftools_sort {
 	"""
 	bcftools sort ${group}.norm.vcf | vcfuniq > ${group}.norm.uniq.vcf
 	"""
+}
+
+
+
+
+
+workflow SPLIT_NORMALIZE  {
+
+	// Splitting & normalizing variants, merging with Freebayes/Mutect2,
+	// intersecting against exome/clinvar introns
+
+	take:
+		ch_reference_genome
+		ch_intersect_bed
+		ch_snv_indel_vcf_idx   // group, id, vcf, tbi
+		ch_panel_vcf_no_header // group, vcf
+
+	main:
+
+		if (params.onco || params.assay == "modycf") {
+			ch_snv_indel_vcf_idx
+			.map{
+				it ->
+				def group = it[0]
+				def id = it[1]
+				def vcf = it[2]
+			}
+			.join(ch_panel_vcf_no_header)
+			.map{ it ->
+				def group = it[0]
+				def id = it[1]
+				def vcf_with_header = it[2]
+				def vcf_no_header = it[3]
+
+				def output_vcf = new File("${id}.concatenated.vcf")
+				output_vcf.withWriter {
+					writer ->
+					new File(vcf_with_header).eachLine
+				}
+				new File(vcf_with_header).withInputStream { inputStream ->
+                    output_vcf.append(inputStream)
+                }
+                new File(vcf_no_header).withInputStream { inputStream ->
+                    output_vcf.append(inputStream)
+                }
+				tuple(group, id, output_vcf)
+			}
+
+		}
+
 }
 
 // Splitting & normalizing variants, merging with Freebayes/Mutect2, intersecting against exome/clinvar introns
