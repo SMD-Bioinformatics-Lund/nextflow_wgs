@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### TBA
+* Rework `split_normalize` process into `SPLIT_NORMALIZE` subworkflow
+* Add bcftools container spec to `vcf_completion`
+* Add more containers...
+
 ### 3.15.0
 
 * Rewrite main.nf to DSL2
