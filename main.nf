@@ -2401,6 +2401,8 @@ workflow SPLIT_NORMALIZE  {
 
 	main:
 
+		ch_input_split_multiallelics = Channel.empty()
+
 		if (params.onco || params.assay == "modycf") {
 			ch_snv_indel_vcf_idx
 			.map{
@@ -2408,6 +2410,7 @@ workflow SPLIT_NORMALIZE  {
 				def group = it[0]
 				def id = it[1]
 				def vcf = it[2]
+				tuple(group, id, vcf)
 			}
 			.join(ch_panel_vcf_no_header)
 			.map{ it ->
