@@ -673,7 +673,7 @@ workflow NEXTFLOW_WGS {
 		add_annotsv_to_svvcf(ch_add_annotsv_input)
 		add_callerpenalties_to_svvcf(add_annotsv_to_svvcf.out.vcf)
 
-		ch_add_geneticmodels_to_svvcf_input = add_callerpenalties_to_svvcf.cross(ch_ped_prescore)
+		ch_add_geneticmodels_to_svvcf_input = add_callerpenalties_to_svvcf.out.vcf.cross(ch_ped_prescore)
 			.map{
 				item ->
 				def group = item[0][0]
