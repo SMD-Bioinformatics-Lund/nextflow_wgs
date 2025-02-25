@@ -3,15 +3,23 @@
 from pysam import VariantFile
 import cmdvcf
 import argparse
+import csv
+from collections import defaultdict
+from pprint import pprint
 
 def main(args: object):
     """
     main function, reads VCF line by line and adds all AnnotSV annotations
     Updates vcf-header with the new annotations being added
     """
-    annotsv_variants, annotsv_headers = read_annotsv_vcf(args.annotsv)
     vcf_object = VariantFile(args.input_vcf)
     original_header = vcf_object.header
+    # TSV was loaded
+    if args.annotsv_keys:
+        annotsv_variants, annotsv_headers = read_annotsv_tsv(args.annotsv,args.annotsv_keys)
+    else:
+        annotsv_variants, annotsv_headers = read_annotsv_vcf(args.annotsv)
+    
     vcf_header = join_headers(original_header,annotsv_headers)
     vcf_out = VariantFile(args.out_vcf, "w", header=vcf_header)
     vcf_out.close()
@@ -89,6 +97,35 @@ def remove_cohort_headers(vcf_in: object):
             headers.append(info_dict)
     return headers
 
+def read_annotsv_tsv(annotsv_tsv: str, keys: str):
+    """
+    Alternative to reading and merging a full VCF. Pick few fields
+    from tsv.
+    """
+    add_keys = keys.split('-')
+    annotsv_variants = defaultdict(dict)
+    headers = []
+    # Read TSV file into a dictionary
+    with open(annotsv_tsv, mode="r", encoding="utf-8") as file:
+        reader = csv.DictReader(file, delimiter="\t")
+        for row in reader:
+            info_dict = {}
+            simple_id = f"{row['SV_chrom']}_{row['SV_start']}_{row['SV_type']}"
+            for key in row:
+                if key in add_keys:
+                    if len(row[key]) > 0:
+                        info_dict[key] = row[key]
+            annotsv_variants[simple_id]['INFO'] = info_dict
+    for key in add_keys:
+        info_dict = {}
+        info_dict['key'] = key
+        info_dict['description'] = "Added annotation via annotsv TSV"
+        info_dict['type'] = "String"
+        info_dict['number'] = "."
+        headers.append(info_dict)
+    return annotsv_variants, headers
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Adds AnnotSV annotations to a VCF. Uses AnnotSV tsv that has been converted to VCF via variantconvert")
 
@@ -100,11 +137,16 @@ def parse_arguments():
         help="Path to the VCF that should be annotated"
     )
     parser.add_argument(
-        "--annotsv",
+        "--annotsv_vcf",
         "-a",
         type=str,
-        required=True,  
         help="Path to the AnnotSV VCF"
+    )
+    parser.add_argument(
+        "--annotsv_tsv",
+        "-t",
+        type=str,
+        help="Path to the AnnotSV TSV and what keys should be added to input VCF, generic VCF headers will be created. TSV:key1-key2-key3"
     )
     parser.add_argument(
         "--out_vcf",
@@ -114,6 +156,15 @@ def parse_arguments():
         help="name of output.vcf"
     )
     args = parser.parse_args()
+    if args.annotsv_tsv:
+        file_keys = args.annotsv_tsv.split(':')
+        args.annotsv = file_keys[0]
+        args.annotsv_keys = file_keys[1]
+    elif args.annotsv_vcf:
+        args.annotsv = args.annotsv_vcf
+    else:
+        exit("Need to supply either a annotsv-VCF or a annotsv TSV:key1-key2-key3")
+    
     return args
 
 if __name__ == "__main__":
