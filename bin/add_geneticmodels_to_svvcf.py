@@ -4,6 +4,7 @@ from pysam import VariantFile
 import cmdvcf
 import argparse
 from geneticmodels import GM
+# TODO! need to add HOMHEMDEL to single samples as well, i.e. dont exit on single samples but dont add genetic models to them
 
 def main(args: object):
     """

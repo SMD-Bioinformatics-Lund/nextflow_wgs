@@ -658,33 +658,32 @@ workflow NEXTFLOW_WGS {
 
 		// ANNOTATE SVs //
 		annotsv(ch_postprocessed_merged_sv_vcf)
-		variantconvert(annotsv.out.annotsv_tsv)
 		vep_sv(ch_postprocessed_merged_sv_vcf)
 		postprocess_vep_sv(vep_sv.out.vep_sv_vcf)
-		add_omim(postprocess_vep_sv.out.merged_processed_vcf)
-		artefact(add_omim.out.vcf)
+		artefact(postprocess_vep_sv.out.merged_processed_vcf)
+		bcftools_annotate_dbvar(artefact.out.vcf)
 
 		ch_versions = ch_versions.mix(annotsv.out.versions.first())
 		ch_versions = ch_versions.mix(vep_sv.out.versions.first())
 		ch_versions = ch_versions.mix(postprocess_vep_sv.out.versions.first())
 		ch_versions = ch_versions.mix(artefact.out.versions.first())
-
+		
 		ch_ped_prescore = ch_ped_trio_affected_permutations
+		ch_add_annotsv_input = bcftools_annotate_dbvar.out.vcf.join(annotsv.out.annotsv_tsv) // ch: group,  path(vcf), path(tbi), path(annotsv_tsv)
+		add_annotsv_to_svvcf(ch_add_annotsv_input)
+		add_callerpenalties_to_svvcf(add_annotsv_to_svvcf.out.vcf)
 
-		ch_prescore_input = artefact.out.vcf.join(annotsv.out.annotsv_tsv) // ch: group, path(annotsv_tsv), path(vcf)
-		ch_prescore_input = ch_prescore_input.cross(ch_ped_prescore)
+		ch_add_geneticmodels_to_svvcf_input = add_callerpenalties_to_svvcf.cross(ch_ped_prescore)
 			.map{
 				item ->
 				def group = item[0][0]
-				def artefact_vcf = item[0][1]
-				def annotsv_tsv = item[0][2]
+				def penalty_vcf = item[0][1]
 				def type = item[1][1]
 				def ped = item[1][2]
-				tuple(group, type, ped, annotsv_tsv, artefact_vcf)
+				tuple(group, type, ped, penalty_vcf)
 			}
-
-		prescore(ch_prescore_input)
-		score_sv(prescore.out.annotated_sv_vcf)
+		add_geneticmodels_to_svvcf(ch_add_geneticmodels_to_svvcf_input)
+		score_sv(add_geneticmodels_to_svvcf.out.annotated_sv_vcf)
 		bgzip_scored_genmod(score_sv.out.scored_vcf)
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
 
@@ -4084,68 +4083,6 @@ def annotsv_version(task) {
     annotsv: \$( echo \$(/AnnotSV/bin/AnnotSV --version) | sed -e "s/AnnotSV //g ; s/Copyright.*//" )"""
 }
 
-process bcftools_annotate_dbvar {
-	// this could be made a generic process for annotation of SVs?
-	tag "$group"
-	cpus 2
-	memory '5 GB'
-	time '20m'
-	container  "${params.container_bcftools}"
-
-	input:
-		tuple val(group), val(id), path(vcf)
-
-	output:
-		tuple val(group), val(id), path("${group}.sv.dbvar.annotated.vcf.gz"), path("${group}.sv.dbvar.annotated.vcf.gz.tbi")
-
-
-	script:
-		"""
-		bcftools annotate \\
-    	   -a $params.DBVAR_DEL -h $params.DBVAR_HEADERS \\
-    	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
-    	   -O z --min-overlap 0.7:0.7 $vcf \\
-    	   -i 'INFO/SVTYPE="DEL"' -o deletions_annotated.vcf.gz
-		
-		bcftools annotate \\
-    	   -a $params.DBVAR_DUP -h $params.DBVAR_HEADERS \\
-    	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
-    	   -O z --min-overlap 0.7:0.7 $vcf \\
-    	   'INFO/SVTYPE="TDUP" || INFO/SVTYPE="DUP"' -o duplications_annotated.vcf.gz
-		
-		bcftools annotate \\
-    	   -a $params.DBVAR_INS -h $params.DBVAR_HEADERS \\
-    	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
-    	   -O z --min-overlap 0.7:0.7 $vcf \\
-    	   'INFO/SVTYPE="INS"' -o insertions_annotated.vcf.gz
-		
-		bcftools view -i 'INFO/SVTYPE!="TDUP" && INFO/SVTYPE!="DUP" && INFO/SVTYPE!="DEL" && INFO/SVTYPE!="INS"' $vcf -O z -o others.vcf.gz
-		tabix others.vcf.gz
-		tabix deletions_annotated.vcf.gz
-		tabix duplications_annotated.vcf.gz
-		tabix insertions_annotated.vcf.gz
-
-		bcftools concat deletions_annotated.vcf.gz duplications_annotated.vcf.gz insertions_annotated.vcf.gz others.vcf.gz -O z -o ${group}.sv.dbvar.annotated.vcf.gz -a
-		tabix ${group}.dbvar.annotated.vcf.gz
-		${bcftools_annotate_dbvar_version(task)}
-		"""
-	stub:
-		"""
-		touch ${group}.sv.dbvar.annotated.vcf.gz ${group}.sv.dbvar.annotated.vcf.gz.tbi
-		${bcftools_annotate_dbvar_version(task)}
-		"""
-}
-def bcftools_annotate_dbvar_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
-	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
-	END_VERSIONS
-	"""
-}
-
-
 process vep_sv {
 	cpus 10
 	container  "${params.container_vep}"
@@ -4246,27 +4183,27 @@ def postprocess_vep_sv_version(task) {
 	"""
 }
 
-process add_omim {
-	cpus 2
-	memory '10GB'
-	time '1h'
-	tag "$group"
+// process add_omim {
+// 	cpus 2
+// 	memory '10GB'
+// 	time '1h'
+// 	tag "$group"
 
-	input:
-		tuple val(group), path(vcf)
+// 	input:
+// 		tuple val(group), path(vcf)
 
-	output:
-		tuple val(group), path("${group}.vep.clean.merge.omim.vcf"), emit: vcf
+// 	output:
+// 		tuple val(group), path("${group}.vep.clean.merge.omim.vcf"), emit: vcf
 
-	script:
-		"""
-		add_omim.pl $params.OMIM_GENES < $vcf > ${group}.vep.clean.merge.omim.vcf
-		"""
-	stub:
-		"""
-		touch "${group}.vep.clean.merge.omim.vcf"
-		"""
-}
+// 	script:
+// 		"""
+// 		add_omim.pl $params.OMIM_GENES < $vcf > ${group}.vep.clean.merge.omim.vcf
+// 		"""
+// 	stub:
+// 		"""
+// 		touch "${group}.vep.clean.merge.omim.vcf"
+// 		"""
+// }
 
 
 
@@ -4328,6 +4265,133 @@ def artefact_version(task) {
 	"""
 }
 
+process bcftools_annotate_dbvar {
+	// this could be made a generic process for annotation of SVs?
+	tag "$group"
+	cpus 2
+	memory '5 GB'
+	time '20m'
+	container  "${params.container_bcftools}"
+
+	input:
+		tuple val(group), path(vcf)
+
+	output:
+		tuple val(group), path("${group}.sv.dbvar.annotated.vcf.gz"), path("${group}.sv.dbvar.annotated.vcf.gz.tbi"), emit: vcf
+
+
+	script:
+		"""
+		bcftools annotate \\
+    	   -a $params.DBVAR_DEL -h $params.DBVAR_HEADERS \\
+    	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
+    	   -O z --min-overlap 0.7:0.7 $vcf \\
+    	   -i 'INFO/SVTYPE="DEL"' -o deletions_annotated.vcf.gz
+		
+		bcftools annotate \\
+    	   -a $params.DBVAR_DUP -h $params.DBVAR_HEADERS \\
+    	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
+    	   -O z --min-overlap 0.7:0.7 $vcf \\
+    	   'INFO/SVTYPE="TDUP" || INFO/SVTYPE="DUP"' -o duplications_annotated.vcf.gz
+		
+		bcftools annotate \\
+    	   -a $params.DBVAR_INS -h $params.DBVAR_HEADERS \\
+    	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
+    	   -O z --min-overlap 0.7:0.7 $vcf \\
+    	   'INFO/SVTYPE="INS"' -o insertions_annotated.vcf.gz
+		
+		bcftools view -i 'INFO/SVTYPE!="TDUP" && INFO/SVTYPE!="DUP" && INFO/SVTYPE!="DEL" && INFO/SVTYPE!="INS"' $vcf -O z -o others.vcf.gz
+		tabix others.vcf.gz
+		tabix deletions_annotated.vcf.gz
+		tabix duplications_annotated.vcf.gz
+		tabix insertions_annotated.vcf.gz
+
+		bcftools concat deletions_annotated.vcf.gz duplications_annotated.vcf.gz insertions_annotated.vcf.gz others.vcf.gz -O z -o ${group}.sv.dbvar.annotated.vcf.gz -a
+		tabix ${group}.dbvar.annotated.vcf.gz
+		${bcftools_annotate_dbvar_version(task)}
+		"""
+	stub:
+		"""
+		touch ${group}.sv.dbvar.annotated.vcf.gz ${group}.sv.dbvar.annotated.vcf.gz.tbi
+		${bcftools_annotate_dbvar_version(task)}
+		"""
+}
+def bcftools_annotate_dbvar_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
+	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
+	END_VERSIONS
+	"""
+}
+
+process add_annotsv_to_svvcf {
+	cpus 2
+	container "${$params.container_pysam_cmdvcf}"
+	mem "5 GB"
+	time "20m"
+
+	input:
+		tuple val(group), path(vcf), path(tbi), path(tsv)
+
+	output:
+		tuple val(group), path("${group}.annotatedSV.vcf"), emit: vcf
+	
+	script:
+		"""
+		add_annotsv.py -i $vcf -t $tsv:ACMG_class-OMIM_morbid -o ${group}.sv.annotsv.vcf
+		"""
+	stub:
+		"""
+		touch ${group}.annotatedSV.vcf
+		"""
+}
+
+process add_callerpenalties_to_svvcf {
+	cpus 2
+	container "${$params.container_pysam_cmdvcf}"
+	mem "5 GB"
+	time "20m"
+
+	input:
+		tuple val(group), path(vcf)
+
+	output:
+		tuple val(group), path("${group}.sv.penalty.vcf"), emit: vcf
+
+	script:
+		"""
+		sv_varcall_penalties.py -i $vcf -o ${group}.sv.penalty.vcf
+		"""
+
+	stub:
+		"""
+		touch ${group}.sv.penalty.vcf
+		"""
+}
+
+process add_geneticmodels_to_svvcf {
+	cpus 2
+	container "${$params.container_pysam_cmdvcf}"
+	mem "5 GB"
+	time "20m"
+
+	input:
+		tuple val(group), val(type), path(ped), path(vcf)
+
+	output:
+		tuple val(group), val(type), path("${group}.annotatedSV.vcf"), emit: annotated_sv_vcf
+
+	script:
+		"""
+		add_geneticmodels_to_svvcf.py -i $vcf -p $ped -o ${group}.annotatedSV.vcf
+		"""
+	stub:
+		"""
+		touch ${group}.annotatedSV.vcf
+		"""
+}
 
 process prescore {
 	cpus 2
