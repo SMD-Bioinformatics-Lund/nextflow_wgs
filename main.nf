@@ -4329,7 +4329,7 @@ def bcftools_annotate_dbvar_version(task) {
 process add_annotsv_to_svvcf {
 	cpus 2
 	container "${$params.container_pysam_cmdvcf}"
-	mem "5 GB"
+	memory "5 GB"
 	time "20m"
 
 	input:
@@ -4351,7 +4351,7 @@ process add_annotsv_to_svvcf {
 process add_callerpenalties_to_svvcf {
 	cpus 2
 	container "${$params.container_pysam_cmdvcf}"
-	mem "5 GB"
+	memory "5 GB"
 	time "20m"
 
 	input:
@@ -4374,7 +4374,7 @@ process add_callerpenalties_to_svvcf {
 process add_geneticmodels_to_svvcf {
 	cpus 2
 	container "${$params.container_pysam_cmdvcf}"
-	mem "5 GB"
+	memory "5 GB"
 	time "20m"
 
 	input:
