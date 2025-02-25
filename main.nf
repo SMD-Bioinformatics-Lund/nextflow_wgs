@@ -658,6 +658,7 @@ workflow NEXTFLOW_WGS {
 
 		// ANNOTATE SVs //
 		annotsv(ch_postprocessed_merged_sv_vcf)
+		variantconvert(annotsv.out.annotsv_tsv)
 		vep_sv(ch_postprocessed_merged_sv_vcf)
 		postprocess_vep_sv(vep_sv.out.vep_sv_vcf)
 		add_omim(postprocess_vep_sv.out.merged_processed_vcf)
@@ -4055,10 +4056,11 @@ process annotsv {
 	script:
 		version_str = annotsv_version(task)
 		"""
-		export ANNOTSV="/AnnotSV"
-	/AnnotSV/bin/AnnotSV -SvinputFile ${sv_vcf} \\
-			-typeOfAnnotation full \\
+		AnnotSV -SvinputFile ${sv_vcf} \\
+			-annotationMode full \\
+			-annotationsDir $params.ANNOTSV_ANNO \\
 			-outputDir ${group} \\
+			-includeCI 0 \\
 			-genomeBuild GRCh38
 		if [ -f ${group}/*.annotated.tsv ]; then
 			mv ${group}/*.annotated.tsv ${group}_annotsv.tsv
@@ -4081,6 +4083,68 @@ def annotsv_version(task) {
 	"""${task.process}:
     annotsv: \$( echo \$(/AnnotSV/bin/AnnotSV --version) | sed -e "s/AnnotSV //g ; s/Copyright.*//" )"""
 }
+
+process bcftools_annotate_dbvar {
+	// this could be made a generic process for annotation of SVs?
+	tag "$group"
+	cpus 2
+	memory '5 GB'
+	time '20m'
+	container  "${params.container_bcftools}"
+
+	input:
+		tuple val(group), val(id), path(vcf)
+
+	output:
+		tuple val(group), val(id), path("${group}.sv.dbvar.annotated.vcf.gz"), path("${group}.sv.dbvar.annotated.vcf.gz.tbi")
+
+
+	script:
+		"""
+		bcftools annotate \\
+    	   -a $params.DBVAR_DEL -h $params.DBVAR_HEADERS \\
+    	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
+    	   -O z --min-overlap 0.7:0.7 $vcf \\
+    	   -i 'INFO/SVTYPE="DEL"' -o deletions_annotated.vcf.gz
+		
+		bcftools annotate \\
+    	   -a $params.DBVAR_DUP -h $params.DBVAR_HEADERS \\
+    	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
+    	   -O z --min-overlap 0.7:0.7 $vcf \\
+    	   'INFO/SVTYPE="TDUP" || INFO/SVTYPE="DUP"' -o duplications_annotated.vcf.gz
+		
+		bcftools annotate \\
+    	   -a $params.DBVAR_INS -h $params.DBVAR_HEADERS \\
+    	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
+    	   -O z --min-overlap 0.7:0.7 $vcf \\
+    	   'INFO/SVTYPE="INS"' -o insertions_annotated.vcf.gz
+		
+		bcftools view -i 'INFO/SVTYPE!="TDUP" && INFO/SVTYPE!="DUP" && INFO/SVTYPE!="DEL" && INFO/SVTYPE!="INS"' $vcf -O z -o others.vcf.gz
+		tabix others.vcf.gz
+		tabix deletions_annotated.vcf.gz
+		tabix duplications_annotated.vcf.gz
+		tabix insertions_annotated.vcf.gz
+
+		bcftools concat deletions_annotated.vcf.gz duplications_annotated.vcf.gz insertions_annotated.vcf.gz others.vcf.gz -O z -o ${group}.sv.dbvar.annotated.vcf.gz -a
+		tabix ${group}.dbvar.annotated.vcf.gz
+		${bcftools_annotate_dbvar_version(task)}
+		"""
+	stub:
+		"""
+		touch ${group}.sv.dbvar.annotated.vcf.gz ${group}.sv.dbvar.annotated.vcf.gz.tbi
+		${bcftools_annotate_dbvar_version(task)}
+		"""
+}
+def bcftools_annotate_dbvar_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
+	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
+	END_VERSIONS
+	"""
+}
+
 
 process vep_sv {
 	cpus 10
