@@ -4,15 +4,12 @@ from pysam import VariantFile
 import cmdvcf
 import argparse
 from geneticmodels import GM
-# TODO! need to add HOMHEMDEL to single samples as well, i.e. dont exit on single samples but dont add genetic models to them
 
 def main(args: object):
     """
     Read VCF line by line, add genetic models to INFO-field
     """
     ped, individuals = read_ped(args.pedigree_file)
-    if len(ped.keys()) < 2:
-        exit("Cannot add genetic models to single samples")
     vcf_object = VariantFile(args.input_vcf)
     vcf_object.header.info.add(
         "GeneticModel",
@@ -31,10 +28,13 @@ def main(args: object):
     with open(args.out_vcf, "a") as vcf_out:
         for var in vcf_object.fetch():
             var_dict = cmdvcf.parse_variant(var,vcf_object.header)
-            genetic_model, is_del_hemi_homo = genetic_model_of_variant(var_dict,ped,individuals)
-            var_dict['INFO']['GeneticModel'] = genetic_model
-            if is_del_hemi_homo is not None:
-                var_dict['INFO']['HOMHEM'] = is_del_hemi_homo
+            if len(ped.keys()) > 2:
+                genetic_model = genetic_model_of_variant(var_dict,ped,individuals)
+                var_dict['INFO']['GeneticModel'] = genetic_model
+            if var_dict['INFO']['SVTYPE'] == 'DEL':
+                hemi_homo_del = is_del_hemi_homo(var_dict,ped,individuals)
+                if hemi_homo_del is not None:
+                    var_dict['INFO']['HOMHEM'] = hemi_homo_del
             vcf_str = cmdvcf.vcf_string(var_dict,vcf_object.header)
             vcf_out.write(vcf_str)
 
@@ -75,16 +75,21 @@ def genetic_model_of_variant(var_dict:dict,ped:dict,individuals:dict):
     genetic_model = GM.get(gm_search,'NA')
     # at the moment rediculous genetic patterns including homozygous dominant traits are marked *, compound finder cannot handle these
     genetic_model = genetic_model.replace('*','')
-    hemi_homo_del = None
-    if var_dict['INFO']['SVTYPE'] == 'DEL':
-        hemi_homo_del = is_del_hemi_homo(proband_gt,proband_sex,x)
-    return genetic_model, hemi_homo_del
+        
+    return genetic_model
     
-def is_del_hemi_homo(proband_gt,proband_sex,x):
+def is_del_hemi_homo(var_dict:dict,ped,individuals):
     """
     checks if deletion is complete loss of genetic material
     Boys on X special, ladies on X maybe not needed to check
     """
+    chrom = var_dict['CHROM']
+    x = 0
+    if chrom == 'X':
+        x = 1
+    sample_gt_sum = genotype_sum_per_individual(var_dict['GT'])
+    proband_gt  = sample_gt_sum[individuals['proband']]
+    proband_sex = ped[individuals['proband']]['SEX']
     is_del_hemi_homo = None
     if x:
         if proband_sex == 1 and proband_gt < 0:
@@ -112,7 +117,10 @@ def read_ped(pedfile: str):
             if fields[2] != "0" or fields[3] != "0":
                 individuals["proband"] = fields[1]
                 individuals["mother"] = fields[3]
-                individuals["father"] = fields[2]               
+                individuals["father"] = fields[2]
+    if len(ped.keys()) == 1:
+        for ind in ped:
+            individuals['proband'] = ind
     return ped, individuals
 
 def parse_arguments():
