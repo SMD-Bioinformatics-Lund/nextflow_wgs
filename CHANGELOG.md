@@ -5,6 +5,22 @@
 * Add bcftools container spec to `vcf_completion`
 * Add more containers...
 
+### 3.15.4
+* Update dbSNFP to 4.9
+* Add BayesDel vep annotations to SNVs
+  - Adds BayesDel addAF/noAF predictions and scores
+
+### 3.15.3 [HOTFIX]
+* Match `*q.gz*` files as fastq.gz
+
+### 3.15.2
+* Re-add GERP++ snv/indel annotations
+
+### 3.15.1
+* Update VEP to 113.3
+* Update VEP fasta/cache to 113.0
+* Remove `SVTYPE` bug workaround from `vep_sv`
+
 ### 3.15.0
 
 * Rewrite main.nf to DSL2

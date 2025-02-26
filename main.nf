@@ -116,9 +116,10 @@ workflow NEXTFLOW_WGS {
 	ch_qc_json     = Channel.empty() // Gather and merge QC JSONs per sample
 
 	// CHANNEL PREP //
+	// TODO: Better solution for this. Assume shomehow that everything non-bam/non-vcf is fq.
 	ch_fastq = ch_samplesheet
 		.filter {
-			row -> row.read1.endsWith("fastq.gz") && row.read2.endsWith("fastq.gz")
+			row -> row.read1.endsWith("q.gz") && row.read2.endsWith("q.gz")
 		}
 		.map { row ->
 			def group = row.group
@@ -2654,12 +2655,13 @@ process annotate_vep {
 			--plugin CADD,$params.CADD \\
 			--plugin LoFtool \\
 			--plugin MaxEntScan,$params.MAXENTSCAN,SWA,NCSS \\
-			--plugin dbNSFP,$params.DBNSFP,transcript_match=1,REVEL_score,REVEL_rankscore \\
+			--plugin dbNSFP,$params.DBNSFP,transcript_match=1,REVEL_score,REVEL_rankscore,BayesDel_addAF_score,BayesDel_addAF_pred,BayesDel_noAF_score,BayesDel_noAF_pred,GERP++_RS \\
 			-custom $params.GNOMAD_EXOMES,gnomADe,vcf,exact,0,AF_popmax,AF,popmax \\
 			-custom $params.GNOMAD_GENOMES,gnomADg,vcf,exact,0,AF_popmax,AF,popmax \\
 			-custom $params.GNOMAD_MT,gnomAD_mt,vcf,exact,0,AF_hom,AF_het \\
 			-custom $params.PHYLOP,phyloP100way,bigwig \\
 			-custom $params.PHASTCONS,phastCons,bigwig
+
 
 		${annotate_vep_version(task)}
 		"""
@@ -4272,15 +4274,8 @@ process vep_sv {
 
 	script:
 		"""
-
-		# Temporary fix for VEP 111.0 annotation bug, where certain MANTA indels are being skipped by VEP
-		# See: https://github.com/Ensembl/ensembl-vep/issues/1631#issuecomment-1985973568
-		# Edit 2024-11-01: Fixed in VEP 112.0
-
-		sed 's/SVTYPE=/BAZBAZ=/' $vcf > ${group}.vep111-workaround.vcf
-
 		vep \\
-			-i ${group}.vep111-workaround.vcf \\
+			-i ${vcf} \\
 			-o ${group}.vep.vcf \\
 			--offline \\
 			--merged \\
@@ -4299,8 +4294,6 @@ process vep_sv {
 			-cache \\
 			--format vcf
 
-		# Re-enable SVTYPE:
-		sed -i 's/BAZBAZ=/SVTYPE=/' ${group}.vep.vcf
 		${vep_sv_version(task)}
 		"""
 

@@ -176,7 +176,7 @@ while( <VEP>) {
             push @add_info_field,"GNOMADPOP_MAX=$max_pop";
         }
         ## GERP
-        my $GERP = $doobi->{INFO}->{CSQ}->[0]->{GERP};
+        my $GERP = $doobi->{INFO}->{CSQ}->[0]->{"GERP++_RS"};
         if ($GERP) {
             push @add_info_field,"dbNSFP_GERP___RS=$GERP";
         }
