@@ -2494,13 +2494,22 @@ process bedtools_intersect {
 	cpus 2
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
 	tag "$group"
-	memory '50 GB'3	tuple val(group), val(id), path("${group}.intersected.vcf"), emit: intersected_vcf
+	memory '50 GB'
 
 	input:
+		tuple val(group), val(id), path(vcf)
 
 	output:
+		tuple val(group), val(id), path("${group}.intersected.vcf"), emit: intersected_vcf
 
 	script:
+	// TODO: set output name here if onko/wgs
+	"""
+	bedtools intersect \\
+		-a ${vcf} \\
+		-b ${params.intersect_bed} \\
+		-u -header > ${group}.intersected.vcf
+	"""
 }
 
 
