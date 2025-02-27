@@ -4304,7 +4304,7 @@ process bcftools_annotate_dbvar {
 		bcftools index --tbi others.vcf.gz
 
 		bcftools concat deletions_annotated.vcf.gz duplications_annotated.vcf.gz insertions_annotated.vcf.gz others.vcf.gz -O z -o ${group}.sv.dbvar.annotated.vcf.gz -a
-		bcftools index --tbi ${group}.dbvar.annotated.vcf.gz
+		bcftools index --tbi ${group}.sv.dbvar.annotated.vcf.gz
 		${bcftools_annotate_dbvar_version(task)}
 		"""
 	stub:
