@@ -2461,9 +2461,9 @@ process DP_AF_filter {
 	memory '50 GB'
 
 	input:
-		tuple val(group), val(ids), path(vcf)
+		tuple val(group), val(id), path(vcf)
 	output:
-		tuple val(group), val(ids), path("${group}.norm.uniq.DPAF.vcf")
+		tuple val(group), val(id), path("${group}.norm.uniq.DPAF.vcf"), emit: filtered_vcf
 
 	script:
 		"""
