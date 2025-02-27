@@ -4333,15 +4333,15 @@ process add_annotsv_to_svvcf {
 		tuple val(group), path(vcf), path(tbi), path(tsv)
 
 	output:
-		tuple val(group), path("${group}.annotatedSV.vcf"), emit: vcf
+		tuple val(group), path("${group}.sv.annotatedSV.vcf"), emit: vcf
 	
 	script:
 		"""
-		add_annotsv.py -i $vcf -t $tsv:ACMG_class-OMIM_morbid -o ${group}.sv.annotsv.vcf
+		add_annotsv.py -i $vcf -t $tsv:ACMG_class-OMIM_morbid -o ${group}.sv.annotatedSV.vcf
 		"""
 	stub:
 		"""
-		touch ${group}.annotatedSV.vcf
+		touch ${group}.sv.annotatedSV.vcf
 		"""
 }
 
