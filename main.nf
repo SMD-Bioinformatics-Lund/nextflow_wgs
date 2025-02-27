@@ -2402,6 +2402,7 @@ workflow SPLIT_NORMALIZE  {
 
 		ch_input_split_multiallelics = Channel.empty()
 
+		// TODO: concat outside 
 		if (params.onco || params.assay == "modycf") {
 			ch_snv_indel_vcf_idx
 			.map{
