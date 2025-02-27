@@ -4292,13 +4292,13 @@ process bcftools_annotate_dbvar {
     	   -a $params.DBVAR_DUP -h $params.DBVAR_HEADERS \\
     	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
     	   -O z --min-overlap 0.7:0.7 $vcf \\
-    	   'INFO/SVTYPE="TDUP" || INFO/SVTYPE="DUP"' -o duplications_annotated.vcf.gz
+    	   -i 'INFO/SVTYPE="TDUP" || INFO/SVTYPE="DUP"' -o duplications_annotated.vcf.gz
 		
 		bcftools annotate \\
     	   -a $params.DBVAR_INS -h $params.DBVAR_HEADERS \\
     	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
     	   -O z --min-overlap 0.7:0.7 $vcf \\
-    	   'INFO/SVTYPE="INS"' -o insertions_annotated.vcf.gz
+    	   -i INFO/SVTYPE="INS"' -o insertions_annotated.vcf.gz
 		
 		bcftools view -i 'INFO/SVTYPE!="TDUP" && INFO/SVTYPE!="DUP" && INFO/SVTYPE!="DEL" && INFO/SVTYPE!="INS"' $vcf -O z -o others.vcf.gz
 		tabix others.vcf.gz
