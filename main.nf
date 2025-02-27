@@ -4287,24 +4287,24 @@ process bcftools_annotate_dbvar {
     	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
     	   -O z --min-overlap 0.7:0.7 $vcf \\
     	   -i 'INFO/SVTYPE="DEL"' -o deletions_annotated.vcf.gz
-		
+		tabix deletions_annotated.vcf.gz
 		bcftools annotate \\
     	   -a $params.DBVAR_DUP -h $params.DBVAR_HEADERS \\
     	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
     	   -O z --min-overlap 0.7:0.7 $vcf \\
     	   -i 'INFO/SVTYPE="TDUP" || INFO/SVTYPE="DUP"' -o duplications_annotated.vcf.gz
-		
+		tabix duplications_annotated.vcf.gz
 		bcftools annotate \\
     	   -a $params.DBVAR_INS -h $params.DBVAR_HEADERS \\
     	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
     	   -O z --min-overlap 0.7:0.7 $vcf \\
     	   -i INFO/SVTYPE="INS"' -o insertions_annotated.vcf.gz
-		
+		tabix insertions_annotated.vcf.gz
 		bcftools view -i 'INFO/SVTYPE!="TDUP" && INFO/SVTYPE!="DUP" && INFO/SVTYPE!="DEL" && INFO/SVTYPE!="INS"' $vcf -O z -o others.vcf.gz
 		tabix others.vcf.gz
-		tabix deletions_annotated.vcf.gz
-		tabix duplications_annotated.vcf.gz
-		tabix insertions_annotated.vcf.gz
+		
+		
+		
 
 		bcftools concat deletions_annotated.vcf.gz duplications_annotated.vcf.gz insertions_annotated.vcf.gz others.vcf.gz -O z -o ${group}.sv.dbvar.annotated.vcf.gz -a
 		tabix ${group}.dbvar.annotated.vcf.gz
