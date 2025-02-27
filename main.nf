@@ -2,7 +2,7 @@
 
 nextflow.enable.dsl=2
 
-
+include { SPLIT_NORMALIZE } from './subworkflows/split_normalize'
 
 workflow {
 
@@ -339,15 +339,48 @@ workflow NEXTFLOW_WGS {
 	gvcf_combine(dnascope.out.gvcf_tbi.groupTuple())
 	ch_versions = ch_versions.mix(gvcf_combine.out.versions.first())
 
-	ch_split_normalize = gvcf_combine.out.combined_vcf
-	ch_split_normalize_concat_vcf = Channel.empty()
+	ch_snv_indel_variant_calls = Channel.empty()
 
-	// TODO: move antypes and similar to constants?
 	if (params.antype == "panel") {
-		freebayes(ch_bam_bai)
+		freebayes(ch_bam_bai) // Returns headerless VCF or if non-onco: empty file
 		ch_versions = ch_versions.mix(freebayes.out.versions.first())
-		ch_split_normalize_concat_vcf = ch_split_normalize_concat_vcf.mix(freebayes.out.freebayes_variants)
+
+		gvcf_combine.out.gvcf_tbi
+			.map{
+				it ->
+				def group = it[0]
+				def id = it[1]
+				def vcf = it[2]
+				tuple(group, id, vcf)
+			}
+			.join(freebayes.out.freebayes_variants)
+			.map{ it ->
+				def group = it[0]
+				def id = it[1]
+				def vcf_with_header = it[2]
+				def vcf_no_header = it[3]
+
+				def merged_vcf = new File("${id}.concatenated.vcf")
+
+				new File(vcf_with_header).withInputStream { inputStream ->
+                    merged_vcf.append(inputStream)
+                }
+
+                new File(vcf_no_header).withInputStream { inputStream ->
+                    merged_vcf.append(inputStream)
+                }
+
+				tuple(group, id, merged_vcf)
+			}.set{
+				ch_concatenated_vcfs
+			}
+
+		ch_snv_indel_variant_calls = ch_snv_indel_variant_calls.mix(ch_concatenated_vcfs)
+
+	} else {
+		ch_snv_indel_variant_calls.mix(gvcf_combine.out.combined_vcf)
 	}
+
 
 	// MITO SIDE-QUEST
 	if (params.antype == "wgs") { // TODO: if params.mito etc ? will probably mess up split_normalize
@@ -373,7 +406,7 @@ workflow NEXTFLOW_WGS {
 			)
 
 		run_hmtnote(split_normalize_mito.out.vcf)
-		ch_split_normalize_concat_vcf = ch_split_normalize_concat_vcf.mix(run_hmtnote.out.vcf)
+		ch_snv_indel_variant_calls = ch_snv_indel_variant_calls.mix(run_hmtnote.out.vcf)
 
 		run_haplogrep(run_mutect2.out.vcf)
 		ch_output_info = ch_output_info.mix(run_haplogrep.out.haplogrep_INFO)
@@ -395,8 +428,16 @@ workflow NEXTFLOW_WGS {
 	// SNV ANNOTATION
 	if (params.annotate) {
 		// SNPs
-		SPLIT_NORMALIZE(ch_split_normalize, ch_split_normalize_concat_vcf)
-		annotate_vep(split_normalize.out.intersected_vcf)
+		SPLIT_NORMALIZE(ch_snv_indel_variant_calls)
+
+		ch_intersected_vcf = SPLIT_NORMALIZE.out.intersected_vcf
+
+		if (params.antype == "wgs") {
+			picard_mergevcfs(SPLIT_NORMALIZE.out.intersected_vcf.join(run_hmtnote.out.vcf))
+			ch_intersected_vcf = picard_mergevcfs.out.merged_vcf
+		}
+
+		annotate_vep(ch_intersected_vcf)
 		vcfanno(annotate_vep.out.vcf)
 		modify_vcf(vcfanno.out.vcf)
 		mark_splice(modify_vcf.out.vcf)
@@ -406,7 +447,7 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(vcfanno.out.versions.first())
 
 		//INDELS
-		extract_indels_for_cadd(split_normalize.out.intersected_vcf)
+		extract_indels_for_cadd(ch_intersected_vcf)
 		indel_vep(extract_indels_for_cadd.out.vcf)
 		calculate_indel_cadd(indel_vep.out.vcf)
 		bgzip_indel_cadd(calculate_indel_cadd.out.cadd_gz)
@@ -454,7 +495,7 @@ workflow NEXTFLOW_WGS {
 
 		if (params.antype == "wgs") {
 			// fastgnomad
-			fastgnomad(split_normalize.out.norm_uniq_dpaf_vcf)
+			fastgnomad(SPLIT_NORMALIZE.out.vcf)
 
 
 			// upd
@@ -2310,207 +2351,26 @@ def run_eklipse_version(task) {
 	"""
 }
 
-process vcflib_vcfbreakmulti {
-	container "${params.container_vcflib}"
+
+
+process picard_mergevcfs {
 	cpus 2
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
 	tag "$group"
 	memory '50 GB'
-	time '1h'
-	input:
-		tuple val(group), val(id), path(vcf)
 
+	input:
+		tuple val(group), val(id), path(germline_vcf), path(mito_vcf)
 	output:
-		tuple val(group), val(id), path("${group}.multibreak.vcf"), emit: multibreak_vcf
+		tuple val(group), path("${group}.merged.vcf"), emit: merged_vcf
 
 	script:
-		output_vcf_filepath = (params.onco || params.assay == "modycf") ? "${id}.concat.freebayes.vcf" : "${group}.multibreak.vcf"
-		"""
-		vcfbreakmulti ${id}
-		"""
-}
-
-process vcflib_vcfuniq {
-	container "${params.container_vcflib}"
-	cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
-	tag "$group"
-	memory '50 GB'
-	time '1h'
-	input:
-		tuple val(group), val(id), path(sorted_vcf)
-
-	output:
-		tuple val(group), val(id), path("${id}.uniq.vcf"), emit: vcf
-
-	script:
-		"""
-		cat ${sorted_vcf} | vcfuniq > "${id}.uniq.vcf"
-		"""
-}
-
-process bcftools_norm {
-	// Left-align indels and split up multiallelic sites
-	// into multiple biallelic records for both SNPs and indels
-	cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
-	tag "$group"
-	memory '50 GB'
-	time '1h'
-	input:
-		tuple val(group), val(id), val(vcf)
-	output:
-		tuple val(group), val(id), path("${group}.norm.vcf"), emit: normalized_vcf
-
-	script:
-	"""
-	bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
-	"""
-}
-
-process bcftools_sort {
-	cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
-	tag "$group"
-	memory '50 GB'
-	time '1h'
-	input:
-		tuple val(group), val(id), val(vcf)
-	output:
-		tuple val(group), val(id), path("${group}.norm.vcf"), emit: sorted_vcf
-
-	script:
-	"""
-	bcftools sort ${group}.norm.vcf | vcfuniq > ${group}.norm.uniq.vcf
-	"""
-}
-
-
-
-
-
-workflow SPLIT_NORMALIZE  {
-
-	// Splitting & normalizing variants, merging with Freebayes/Mutect2,
-	// intersecting against exome/clinvar introns
-
-	take:
-		ch_snv_indel_vcf_idx   // group, id, vcf, tbi
-		ch_panel_vcf_no_header // group, vcf
-
-	main:
-
-		ch_input_split_multiallelics = Channel.empty()
-
-		// TODO: concat outside 
-		if (params.onco || params.assay == "modycf") {
-			ch_snv_indel_vcf_idx
-			.map{
-				it ->
-				def group = it[0]
-				def id = it[1]
-				def vcf = it[2]
-				tuple(group, id, vcf)
-			}
-			.join(ch_panel_vcf_no_header)
-			.map{ it ->
-				def group = it[0]
-				def id = it[1]
-				def vcf_with_header = it[2]
-				def vcf_no_header = it[3]
-
-				def merged_vcf = new File("${id}.concatenated.vcf")
-
-				new File(vcf_with_header).withInputStream { inputStream ->
-                    merged_vcf.append(inputStream)
-                }
-
-                new File(vcf_no_header).withInputStream { inputStream ->
-                    merged_vcf.append(inputStream)
-                }
-
-				tuple(group, id, merged_vcf)
-			}.set{
-				ch_concatenated_vcfs
-			}
-
-			ch_input_split_multiallelics = ch_input_split_multiallelics.mix(ch_concatenated_vcfs)
-
-		} else {
-			ch_input_split_multiallelics =  ch_input_split_multiallelics.mix(ch_snv_indel_vcf_idx)
-		}
-
-		vcflib_vcfbreakmulti(ch_input_split_multiallelics)
-		bcftools_norm(vcflib_vcfbreakmulti.out.multibreak_vcf)
-		bcftools_sort(bcftools_norm.out.sorted_vcf)
-		vcflib_vcfuniq(bcftools_norm.out.sorted_vcf)
-		DP_AF_filter(vcflib_vcfuniq.out.vcf)
-
-		// TODO: move out of workflow
-		bedtools_intersect(DP_AF_filter.out.filtered_vcf)
-
-	emit:
-		split_normalized_vcf = DP_AF_filter.out.filtered_vcf
-
-}
-
-process DP_AF_filter {
-	cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
-	tag "$group"
-	memory '50 GB'
-
-	input:
-		tuple val(group), val(id), path(vcf)
-	output:
-		tuple val(group), val(id), path("${group}.norm.uniq.DPAF.vcf"), emit: filtered_vcf
-
-	script:
-		"""
-		wgs_DPAF_filter.pl ${vcf} > ${group}.norm.uniq.DPAF.vcf
-		"""
-}
-
-process picard_merge {
-	cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
-	tag "$group"
-	memory '50 GB'
-
-	input:
-		tuple val(group), val(id), path(vcfs)
-	output:
-		tuple val(group), val(id), path("${group}.merged.vcf")
-
 	"""
 	java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \\
-	I=${group}.intersected_diploid.vcf I=${vcfconcat} O=${group}.intersected.vcf
+	I=${germline_vcf} I=${mito_vcf} O=${group}.intersected.vcf
 	"""
 }
 
-process bedtools_intersect {
-
-	container "${params.container_bedtools}"
-	cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
-	tag "$group"
-	memory '50 GB'
-
-	input:
-		tuple val(group), val(id), path(vcf)
-
-	output:
-		tuple val(group), val(id), path("${group}.intersected.vcf"), emit: intersected_vcf
-
-	script:
-	// TODO: set output name here if onko/wgs
-	"""
-	bedtools intersect \\
-		-a ${vcf} \\
-		-b ${params.intersect_bed} \\
-		-u -header > ${group}.intersected.vcf
-	"""
-}
 
 
 
