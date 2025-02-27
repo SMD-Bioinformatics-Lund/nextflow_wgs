@@ -4057,7 +4057,7 @@ process annotsv {
 		"""
 		AnnotSV -SvinputFile ${sv_vcf} \\
 			-annotationMode full \\
-			-annotationsDir $params.ANNOTSV_ANNO \\
+			-annotationsDir $params.ANNOTSV_DB \\
 			-outputDir ${group} \\
 			-includeCI 0 \\
 			-genomeBuild GRCh38
