@@ -2446,6 +2446,12 @@ workflow SPLIT_NORMALIZE  {
 		vcflib_vcfuniq(bcftools_norm.out.sorted_vcf)
 		DP_AF_filter(vcflib_vcfuniq.out.vcf)
 
+		// TODO: move out of workflow
+		bedtools_intersect(DP_AF_filter.out.filtered_vcf)
+
+	emit:
+		split_normalized_vcf = DP_AF_filter.out.filtered_vcf
+
 }
 
 process DP_AF_filter {
