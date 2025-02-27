@@ -2471,6 +2471,22 @@ process DP_AF_filter {
 		"""
 }
 
+process picard_merge {
+	cpus 2
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	tag "$group"
+	memory '50 GB'
+
+	input:
+		tuple val(group), val(id), path(vcfs)
+	output:
+		tuple val(group), val(id), path("${group}.merged.vcf")
+
+	"""
+	java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \\
+	I=${group}.intersected_diploid.vcf I=${vcfconcat} O=${group}.intersected.vcf
+	"""
+}
 
 process bedtools_intersect {
 
