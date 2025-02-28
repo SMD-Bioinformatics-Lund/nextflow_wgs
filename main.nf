@@ -340,45 +340,14 @@ workflow NEXTFLOW_WGS {
 	ch_versions = ch_versions.mix(gvcf_combine.out.versions.first())
 
 	ch_snv_indel_variant_calls = Channel.empty()
+	ch_snv_indel_variant_calls = gvcf_combine.out.combined_vcf
 
-	if (params.antype == "panel") {
+	if (params.antype == "panel" && params.onco) {
 		freebayes(ch_bam_bai) // Returns headerless VCF or if non-onco: empty file
 		ch_versions = ch_versions.mix(freebayes.out.versions.first())
 
-		gvcf_combine.out.gvcf_tbi
-			.map{
-				it ->
-				def group = it[0]
-				def id = it[1]
-				def vcf = it[2]
-				tuple(group, id, vcf)
-			}
-			.join(freebayes.out.freebayes_variants)
-			.map{ it ->
-				def group = it[0]
-				def id = it[1]
-				def vcf_with_header = it[2]
-				def vcf_no_header = it[3]
 
-				def merged_vcf = new File("${id}.concatenated.vcf")
-
-				new File(vcf_with_header).withInputStream { inputStream ->
-                    merged_vcf.append(inputStream)
-                }
-
-                new File(vcf_no_header).withInputStream { inputStream ->
-                    merged_vcf.append(inputStream)
-                }
-
-				tuple(group, id, merged_vcf)
-			}.set{
-				ch_concatenated_vcfs
-			}
-
-		ch_snv_indel_variant_calls = ch_snv_indel_variant_calls.mix(ch_concatenated_vcfs)
-
-	} else {
-		ch_snv_indel_variant_calls.mix(gvcf_combine.out.combined_vcf)
+		ch_snv_indel_variant_calls.mix = ch_snv_indel_variant_calls.mix(gvcf_combine.out.combined_vcf)
 	}
 
 
@@ -1911,6 +1880,7 @@ def madeline_version(task) {
 	"""
 }
 
+// TODO: break up into subworkflow?
 process freebayes {
 	cpus 1
 	time '2h'
@@ -1921,40 +1891,26 @@ process freebayes {
 		tuple val(group), val(id), path(bam), path(bai)
 
 	output:
-		tuple val(group), path("${id}.pathfreebayes.vcf_no_header.tsv"), emit: freebayes_variants
+		tuple val(group), path("${id}.freebayes.multibreak.norm.anno.path.filtered.vcf"), emit: freebayes_variants
 		path "*versions.yml", emit: versions
 
-
-	when:
-		params.antype == "panel"
-
-
 	script:
-		if (params.onco) {
-			"""
-			freebayes -f ${params.genome_file} --pooled-continuous --pooled-discrete -t $params.intersect_bed --min-repeat-entropy 1 -F 0.03 $bam > ${id}.freebayes.vcf
-			vcfbreakmulti ${id}.freebayes.vcf > ${id}.freebayes.multibreak.vcf
-			bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${id}.freebayes.multibreak.norm.vcf ${id}.freebayes.multibreak.vcf
-			vcfanno_linux64 -lua $params.VCFANNO_LUA $params.vcfanno ${id}.freebayes.multibreak.norm.vcf > ${id}.freebayes.multibreak.norm.anno.vcf
-			grep ^# ${id}.freebayes.multibreak.norm.anno.vcf > ${id}.freebayes.multibreak.norm.anno.path.vcf
-			grep -v ^# ${id}.freebayes.multibreak.norm.anno.vcf | grep -i pathogenic > ${id}.freebayes.multibreak.norm.anno.path.vcf2
-			cat ${id}.freebayes.multibreak.norm.anno.path.vcf ${id}.freebayes.multibreak.norm.anno.path.vcf2 > ${id}.freebayes.multibreak.norm.anno.path.vcf3
-			filter_freebayes.pl ${id}.freebayes.multibreak.norm.anno.path.vcf3 > "${id}.pathfreebayes.vcf_no_header.tsv"
+	"""
+	freebayes -f ${params.genome_file} --pooled-continuous --pooled-discrete -t $params.intersect_bed --min-repeat-entropy 1 -F 0.03 $bam > ${id}.freebayes.vcf
+	vcfbreakmulti ${id}.freebayes.vcf > ${id}.freebayes.multibreak.vcf
+	bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${id}.freebayes.multibreak.norm.vcf ${id}.freebayes.multibreak.vcf
+	vcfanno_linux64 -lua $params.VCFANNO_LUA $params.vcfanno ${id}.freebayes.multibreak.norm.vcf > ${id}.freebayes.multibreak.norm.anno.vcf
+	grep ^# ${id}.freebayes.multibreak.norm.anno.vcf > ${id}.freebayes.multibreak.norm.anno.path.vcf
+	grep -v ^# ${id}.freebayes.multibreak.norm.anno.vcf | grep -i pathogenic > ${id}.freebayes.multibreak.norm.anno.path.vcf2
+	cat ${id}.freebayes.multibreak.norm.anno.path.vcf ${id}.freebayes.multibreak.norm.anno.path.vcf2 > ${id}.freebayes.multibreak.norm.anno.path.vcf3
+	filter_freebayes.pl ${id}.freebayes.multibreak.norm.anno.path.vcf3 > "${id}.freebayes.multibreak.norm.anno.path.filtered.vcf"
 
-			${freebayes_version(task)}
-			"""
-		}
-		else {
-			"""
-			touch "${id}.pathfreebayes.vcf_no_header.tsv"
-
-			${freebayes_version(task)}
-			"""
-		}
+	${freebayes_version(task)}
+	"""
 
 	stub:
 		"""
-		touch "${id}.pathfreebayes.vcf_no_header.tsv"
+		touch "${id}.freebayes.multibreak.norm.anno.path.filtered.vcf"
 
 		${freebayes_version(task)}
 		"""
