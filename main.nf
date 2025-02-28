@@ -2316,14 +2316,17 @@ process picard_mergevcfs {
 	memory '50 GB'
 
 	input:
-		tuple val(group), val(id), path(germline_vcf), path(mito_vcf)
+		tuple val(group), val(id), path(vcf)
 	output:
 		tuple val(group), path("${group}.merged.vcf"), emit: merged_vcf
 
 	script:
+	def input_list=vcf.collect { it -> "-I=${it}"}.join(' ')
 	"""
-	java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \\
-	I=${germline_vcf} I=${mito_vcf} O=${group}.intersected.vcf
+	java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar \\
+	MergeVcfs \\
+		${input_list} \\
+		O=${group}.intersected.vcf
 	"""
 }
 
