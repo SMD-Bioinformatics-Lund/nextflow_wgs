@@ -28,7 +28,6 @@ def main(args: object):
             # to fix END flag disapearing from pysam object
             # pysam eats up END from original, don't know why. (PERL vfc2.pm <3)
             var_dict = cmdvcf.parse_variant(var,vcf_object.header)
-            var_dict['INFO']['END'] = var.stop
             svtype = var.info['SVTYPE']
             # AnnotSV treats TDUP as DUP
             if svtype == "TDUP":
