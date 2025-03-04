@@ -657,8 +657,10 @@ workflow NEXTFLOW_WGS {
 		}
 
 		// ANNOTATE SVs //
-		annotsv(ch_postprocessed_merged_sv_vcf)
-		vep_sv(ch_postprocessed_merged_sv_vcf)
+		ch_proband_meta = ch_split_normalize_meta
+		filter_proband_null_calls(ch_postprocessed_merged_sv_vcf,ch_proband_meta)
+		annotsv(filter_proband_null_calls.out.filtered_vcf)
+		vep_sv(filter_proband_null_calls.out.filtered_vcf)
 		postprocess_vep_sv(vep_sv.out.vep_sv_vcf)
 		artefact(postprocess_vep_sv.out.merged_processed_vcf)
 		bcftools_annotate_dbvar(artefact.out.vcf)
@@ -4036,6 +4038,34 @@ process add_to_loqusdb {
 		"""
 }
 
+process filter_proband_null_calls {
+	tag "$group"
+	cpus 2
+	memory '5 GB'
+	time '20m'
+	container  "${params.container_bcftools}"
+
+	input:
+		tuple val(group), val(id), path(sv_vcf)
+		tuple val(group2), val(proband_id), val(sex), val(type)
+	
+	output:
+		tuple val(group), val(id), path("${group}.proband.calls.vcf"), emit: filtered_vcf
+
+	script:
+		"""
+		SAMPLE_INDEX=\$(bcftools query -l $vcf | grep $proband_id -n | cut -f 1 -d ':')
+		SAMPLE_INDEX=SAMPLE_INDEX-1
+    	bcftools view -e \"GT[\$SAMPLE_INDEX]='./.'\" -o ${group}.proband.calls.vcf -O v $vcf
+		"""
+
+	stub:
+		"""
+		touch ${group}.proband.calls.vcf
+		"""
+
+}
+
 process annotsv {
 
 	container  "${params.container_annotsv}"
@@ -4183,30 +4213,6 @@ def postprocess_vep_sv_version(task) {
 	END_VERSIONS
 	"""
 }
-
-// process add_omim {
-// 	cpus 2
-// 	memory '10GB'
-// 	time '1h'
-// 	tag "$group"
-
-// 	input:
-// 		tuple val(group), path(vcf)
-
-// 	output:
-// 		tuple val(group), path("${group}.vep.clean.merge.omim.vcf"), emit: vcf
-
-// 	script:
-// 		"""
-// 		add_omim.pl $params.OMIM_GENES < $vcf > ${group}.vep.clean.merge.omim.vcf
-// 		"""
-// 	stub:
-// 		"""
-// 		touch "${group}.vep.clean.merge.omim.vcf"
-// 		"""
-// }
-
-
 
 // Query artefact db
 process artefact {
