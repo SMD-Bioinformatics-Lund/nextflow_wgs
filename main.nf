@@ -4054,7 +4054,7 @@ process filter_proband_null_calls {
 
 	script:
 		"""
-		SAMPLE_INDEX=\$(bcftools query -l $vcf | grep $proband_id -n | cut -f 1 -d ':')
+		SAMPLE_INDEX=\$(bcftools query -l $sv_vcf | grep $proband_id -n | cut -f 1 -d ':')
 		SAMPLE_INDEX=SAMPLE_INDEX-1
     	bcftools view -e \"GT[\$SAMPLE_INDEX]='./.'\" -o ${group}.proband.calls.vcf -O v $vcf
 		"""
