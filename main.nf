@@ -946,7 +946,7 @@ process copy_bam {
 		tuple val(group), val(id), path(bam), path(bai)
 
 	output:
-		tuple val(group), val(id), path("${id}_dedup.bam"), path("${id}_dedup.bam.bai"), emit: bam_bai
+		tuple val(group), val(id), path("${id}_dedup.copy.bam"), path("${id}_dedup.copy.bam.bai"), emit: bam_bai
 	script:
 		"""
 		ionice -c 2 -n 7 cp ${bam} "${id}_dedup.copy.bam"
