@@ -32,7 +32,7 @@ def main(args: object):
             var_dict = cmdvcf.parse_variant(var,vcf_object.header)
             varcall_set = var_dict['INFO'].get('set',None)
             if varcall_set is None:
-                exit("need a VCF merged with SVDB")
+                continue
             else:
                 varcallers_list = variant_called_by(varcall_set)
                 # GATK only caller, return average genotype qual for variant
