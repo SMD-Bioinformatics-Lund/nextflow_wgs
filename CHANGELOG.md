@@ -1,5 +1,12 @@
 # CHANGELOG
 
+### 3.15.5
+* Update GNOMAD genomes and exomes to v4.1 in `annotate_vep` and `indel_vep`
+* Update popmax attribute to grpmax (same attribute renamed in v4: https://gnomad.broadinstitute.org/news/2023-11-genetic-ancestry/) 
+  - The INFO-level keys created by `modify_vcf_scout.pl` still use "popmax" instead of grpmax.
+* `myeloid_const` profile now uses same rank models as onco 
+  - The desired behavior of disabled artefact scoring already existed in original onco rank models. Thus separate rank model files for myeloid were not actually needed.
+
 ### 3.15.4
 * Update dbSNFP to 4.9
 * Add BayesDel vep annotations to SNVs
