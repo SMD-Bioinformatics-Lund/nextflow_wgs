@@ -12,7 +12,6 @@ workflow {
 	//       outdir and subdir need to be combined in new var, re-setting
 	//       params.outdir won't work.
 	params.results_output_dir = params.outdir + '/' + params.subdir
-	params.cron_output_dir = params.crondir // TODO: switch back to crondir
 
 	// TODO: Pass these to processes in meta?
 	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
@@ -32,7 +31,7 @@ workflow {
 	log.info("trio analysis: " + params.trio)
 	log.info("Results output dir: " + params.results_output_dir)
 	log.info("Results subdir: " + params.subdir)
-	log.info("CRON output dir: " + params.cron_output_dir)
+	log.info("CRON output dir: " + params.crondir)
 
 	// Print commit-version of active deployment
 	// TODO: stuff this one into versions too, for good measure.
