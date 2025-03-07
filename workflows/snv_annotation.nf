@@ -2,11 +2,19 @@
 
 workflow ANNOTATE_SNV_INDELS {
 
+
 	take:
 	ch_snv_indels_vcf
 	ch_ped
 
 	main:
+
+	// TODO: better system or these guys. they're also defined at the top of the main workflow.
+	params.results_output_dir = params.outdir + '/' + params.subdir
+	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
+	params.trio = file(params.csv).countLines() > 3 ? true : false // TODO: not sure this is needed here
+
+
 	ch_versions = Channel.empty()
 	ch_output_info = Channel.empty()
 
