@@ -1,6 +1,6 @@
 #!/usr/bin/env nextflow
 
-workflow ANNOTATE_SNV_INDELS {
+workflow SNV_ANNOTATE {
 
 
 	take:

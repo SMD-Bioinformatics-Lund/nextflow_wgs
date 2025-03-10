@@ -1,5 +1,6 @@
 #!/usr/bin/env nextflow
-include { ANNOTATE_SNV_INDELS } from './workflows/snv_annotation.nf'
+
+include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 
 nextflow.enable.dsl=2
 
@@ -412,12 +413,12 @@ workflow NEXTFLOW_WGS {
 
 		ch_snv_indel_vcf = split_normalize.out.intersected_vcf.mix(ch_vcf_annotation_only)
 
-		ANNOTATE_SNV_INDELS(ch_snv_indel_vcf, ch_ped_trio_affected_permutations)
-		ch_versions = ch_versions.mix(ANNOTATE_SNV_INDELS.out.versions)
-		ch_output_info = ch_output_info.mix(ANNOTATE_SNV_INDELS.out.output_info)
+		SNV_ANNOTATE(ch_snv_indel_vcf, ch_ped_trio_affected_permutations)
+		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
+		ch_output_info = ch_output_info.mix(SNV_ANNOTATE.out.output_info)
 
 		// SNPs
-		ch_peddy_input_vcf = ANNOTATE_SNV_INDELS.out.annotated_snv_vcf
+		ch_peddy_input_vcf = SNV_ANNOTATE.out.annotated_snv_vcf
 			.filter { it ->
 				def type = it[1]
 				type == "proband"
@@ -670,7 +671,7 @@ workflow NEXTFLOW_WGS {
 
 		ch_compound_finder_input = bgzip_scored_genmod.out.sv_rescore  // Take final scored SV VCF
 			.join(ch_ped_trio_affected_permutations, by: [0,1])        // join with correct ped on group, type
-			.join(ANNOTATE_SNV_INDELS.out.annotated_snv_vcf, by: [0,1])               // join with final SNV VCF + index on group, type
+			.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1])               // join with final SNV VCF + index on group, type
 
 		compound_finder(ch_compound_finder_input)
 		ch_output_info = ch_output_info.mix(compound_finder.out.svcompound_INFO)
@@ -711,7 +712,7 @@ workflow NEXTFLOW_WGS {
 
 	// LOQUSDB //
 	add_to_loqusdb(
-		ch_ped_base.join(ANNOTATE_SNV_INDELS.out.annotated_snv_vcf, by: [0,1]),
+		ch_ped_base.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1]),
 		ch_loqusdb_sv
 	)
 
