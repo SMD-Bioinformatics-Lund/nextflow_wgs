@@ -1,0 +1,15 @@
+name: stub runs
+on:
+  push:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: nf-core/setup-nextflow@v1
+      - run: echo "stub-run" > ${GITHUB_WORKSPACE}/git.hash
+      - run: nextflow -c ${GITHUB_WORKSPACE}/configs/nextflow.hopper.config run ${GITHUB_WORKSPACE} -stub -profile wgs --csv ${GITHUB_WORKSPACE}/tests/data/stub-run-wgs-single.csv --git ${GITHUB_WORKSPACE}/git.hash --outdir ${GITHUB_WORKSPACE}/results --crondir ${GITHUB_WORKSPACE}/results
