@@ -140,7 +140,7 @@ workflow NEXTFLOW_WGS {
 			def group = row.group
 			def id = row.id
 			def vcf = row.read1
-			tuple(group, id, vcf) // TODO: filter non fq
+			tuple(group, id, vcf)
 		}.view()
 
 	// GATK Ref:
