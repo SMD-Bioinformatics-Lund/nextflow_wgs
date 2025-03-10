@@ -128,6 +128,17 @@ workflow NEXTFLOW_WGS {
 			tuple(group, id, fastq_r1, fastq_r2) // TODO: filter non fq
 	}
 
+	ch_vcf_annotation_only = ch_samplesheet
+		.filter {
+			row -> row.read1.endsWith(".vcf") && row.read2.endsWith(".tbi")
+		}
+		.map { row ->
+			def group = row.group
+			def id = row.id
+			def vcf = row.read1
+			tuple(group, id, vcf) // TODO: filter non fq
+	}
+
 	// GATK Ref:
 	ch_gatk_ref = Channel
 		.fromPath(params.gatkreffolders)
@@ -395,6 +406,9 @@ workflow NEXTFLOW_WGS {
 	if (params.annotate) {
 
 		split_normalize(ch_split_normalize, ch_split_normalize_concat_vcf)
+
+		ch_snv_indel_vcf = split_normalize.out.intersected_vcf.mix(ch_vcf_annotation_only)
+
 		ANNOTATE_SNV_INDELS(split_normalize.out.intersected_vcf, ch_ped_trio_affected_permutations)
 		ch_versions = ch_versions.mix(ANNOTATE_SNV_INDELS.out.versions)
 		ch_output_info = ch_output_info.mix(ANNOTATE_SNV_INDELS.out.output_info)
