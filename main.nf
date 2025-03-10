@@ -659,8 +659,9 @@ workflow NEXTFLOW_WGS {
 		// ANNOTATE SVs //
 		ch_proband_meta = ch_split_normalize_meta
 		filter_proband_null_calls(ch_postprocessed_merged_sv_vcf,ch_proband_meta)
-		annotsv(filter_proband_null_calls.out.filtered_vcf)
-		vep_sv(filter_proband_null_calls.out.filtered_vcf)
+		tdup_to_dup(filter_proband_null_calls.out.filtered_vcf)
+		annotsv(tdup_to_dup.out.renamed_vcf)
+		vep_sv(tdup_to_dup.out.renamed_vcf)
 		postprocess_vep_sv(vep_sv.out.vep_sv_vcf)
 		artefact(postprocess_vep_sv.out.merged_processed_vcf)
 		bcftools_annotate_dbvar(artefact.out.vcf)
@@ -4065,6 +4066,30 @@ process filter_proband_null_calls {
 
 }
 
+process tdup_to_dup {
+	// in order for vep_sv to match on SVTYPE for gnomadSV TDUP needs to go
+	tag "$group"
+	cpus 2
+	memory '5 GB'
+	time '20m'
+
+	input:
+		tuple val(group), val(id), path(sv_vcf)
+
+	output:
+		tuple val(group), val(id), path("${group}.tdups_to_dups.vcf"), emit: renamed_vcf
+
+	script:
+		"""
+		sed -r 's/SVTYPE=TDUP/SVTYPE=DUP/g' $sv_vcf > ${group}.tdups_to_dups.vcf
+		"""
+
+	stub:
+		"""
+		touch > ${group}.tdups_to_dups.vcf
+		"""
+}
+
 process annotsv {
 
 	container  "${params.container_annotsv}"
@@ -4145,7 +4170,7 @@ process vep_sv {
 			--dir_plugins $params.VEP_PLUGINS \\
 			--max_sv_size $params.VEP_MAX_SV_SIZE \\
 			--distance $params.VEP_TRANSCRIPT_DISTANCE \\
-			--custom file=$params.GNOMAD_SV,short_name=gnomad,fields=AF%FREQ_HOMALT%SVTYPE,format=vcf,reciprocal=1,overlap_cutoff=70,same_type=0 \\
+			--custom file=$params.GNOMAD_SV,short_name=gnomad,fields=AF%FREQ_HOMALT%SVTYPE,format=vcf,reciprocal=1,overlap_cutoff=70,same_type=1 \\
 			-cache \\
 			--format vcf
 
