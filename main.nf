@@ -128,6 +128,9 @@ workflow NEXTFLOW_WGS {
 			tuple(group, id, fastq_r1, fastq_r2) // TODO: filter non fq
 	}
 
+
+	ch_samplesheet.view()
+
 	ch_vcf_annotation_only = ch_samplesheet
 		.filter {
 			row -> row.read1.endsWith(".vcf")
@@ -137,7 +140,7 @@ workflow NEXTFLOW_WGS {
 			def id = row.id
 			def vcf = row.read1
 			tuple(group, id, vcf) // TODO: filter non fq
-	}
+		}.view()
 
 	// GATK Ref:
 	ch_gatk_ref = Channel
