@@ -412,7 +412,7 @@ workflow NEXTFLOW_WGS {
 
 		ch_snv_indel_vcf = split_normalize.out.intersected_vcf.mix(ch_vcf_annotation_only)
 
-		ANNOTATE_SNV_INDELS(split_normalize.out.intersected_vcf, ch_ped_trio_affected_permutations)
+		ANNOTATE_SNV_INDELS(ch_snv_indel_vcf, ch_ped_trio_affected_permutations)
 		ch_versions = ch_versions.mix(ANNOTATE_SNV_INDELS.out.versions)
 		ch_output_info = ch_output_info.mix(ANNOTATE_SNV_INDELS.out.output_info)
 
