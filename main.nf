@@ -134,7 +134,7 @@ workflow NEXTFLOW_WGS {
 
 	ch_vcf_annotation_only = ch_samplesheet
 		.filter {
-			row -> row.read1.endsWith(".vcf")
+			row -> row.read1.endsWith(".vcf") || row.read.endsWith(".vcf.gz")
 		}
 		.map { row ->
 			def group = row.group
