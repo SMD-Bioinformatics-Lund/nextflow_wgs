@@ -4208,9 +4208,10 @@ process postprocess_vep_sv {
 
 	script:
 		"""
-		# Filter variants with FILTER != . or PASS and variants missing CSQ field.
-		postprocess_vep_vcf.py $vcf > ${group}.vep.clean.vcf
-		svdb --merge --overlap 0.9 --notag --vcf ${group}.vep.clean.vcf --ins_distance 0 > ${group}.vep.clean.merge.tmp.vcf
+		# Filter variants with FILTER != . or PASS and variants missing CSQ field. SVDB creates invalid vcf header if input VCF file name contains mixtures of . _ -
+		# Output file name needs to be generic
+		postprocess_vep_vcf.py $vcf > postprocessed.vcf
+		svdb --merge --overlap 0.9 --notag --vcf postprocessed.vcf --ins_distance 0 > ${group}.vep.clean.merge.tmp.vcf
 
 	# --notag above will remove set
 		add_vcf_header_info_records.py \\
