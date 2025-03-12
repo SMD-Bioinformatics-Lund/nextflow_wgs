@@ -31,9 +31,7 @@ def main(args: object):
         for var in vcf_object.fetch():
             var_dict = cmdvcf.parse_variant(var,vcf_object.header)
             varcall_set = var_dict['INFO'].get('set',None)
-            if varcall_set is None:
-                continue
-            else:
+            if varcall_set is not None:
                 varcallers_list = variant_called_by(varcall_set)
                 # GATK only caller, return average genotype qual for variant
                 if len(varcallers_list) == 1 and 'gatk' in varcallers_list:
@@ -43,8 +41,7 @@ def main(args: object):
                     mantapen = modify_manta(var_dict)
                     if mantapen is not None:
                         var_dict['INFO']['MANTAPENALTY'] = mantapen
-        
-                vcf_str = cmdvcf.vcf_string(var_dict,vcf_object.header)
+            vcf_str = cmdvcf.vcf_string(var_dict,vcf_object.header)
             vcf_out.write(vcf_str)
 
 def variant_called_by(varcallers: str):
