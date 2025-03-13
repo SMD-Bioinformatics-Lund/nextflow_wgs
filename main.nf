@@ -231,7 +231,8 @@ workflow NEXTFLOW_WGS {
 		}
 
 
-	copy_bam(ch_bam_start)
+	rename_bam(ch_bam_start)
+	copy_bam(rename_bam.out.bam_bai)
 	bamtoyaml(ch_bam_start)
 	ch_output_info = ch_output_info.mix(bamtoyaml.out.bamchoice_INFO)
 
@@ -945,6 +946,36 @@ def markdup_versions(task) {
 	"""
 }
 
+process rename_bam {
+	tag "$id"
+	cpus 1
+	memory '2GB'
+	time '1h'
+
+	input:
+		tuple val(group), val(id), path(bam), path(bai)
+
+	output:
+		tuple val(group), val(id), path("${bam}.tmp"), path("${bai}.tmp"), emit: bam_bai
+	script:
+
+		// The transfer_done file blocks output emission until the bam+bai have been copied
+		// otherwise the process will emit the original _dedup.bam/.bam.bai files straight away.
+		// TODO: https://github.com/SMD-Bioinformatics-Lund/nextflow_wgs/issues/306
+		"""
+		ln -s ${bam} "${bam}.tmp"
+		ln -s ${bai} "${bai}.tmp"
+		"""
+
+	stub:
+		"""
+		ln -s ${bam} "${bam}.tmp"
+		ln -s ${bai} "${bai}.tmp"
+		"""
+}
+
+
+
 process copy_bam {
 
 	tag "$id"
@@ -956,27 +987,17 @@ process copy_bam {
 		tuple val(group), val(id), path(bam), path(bai)
 
 	output:
-		tuple val(group), val(id), path("${id}_dedup.bam"), path("${id}_dedup.bam.bai"), path("transfer_done"), emit: bam_bai
+		tuple val(group), val(id), path("${id}_dedup.bam"), path("${id}_dedup.bam.bai"), emit: bam_bai
 	script:
-
-		// The transfer_done file blocks output emission until the bam+bai have been copied
-		// otherwise the process will emit the original _dedup.bam/.bam.bai files straight away.
-		// TODO: https://github.com/SMD-Bioinformatics-Lund/nextflow_wgs/issues/306
 		"""
-		ionice -c 2 -n 7 cp ${bam} "${id}_dedup.copy.bam"
-		ionice -c 2 -n 7 cp ${bai} "${id}_dedup.copy.bam.bai"
-
-		mv "${id}_dedup.copy.bam.bai" ${id}_dedup.bam.bai
-		mv "${id}_dedup.copy.bam" ${id}_dedup.bam
-
-		touch transfer_done
+		ionice -c 2 -n 7 cp ${bam} "${id}_dedup.bam"
+		ionice -c 2 -n 7 cp ${bai} "${id}_dedup.bam.bai"
 		"""
 
 	stub:
 		"""
 		touch "${id}_dedup.bam"
 		touch "${id}_dedup.bam.bai"
-		touch transfer_done
 		"""
 }
 
