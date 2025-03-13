@@ -4317,19 +4317,19 @@ process bcftools_annotate_dbvar {
 		bcftools annotate \\
     	   -a $params.DBVAR_DEL -h $params.DBVAR_HEADERS \\
     	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
-    	   -O v --min-overlap 0.7:0.7  $vcf | bcftools view -i 'INFO/SVTYPE="DEL"' -O z -o deletions_annotated.vcf.gz
+    	   -O v --min-overlap 0.7  $vcf | bcftools view -i 'INFO/SVTYPE="DEL"' -O z -o deletions_annotated.vcf.gz
     	   
 		bcftools index --tbi deletions_annotated.vcf.gz
 		bcftools annotate \\
     	   -a $params.DBVAR_DUP -h $params.DBVAR_HEADERS \\
     	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
-    	   -O v --min-overlap 0.7:0.7 $vcf | bcftools view -i 'INFO/SVTYPE="TDUP" || INFO/SVTYPE="DUP"' -O z -o duplications_annotated.vcf.gz 
+    	   -O v --min-overlap 0.7 $vcf | bcftools view -i 'INFO/SVTYPE="TDUP" || INFO/SVTYPE="DUP"' -O z -o duplications_annotated.vcf.gz 
     	   
 		bcftools index --tbi duplications_annotated.vcf.gz
 		bcftools annotate \\
     	   -a $params.DBVAR_INS -h $params.DBVAR_HEADERS \\
     	   -c CHROM,FROM,TO,dbvar,dbVar_status,clinvar1,clinvar2 \\
-    	   -O v --min-overlap 0.7:0.7 $vcf | bcftools view -i 'INFO/SVTYPE="INS"' -O z -o insertions_annotated.vcf.gz
+    	   -O v --min-overlap 0.7 $vcf | bcftools view -i 'INFO/SVTYPE="INS"' -O z -o insertions_annotated.vcf.gz
     	   
 		bcftools index --tbi insertions_annotated.vcf.gz
 		bcftools view -i 'INFO/SVTYPE!="TDUP" && INFO/SVTYPE!="DUP" && INFO/SVTYPE!="DEL" && INFO/SVTYPE!="INS"' $vcf -O z -o others.vcf.gz
