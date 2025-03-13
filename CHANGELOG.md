@@ -1,7 +1,7 @@
 # CHANGELOG
 
-### TBA
-* Add temp copybam workaround to emit the copied files instead of original input bams
+### 3.15.6
+* Add workaround so copybam actually emits copied BAMs
 
 ### 3.15.5
 * Update GNOMAD genomes and exomes to v4.1 in `annotate_vep` and `indel_vep`

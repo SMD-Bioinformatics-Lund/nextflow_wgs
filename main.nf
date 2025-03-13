@@ -231,7 +231,8 @@ workflow NEXTFLOW_WGS {
 		}
 
 
-	rename_bam(ch_bam_start)
+
+	rename_bam(ch_bam_start) // See process for more info about why this is needed.
 	copy_bam(rename_bam.out.bam_bai)
 	bamtoyaml(ch_bam_start)
 	ch_output_info = ch_output_info.mix(bamtoyaml.out.bamchoice_INFO)
@@ -243,18 +244,7 @@ workflow NEXTFLOW_WGS {
 	}
 
 	ch_bam_bai = Channel.empty()
-
-	// Remove transfer-complete-signal file in copybam workaround
-	// See copybam process for more info:
-	ch_bam_bai = ch_bam_bai.mix(
-		copy_bam.out.bam_bai.map{ it ->
-			def group = it[0]
-			def id = it[1]
-			def bam = it[2]
-			def bai = it[3]
-		tuple(group, id, bam, bai)
-		}
-	)
+	ch_bam_bai = ch_bam_bai.mix(copy_bam.out.bam_bai)
 
 	// PED //
 	ch_ped_input = ch_samplesheet
@@ -946,6 +936,9 @@ def markdup_versions(task) {
 	"""
 }
 
+// Rename of bams prior to copy_bam required so that copy_bam can output the
+// bam with unaltered filenames. This needs to be fixed in a better way.
+// Please see: https://github.com/SMD-Bioinformatics-Lund/nextflow_wgs/issues/306
 process rename_bam {
 	tag "$id"
 	cpus 1
@@ -957,11 +950,8 @@ process rename_bam {
 
 	output:
 		tuple val(group), val(id), path("${bam}.tmp"), path("${bai}.tmp"), emit: bam_bai
-	script:
 
-		// The transfer_done file blocks output emission until the bam+bai have been copied
-		// otherwise the process will emit the original _dedup.bam/.bam.bai files straight away.
-		// TODO: https://github.com/SMD-Bioinformatics-Lund/nextflow_wgs/issues/306
+	script:
 		"""
 		ln -s ${bam} "${bam}.tmp"
 		ln -s ${bai} "${bai}.tmp"
@@ -973,8 +963,6 @@ process rename_bam {
 		ln -s ${bai} "${bai}.tmp"
 		"""
 }
-
-
 
 process copy_bam {
 
