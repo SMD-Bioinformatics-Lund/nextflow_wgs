@@ -231,7 +231,9 @@ workflow NEXTFLOW_WGS {
 		}
 
 
-	copy_bam(ch_bam_start)
+
+	rename_bam(ch_bam_start) // See process for more info about why this is needed.
+	copy_bam(rename_bam.out.bam_bai)
 	bamtoyaml(ch_bam_start)
 	ch_output_info = ch_output_info.mix(bamtoyaml.out.bamchoice_INFO)
 
@@ -934,6 +936,34 @@ def markdup_versions(task) {
 	"""
 }
 
+// Rename of bams prior to copy_bam required so that copy_bam can output the
+// bam with unaltered filenames. This needs to be fixed in a better way.
+// Please see: https://github.com/SMD-Bioinformatics-Lund/nextflow_wgs/issues/306
+process rename_bam {
+	tag "$id"
+	cpus 1
+	memory '2GB'
+	time '1h'
+
+	input:
+		tuple val(group), val(id), path(bam), path(bai)
+
+	output:
+		tuple val(group), val(id), path("${bam}.tmp"), path("${bai}.tmp"), emit: bam_bai
+
+	script:
+		"""
+		ln -s ${bam} "${bam}.tmp"
+		ln -s ${bai} "${bai}.tmp"
+		"""
+
+	stub:
+		"""
+		ln -s ${bam} "${bam}.tmp"
+		ln -s ${bai} "${bai}.tmp"
+		"""
+}
+
 process copy_bam {
 
 	tag "$id"
@@ -948,14 +978,14 @@ process copy_bam {
 		tuple val(group), val(id), path("${id}_dedup.bam"), path("${id}_dedup.bam.bai"), emit: bam_bai
 	script:
 		"""
-		ionice -c 2 -n 7 cp ${bam} "${id}_dedup.copy.bam"
-		ionice -c 2 -n 7 cp ${bai} "${id}_dedup.copy.bam.bai"
+		ionice -c 2 -n 7 cp ${bam} "${id}_dedup.bam"
+		ionice -c 2 -n 7 cp ${bai} "${id}_dedup.bam.bai"
 		"""
 
 	stub:
 		"""
-		touch "${id}_dedup.copy.bam"
-		touch "${id}_dedup.copy.bam.bai"
+		touch "${id}_dedup.bam"
+		touch "${id}_dedup.bam.bai"
 		"""
 }
 

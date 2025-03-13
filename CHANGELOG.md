@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.15.6
+* Add workaround so copybam actually emits copied BAMs
+
 ### 3.15.5
 * Update GNOMAD genomes and exomes to v4.1 in `annotate_vep` and `indel_vep`
 * Update popmax attribute to grpmax (same attribute renamed in v4: https://gnomad.broadinstitute.org/news/2023-11-genetic-ancestry/) 
