@@ -242,7 +242,18 @@ workflow NEXTFLOW_WGS {
 	}
 
 	ch_bam_bai = Channel.empty()
-	ch_bam_bai = ch_bam_bai.mix(copy_bam.out.bam_bai)
+
+	// Remove transfer-complete-signal file in copybam workaround
+	// See copybam process for more info:
+	ch_bam_bai = ch_bam_bai.mix(
+		copy_bam.out.bam_bai.map{ it ->
+			def group = it[0]
+			def id = it[1]
+			def bam = it[2]
+			def bai = it[3]
+		tuple(group, id, bam, bai)
+		}
+	)
 
 	// PED //
 	ch_ped_input = ch_samplesheet
@@ -945,17 +956,27 @@ process copy_bam {
 		tuple val(group), val(id), path(bam), path(bai)
 
 	output:
-		tuple val(group), val(id), path("${id}_dedup.bam"), path("${id}_dedup.bam.bai"), emit: bam_bai
+		tuple val(group), val(id), path("${id}_dedup.bam"), path("${id}_dedup.bam.bai"), path("transfer_done"), emit: bam_bai
 	script:
+
+		// The transfer_done file blocks output emission until the bam+bai have been copied
+		// otherwise the process will emit the original _dedup.bam/.bam.bai files straight away.
+		// TODO: https://github.com/SMD-Bioinformatics-Lund/nextflow_wgs/issues/306
 		"""
 		ionice -c 2 -n 7 cp ${bam} "${id}_dedup.copy.bam"
 		ionice -c 2 -n 7 cp ${bai} "${id}_dedup.copy.bam.bai"
+
+		mv "${id}_dedup.copy.bam.bai" ${id}_dedup.bam.bai
+		mv "${id}_dedup.copy.bam" ${id}_dedup.bam
+
+		touch transfer_done
 		"""
 
 	stub:
 		"""
-		touch "${id}_dedup.copy.bam"
-		touch "${id}_dedup.copy.bam.bai"
+		touch "${id}_dedup.bam"
+		touch "${id}_dedup.bam.bai"
+		touch transfer_done
 		"""
 }
 
