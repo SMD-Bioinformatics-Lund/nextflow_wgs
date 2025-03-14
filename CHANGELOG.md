@@ -1,8 +1,10 @@
 # CHANGELOG
 
-### 3.15.6
+### 3.15.7
 * Annotation-only runs restored for single SNV/indel VCFs
 * Add entry-point for VCFs (expecting equivalent of `split_normalize.out.vcf_intersected`). 
+
+### 3.15.6
 * Add workaround so copybam actually emits copied BAMs
 
 ### 3.15.5
