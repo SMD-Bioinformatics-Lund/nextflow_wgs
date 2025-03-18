@@ -54,6 +54,9 @@ if [[ "${response}" =~ ^[Yy]$ ]]; then
     # Copy pipeline script
     scp "${DIR}/main.nf" "${DEST}"
 
+    # Copy workflows
+    scp -r "${DIR}/workflows" "${DEST}"
+
     # Copy configuration file
     scp "${DIR}/configs/nextflow.hopper.config" "${DEST}/nextflow.config"
 

@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.15.8
+Add ./workflow dirpath to deploy script
+
 ### 3.15.7
 * Annotation-only runs restored for single SNV/indel VCFs
 * Add entry-point for VCFs (expecting equivalent of `split_normalize.out.vcf_intersected`). 
