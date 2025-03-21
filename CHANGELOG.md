@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.15.9
+Update sentieon from 202308.01 to 202308.03
+
 ### 3.15.8
 Add ./workflow dirpath to deploy script
 
