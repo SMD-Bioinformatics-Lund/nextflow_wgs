@@ -163,7 +163,7 @@ while( <VEP>) {
         }
 	
         ### AF MAX POPULATION
-        my $max = $doobi->{INFO}->{CSQ}->[0]->{gnomADg_AF_popmax};
+        my $max = $doobi->{INFO}->{CSQ}->[0]->{gnomADg_AF_grpmax};
         # my @max = split '&', $max;
         # $max = findmax(@max);
         # my $index = first_index {$_ eq $max } @max;
@@ -171,12 +171,12 @@ while( <VEP>) {
             push @add_info_field,"GNOMADAF_MAX=$max";
         }
         ### POPULATION WITH MAX
-        my $max_pop = $doobi->{INFO}->{CSQ}->[0]->{gnomADg_popmax};
+        my $max_pop = $doobi->{INFO}->{CSQ}->[0]->{gnomADg_grpmax};
         if ($max_pop) {
             push @add_info_field,"GNOMADPOP_MAX=$max_pop";
         }
         ## GERP
-        my $GERP = $doobi->{INFO}->{CSQ}->[0]->{GERP};
+        my $GERP = $doobi->{INFO}->{CSQ}->[0]->{"GERP++_RS"};
         if ($GERP) {
             push @add_info_field,"dbNSFP_GERP___RS=$GERP";
         }

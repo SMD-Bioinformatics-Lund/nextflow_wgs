@@ -1,11 +1,44 @@
 # CHANGELOG
 
+<<<<<<< HEAD
 ### 3.16.0
 * AnnotSV bump 3.4.4
 * bcftools bump 1.21
 * prescore_sv.pl retirement, replace by three python scripts
 * dbvar/clinvar for SVs as a separate bcftools annotate process
 * gnomadSV with VEP?
+=======
+### 3.15.9
+Update sentieon from 202308.01 to 202308.03
+
+### 3.15.8
+Add ./workflow dirpath to deploy script
+
+### 3.15.7
+* Annotation-only runs restored for single SNV/indel VCFs
+* Add entry-point for VCFs (expecting equivalent of `split_normalize.out.vcf_intersected`). 
+
+### 3.15.6
+* Add workaround so copybam actually emits copied BAMs
+
+### 3.15.5
+* Update GNOMAD genomes and exomes to v4.1 in `annotate_vep` and `indel_vep`
+* Update popmax attribute to grpmax (same attribute renamed in v4: https://gnomad.broadinstitute.org/news/2023-11-genetic-ancestry/) 
+  - The INFO-level keys created by `modify_vcf_scout.pl` still use "popmax" instead of grpmax.
+* `myeloid_const` profile now uses same rank models as onco 
+  - The desired behavior of disabled artefact scoring already existed in original onco rank models. Thus separate rank model files for myeloid were not actually needed.
+
+### 3.15.4
+* Update dbSNFP to 4.9
+* Add BayesDel vep annotations to SNVs
+  - Adds BayesDel addAF/noAF predictions and scores
+
+### 3.15.3 [HOTFIX]
+* Match `*q.gz*` files as fastq.gz
+
+### 3.15.2
+* Re-add GERP++ snv/indel annotations
+>>>>>>> master
 
 ### 3.15.1
 * Update VEP to 113.3
