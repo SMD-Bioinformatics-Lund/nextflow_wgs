@@ -1,5 +1,13 @@
 # CHANGELOG
 
+<<<<<<< HEAD
+### 3.16.0
+* AnnotSV bump 3.4.4
+* bcftools bump 1.21
+* prescore_sv.pl retirement, replace by three python scripts
+* dbvar/clinvar for SVs as a separate bcftools annotate process
+* gnomadSV with VEP?
+=======
 ### 3.15.9
 Update sentieon from 202308.01 to 202308.03
 
@@ -30,6 +38,7 @@ Add ./workflow dirpath to deploy script
 
 ### 3.15.2
 * Re-add GERP++ snv/indel annotations
+>>>>>>> master
 
 ### 3.15.1
 * Update VEP to 113.3
