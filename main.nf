@@ -2982,7 +2982,7 @@ process postprocessgatk {
 		caseshards = caseshards.join( ' --calls-shard-path ')
 		version_str = postprocessgatk_version(task)
 		"""
-		THEANO_FLAGS="base_compiledir=/fs1/resources/theano"
+		export THEANO_FLAGS="base_compiledir=."
 
 		for model in ${tar}; do
 			tar -xvf \$model
@@ -3021,7 +3021,7 @@ process postprocessgatk {
 		caseshards = caseshards.join( ' --calls-shard-path ')
 		version_str = postprocessgatk_version(task)
 		"""
-		THEANO_FLAGS="base_compiledir=/fs1/resources/theano"
+		export THEANO_FLAGS="base_compiledir=."
 		set +u
 		source activate gatk
 		export MKL_NUM_THREADS=${task.cpus}
