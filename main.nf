@@ -1751,7 +1751,7 @@ process gvcf_combine {
 		tuple val(group), val(id), path(gvcfs), path(gvcf_idxs)
 
 	output: // Off to split_normalize, together with other stuff
-		tuple val(group), val(id), path("${group}.combined.vcf"), path("${group}.combined.vcf.tbi"), emit: combined_vcf
+		tuple val(group), val(id), path("${group}.combined.vcf.gz"), path("${group}.combined.vcf.gz.tbi"), emit: combined_vcf
 		path "*versions.yml", emit: versions
 
 	script:
