@@ -1751,7 +1751,7 @@ process gvcf_combine {
 		tuple val(group), val(id), path(gvcfs), path(gvcf_idxs)
 
 	output: // Off to split_normalize, together with other stuff
-		tuple val(group), val(id), path("${group}.combined.vcf"), path("${group}.combined.vcf.idx"), emit: combined_vcf
+		tuple val(group), val(id), path("${group}.combined.vcf"), path("${group}.combined.vcf.tbi"), emit: combined_vcf
 		path "*versions.yml", emit: versions
 
 	script:
@@ -1761,7 +1761,7 @@ process gvcf_combine {
 			-t ${task.cpus} \\
 			-r ${params.genome_file} \\
 			--algo GVCFtyper \\
-			-v $all_gvcfs ${group}.combined.vcf
+			-v $all_gvcfs ${group}.combined.vcf.gz
 
 		${gvcf_combine_version(task)}
 		"""
@@ -1769,8 +1769,8 @@ process gvcf_combine {
 	stub:
 		all_gvcfs = gvcfs.collect { it.toString() }.sort().join(' -v ')
 		"""
-		touch "${group}.combined.vcf"
-		touch "${group}.combined.vcf.idx"
+		touch "${group}.combined.vcf.gz"
+		touch "${group}.combined.vcf.gz.tbi"
 
 		${gvcf_combine_version(task)}
 		"""
