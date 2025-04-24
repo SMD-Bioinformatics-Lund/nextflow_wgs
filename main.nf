@@ -1905,8 +1905,7 @@ process freebayes {
 			grep ^# ${id}.freebayes.multibreak.norm.anno.vcf > ${id}.freebayes.multibreak.norm.anno.path.vcf
 			grep -v ^# ${id}.freebayes.multibreak.norm.anno.vcf | grep -i pathogenic > ${id}.freebayes.multibreak.norm.anno.path.vcf2
 			cat ${id}.freebayes.multibreak.norm.anno.path.vcf ${id}.freebayes.multibreak.norm.anno.path.vcf2 > ${id}.freebayes.multibreak.norm.anno.path.vcf3
-			filter_freebayes.pl ${id}.freebayes.multibreak.norm.anno.path.vcf3 | "${id}.pathfreebayes.vcf_no_header.tsv"
-			gzip ${id}.pathfreebayes.vcf_no_header.tsv
+			filter_freebayes.pl ${id}.freebayes.multibreak.norm.anno.path.vcf3 | bgzip -c > "${id}.pathfreebayes.vcf_no_header.tsv.gz"
 
 			${freebayes_version(task)}
 			"""
