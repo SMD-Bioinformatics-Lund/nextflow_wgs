@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.15.11
+* Compress gvcf_combine gVCF
+
 ### 3.15.10
 * theano base_dir flag was not exported correctly for postprocess GATK. Should stop random crashes from happening
 
