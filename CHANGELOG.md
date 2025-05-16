@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.15.12
+* correct output file name for myeloid const for freebayes
+
 ### 3.15.11
 * Compress gvcf_combine gVCF
 
