@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.15.13
+* remove unnecessary sentieon mito qc output
+
 ### 3.15.12
 * correct output file name for myeloid const for freebayes
 

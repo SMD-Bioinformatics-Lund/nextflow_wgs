@@ -2013,6 +2013,9 @@ process sentieon_mitochondrial_qc {
 			-t ${task.cpus} \\
 			-i $bam \\
 			--algo CoverageMetrics \\
+			--omit_base_output  \\
+			--omit_locus_stat \\
+			--omit_sample_stat \\
 			--cov_thresh 500 \\
 			mt_cov_metrics.txt
 
