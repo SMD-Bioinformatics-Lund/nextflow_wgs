@@ -109,7 +109,7 @@ def read_annotsv_tsv(annotsv_tsv: str, keys: str):
         reader = csv.DictReader(file, delimiter="\t")
         for row in reader:
             info_dict = {}
-            simple_id = f"{row['SV_chrom']}_{row['SV_start']}_{row['SV_type']}"
+            simple_id = f"{row['SV_chrom']}_{row['SV_start']}_{row['SV_end']}_{row['SV_type']}"
             for key in row:
                 if key in add_keys:
                     if len(row[key]) > 0:
