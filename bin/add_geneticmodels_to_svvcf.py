@@ -92,11 +92,11 @@ def is_del_hemi_homo(var_dict:dict,ped,individuals):
     proband_sex = ped[individuals['proband']]['SEX']
     is_del_hemi_homo = None
     if x:
-        if proband_sex == 1 and proband_gt < 0:
+        if int(proband_sex) == 1 and int(proband_gt) > 0:
             is_del_hemi_homo = 'LOSS'
-        elif proband_sex == 2 and proband_gt == 2:
+        elif int(proband_sex) == 2 and int(proband_gt) == 2:
             is_del_hemi_homo = 'LOSS'
-    elif proband_gt == 2:
+    elif int(proband_gt) == 2:
         is_del_hemi_homo = 'LOSS'
     return is_del_hemi_homo
         

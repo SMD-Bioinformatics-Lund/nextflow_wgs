@@ -32,7 +32,7 @@ def main(args: object):
             # AnnotSV treats TDUP as DUP
             if svtype == "TDUP":
                 svtype = "DUP"
-            simple_id = f"{var.chrom}_{var.pos}_{svtype}"
+            simple_id = f"{var.chrom}_{var.pos}_{var.stop}_{svtype}"
             if simple_id in annotsv_variants:
                 var_dict['INFO'] = add_annotsv_annotations(var_dict['INFO'],annotsv_variants[simple_id]['INFO'])
             vcf_str = cmdvcf.vcf_string(var_dict,vcf_object.header)
@@ -73,7 +73,7 @@ def read_annotsv_vcf(file_path: str):
         del var_dict['INFO']['INFO']
         del var_dict['INFO']['FORMAT']
         simple_id_parts = var_dict['INFO']['AnnotSV_ID'].split("_")
-        simple_id = f"{simple_id_parts[0]}_{simple_id_parts[1]}_{simple_id_parts[3]}"
+        simple_id = f"{simple_id_parts[0]}_{simple_id_parts[1]}_{simple_id_parts[2]}_{simple_id_parts[3]}"
         annotsv_variants[simple_id] = var_dict
     annotsv_headers = remove_cohort_headers(vcf_in)
     vcf_in.close()
