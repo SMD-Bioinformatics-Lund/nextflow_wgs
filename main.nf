@@ -654,7 +654,8 @@ workflow NEXTFLOW_WGS {
 		ch_ped_prescore = ch_ped_trio_affected_permutations
 		ch_add_annotsv_input = bcftools_annotate_dbvar.out.vcf.join(annotsv.out.annotsv_tsv) // ch: group,  path(vcf), path(tbi), path(annotsv_tsv)
 		add_annotsv_to_svvcf(ch_add_annotsv_input)
-		add_callerpenalties_to_svvcf(add_annotsv_to_svvcf.out.vcf)
+		add_omim_morbid_to_svvcf(add_annotsv_to_svvcf.out.vcf)
+		add_callerpenalties_to_svvcf(add_omim_morbid_to_svvcf.out.vcf)
 
 		ch_add_geneticmodels_to_svvcf_input = add_callerpenalties_to_svvcf.out.vcf.cross(ch_ped_prescore)
 			.map{
@@ -3871,11 +3872,33 @@ process add_annotsv_to_svvcf {
 	
 	script:
 		"""
-		add_annotsv.py -i $vcf -t $tsv:ACMG_class-OMIM_morbid -o ${group}.sv.annotatedSV.vcf
+		add_annotsv.py -i $vcf -t $tsv:ACMG_class -o ${group}.sv.annotatedSV.vcf
 		"""
 	stub:
 		"""
 		touch ${group}.sv.annotatedSV.vcf
+		"""
+}
+
+process add_omim_morbid_to_svvcf {
+	cpus 2
+	container "${params.container_pysam_cmdvcf}"
+	memory "5 GB"
+	time "20m"
+
+	input:
+		tuple val(group), path(vcf), path(tbi), path(tsv)
+
+	output:
+		tuple val(group), path("${group}.sv.omim_morbid.vcf"), emit: vcf
+	
+	script:
+		"""
+		add_omim_morbid_sv.py -i $vcf -m $params.OMIM_MORBID_GENES -o ${group}.sv.omim_morbid.vcf
+		"""
+	stub:
+		"""
+		touch ${group}.sv.omim_morbid.vcf
 		"""
 }
 
