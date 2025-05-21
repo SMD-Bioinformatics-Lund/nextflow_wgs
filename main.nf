@@ -3589,7 +3589,7 @@ process tdup_to_dup {
 
 	stub:
 		"""
-		touch > ${group}.tdups_to_dups.vcf
+		touch ${group}.tdups_to_dups.vcf
 		"""
 }
 
