@@ -3887,7 +3887,7 @@ process add_omim_morbid_to_svvcf {
 	time "20m"
 
 	input:
-		tuple val(group), path(vcf), path(tbi), path(tsv)
+		tuple val(group), path(vcf)
 
 	output:
 		tuple val(group), path("${group}.sv.omim_morbid.vcf"), emit: vcf
