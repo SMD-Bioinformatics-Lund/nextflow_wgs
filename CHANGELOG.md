@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.15.14
+* added a oncov1 profile, using the same logic as oncov2 but with relevant normal references
+
 ### 3.15.13
 * remove unnecessary sentieon mito qc output
 
