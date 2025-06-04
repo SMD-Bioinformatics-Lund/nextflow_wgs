@@ -3804,7 +3804,7 @@ def artefact_version(task) {
 }
 
 process bcftools_annotate_dbvar {
-	// this could be made a generic process for annotation of SVs?
+	// this could be made a generic process for annotation of SVs
 	tag "$group"
 	cpus 2
 	memory '5 GB'
@@ -3855,7 +3855,6 @@ def bcftools_annotate_dbvar_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
 	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
 	END_VERSIONS
 	"""
@@ -3876,12 +3875,25 @@ process add_annotsv_to_svvcf {
 	script:
 		"""
 		add_annotsv.py -i $vcf -t $tsv:ACMG_class -o ${group}.sv.annotatedSV.vcf
+		${add_annotsv_to_svvcf_version(task)}
 		"""
 	stub:
 		"""
 		touch ${group}.sv.annotatedSV.vcf
+		${add_annotsv_to_svvcf_version(task)}
 		"""
 }
+def add_annotsv_to_svvcf_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    python: \$(python --version 2>&1 | sed -e 's/Python //g')
+		cmdvcf: 0.1
+	END_VERSIONS
+	"""
+}
+
+
 
 process add_omim_morbid_to_svvcf {
 	cpus 2
@@ -3898,11 +3910,22 @@ process add_omim_morbid_to_svvcf {
 	script:
 		"""
 		add_omim_morbid_sv.py -i $vcf -m $params.OMIM_MORBID_GENES -o ${group}.sv.omim_morbid.vcf
+		${add_omim_morbid_to_svvcf_version(task)}
 		"""
 	stub:
 		"""
 		touch ${group}.sv.omim_morbid.vcf
+		${add_omim_morbid_to_svvcf_version(task)}
 		"""
+}
+def add_omim_morbid_to_svvcf_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    python: \$(python --version 2>&1 | sed -e 's/Python //g')
+		cmdvcf: 0.1
+	END_VERSIONS
+	"""
 }
 
 process add_callerpenalties_to_svvcf {
@@ -3920,13 +3943,25 @@ process add_callerpenalties_to_svvcf {
 	script:
 		"""
 		sv_varcall_penalties.py -i $vcf -o ${group}.sv.penalty.vcf
+		${add_callerpenalties_to_svvcf_version(task)}
 		"""
 
 	stub:
 		"""
 		touch ${group}.sv.penalty.vcf
+		${add_callerpenalties_to_svvcf_version(task)}
 		"""
 }
+def add_callerpenalties_to_svvcf_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    python: \$(python --version 2>&1 | sed -e 's/Python //g')
+		cmdvcf: 0.1
+	END_VERSIONS
+	"""
+}
+
 
 process add_geneticmodels_to_svvcf {
 	cpus 2
@@ -3943,35 +3978,22 @@ process add_geneticmodels_to_svvcf {
 	script:
 		"""
 		add_geneticmodels_to_svvcf.py -i $vcf -p $ped -o ${group}.annotatedSV.vcf
+		${add_geneticmodels_to_svvcf_version(task)}
 		"""
 	stub:
 		"""
 		touch ${group}.annotatedSV.vcf
+		${add_geneticmodels_to_svvcf_version(task)}
 		"""
 }
-
-process prescore {
-	cpus 2
-	tag "$group"
-	memory '10 GB'
-	time '1h'
-
-	input:
-		tuple val(group), val(type), path(ped), path(annotsv), path(sv_artefact)
-
-	output:
-		tuple val(group), val(type), path("${group}.annotatedSV.vcf"), emit: annotated_sv_vcf
-
-	script:
-		"""
-		prescore_sv.pl \\
-		--sv $sv_artefact --ped $ped --annotsv $annotsv --osv ${group}.annotatedSV.vcf
-		"""
-
-	stub:
-		"""
-		touch "${group}.annotatedSV.vcf"
-		"""
+def add_geneticmodels_to_svvcf_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    python: \$(python --version 2>&1 | sed -e 's/Python //g')
+		cmdvcf: 0.1
+	END_VERSIONS
+	"""
 }
 
 process score_sv {
