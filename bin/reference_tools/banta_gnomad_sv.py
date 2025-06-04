@@ -23,7 +23,7 @@ KEYS_TO_KEEP = [
     "FREQ_HOMALT",
 ]
 
-vcf_object = VariantFile("/data/bnf/dev/viktor/dbvar/gnomad.v4.1.sv.sites.vcf.gz")
+vcf_object = VariantFile("/fs1/resources/ref/hg38/annotation_dbs/gnomad_4.1/gnomad.v4.1.sv.sites.vcf.gz")
 original_header = vcf_object.header
 
 vcf_out = VariantFile("gnomad.v4.1.sv.sites.slim.vcf", "w", header=original_header)
