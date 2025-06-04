@@ -124,7 +124,7 @@ def read_ped(pedfile: str):
     return ped, individuals
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Adds genetic models to SV-variants, needs a matching pedigree file")
+    parser = argparse.ArgumentParser(description="Adds genetic models to SV-variants and if variants is homo- or hemizugous deletion, needs a matching pedigree file")
 
     parser.add_argument(
         "--input_vcf",

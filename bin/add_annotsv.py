@@ -5,7 +5,6 @@ import cmdvcf
 import argparse
 import csv
 from collections import defaultdict
-from pprint import pprint
 
 def main(args: object):
     """
@@ -126,7 +125,7 @@ def read_annotsv_tsv(annotsv_tsv: str, keys: str):
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Adds AnnotSV annotations to a VCF. Uses AnnotSV tsv that has been converted to VCF via variantconvert")
+    parser = argparse.ArgumentParser(description="Adds AnnotSV annotations to a VCF. Can use AnnotSV tsv or tsv converted to VCF via variantconvert")
 
     parser.add_argument(
         "--input_vcf",

@@ -49,7 +49,7 @@ def in_omim_morbid(var_dict:dict,morbid_genes:list) -> bool:
         
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Adds genetic models to SV-variants, needs a matching pedigree file")
+    parser = argparse.ArgumentParser(description="Adds OMIM_morbid=yes to variants overlapping genes in OMIM-AUTO genelist")
 
     parser.add_argument(
         "--input_vcf",

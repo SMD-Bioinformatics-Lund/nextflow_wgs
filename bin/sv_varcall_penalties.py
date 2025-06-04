@@ -3,8 +3,6 @@
 from pysam import VariantFile
 import cmdvcf
 import argparse
-from pprint import pprint
-from geneticmodels import GM
 
 MANTA_SIZE_FOR_PENALTY = 100000
 
@@ -85,7 +83,7 @@ def modify_manta(var_dict: dict):
         
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Adds genetic models to SV-variants, needs a matching pedigree file")
+    parser = argparse.ArgumentParser(description="Adds variantcaller specific penalties to variants with only one variant caller")
 
     parser.add_argument(
         "--input_vcf",
