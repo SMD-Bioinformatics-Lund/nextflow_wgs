@@ -1755,7 +1755,7 @@ process gvcf_combine {
 		tuple val(group), val(id), path(gvcfs), path(gvcf_idxs)
 
 	output: // Off to split_normalize, together with other stuff
-		tuple val(group), val(id), path("${group}.combined.vcf"), path("${group}.combined.vcf.idx"), emit: combined_vcf
+		tuple val(group), val(id), path("${group}.combined.vcf.gz"), path("${group}.combined.vcf.gz.tbi"), emit: combined_vcf
 		path "*versions.yml", emit: versions
 
 	script:
@@ -1765,7 +1765,7 @@ process gvcf_combine {
 			-t ${task.cpus} \\
 			-r ${params.genome_file} \\
 			--algo GVCFtyper \\
-			-v $all_gvcfs ${group}.combined.vcf
+			-v $all_gvcfs ${group}.combined.vcf.gz
 
 		${gvcf_combine_version(task)}
 		"""
@@ -1773,8 +1773,8 @@ process gvcf_combine {
 	stub:
 		all_gvcfs = gvcfs.collect { it.toString() }.sort().join(' -v ')
 		"""
-		touch "${group}.combined.vcf"
-		touch "${group}.combined.vcf.idx"
+		touch "${group}.combined.vcf.gz"
+		touch "${group}.combined.vcf.gz.tbi"
 
 		${gvcf_combine_version(task)}
 		"""
@@ -1891,7 +1891,7 @@ process freebayes {
 		tuple val(group), val(id), path(bam), path(bai)
 
 	output:
-		tuple val(group), path("${id}.pathfreebayes.vcf_no_header.tsv"), emit: freebayes_variants
+		tuple val(group), path("${id}.pathfreebayes.vcf_no_header.tsv.gz"), emit: freebayes_variants
 		path "*versions.yml", emit: versions
 
 
@@ -1909,14 +1909,14 @@ process freebayes {
 			grep ^# ${id}.freebayes.multibreak.norm.anno.vcf > ${id}.freebayes.multibreak.norm.anno.path.vcf
 			grep -v ^# ${id}.freebayes.multibreak.norm.anno.vcf | grep -i pathogenic > ${id}.freebayes.multibreak.norm.anno.path.vcf2
 			cat ${id}.freebayes.multibreak.norm.anno.path.vcf ${id}.freebayes.multibreak.norm.anno.path.vcf2 > ${id}.freebayes.multibreak.norm.anno.path.vcf3
-			filter_freebayes.pl ${id}.freebayes.multibreak.norm.anno.path.vcf3 > "${id}.pathfreebayes.vcf_no_header.tsv"
+			filter_freebayes.pl ${id}.freebayes.multibreak.norm.anno.path.vcf3 | bgzip -c > "${id}.pathfreebayes.vcf_no_header.tsv.gz"
 
 			${freebayes_version(task)}
 			"""
 		}
 		else {
 			"""
-			touch "${id}.pathfreebayes.vcf_no_header.tsv"
+			touch "${id}.pathfreebayes.vcf_no_header.tsv.gz"
 
 			${freebayes_version(task)}
 			"""
@@ -1924,7 +1924,7 @@ process freebayes {
 
 	stub:
 		"""
-		touch "${id}.pathfreebayes.vcf_no_header.tsv"
+		touch "${id}.pathfreebayes.vcf_no_header.tsv.gz"
 
 		${freebayes_version(task)}
 		"""
@@ -2017,6 +2017,9 @@ process sentieon_mitochondrial_qc {
 			-t ${task.cpus} \\
 			-i $bam \\
 			--algo CoverageMetrics \\
+			--omit_base_output  \\
+			--omit_locus_stat \\
+			--omit_sample_stat \\
 			--cov_thresh 500 \\
 			mt_cov_metrics.txt
 
@@ -2345,7 +2348,7 @@ process split_normalize {
 	// rename M to MT because genmod does not recognize M
 	if (params.onco || params.assay == "modycf") {
 		"""
-		cat $vcf $vcfconcat > ${id}.concat.freebayes.vcf
+		zcat $vcf $vcfconcat > ${id}.concat.freebayes.vcf
 		vcfbreakmulti ${id}.concat.freebayes.vcf > ${group}.multibreak.vcf
 		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
 		bcftools sort ${group}.norm.vcf | vcfuniq > ${group}.norm.uniq.vcf
@@ -2986,7 +2989,7 @@ process postprocessgatk {
 		caseshards = caseshards.join( ' --calls-shard-path ')
 		version_str = postprocessgatk_version(task)
 		"""
-		THEANO_FLAGS="base_compiledir=/fs1/resources/theano"
+		export THEANO_FLAGS="base_compiledir=."
 
 		for model in ${tar}; do
 			tar -xvf \$model
@@ -3025,7 +3028,7 @@ process postprocessgatk {
 		caseshards = caseshards.join( ' --calls-shard-path ')
 		version_str = postprocessgatk_version(task)
 		"""
-		THEANO_FLAGS="base_compiledir=/fs1/resources/theano"
+		export THEANO_FLAGS="base_compiledir=."
 		set +u
 		source activate gatk
 		export MKL_NUM_THREADS=${task.cpus}

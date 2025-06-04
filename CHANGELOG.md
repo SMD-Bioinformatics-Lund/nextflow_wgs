@@ -1,13 +1,32 @@
 # CHANGELOG
 
-<<<<<<< HEAD
 ### 3.16.0
 * AnnotSV bump 3.4.4
 * bcftools bump 1.21
-* prescore_sv.pl retirement, replace by three python scripts
+* prescore_sv.pl retirement, replace by four python scripts
+  * add_annotsv.py: adds annotsv score to variants
+  * add_genetic_models_to_svvcf.py: adds genetic models, and homo- hemizygous deletion annotations to vcf
+  * sv_varcall_penalies.py: adds caller specific penalties to variants with only one caller
+  * add_omim_morbid_sv.py: adds omim morbid status to variants overlapping genes in OMIM-AUTO gene list
 * dbvar/clinvar for SVs as a separate bcftools annotate process
-* gnomadSV with VEP?
-=======
+* gnomadSV with VEP, and bumped to latest version
+
+### 3.15.14
+* added a oncov1 profile, using the same logic as oncov2 but with relevant normal references
+
+### 3.15.13
+* remove unnecessary sentieon mito qc output
+
+### 3.15.12
+* correct output file name for myeloid const for freebayes
+
+### 3.15.11
+* Compress gvcf_combine gVCF
+
+### 3.15.10
+* theano base_dir flag was not exported correctly for postprocess GATK. Should stop random crashes from happening
+
+>>>>>>> master
 ### 3.15.9
 Update sentieon from 202308.01 to 202308.03
 
