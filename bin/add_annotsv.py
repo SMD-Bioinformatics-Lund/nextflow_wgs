@@ -21,6 +21,8 @@ def main(args: object):
     
     vcf_header = join_headers(original_header,annotsv_headers)
     vcf_out = VariantFile(args.out_vcf, "w", header=vcf_header)
+    ## Using the built in print function of pysam, need to close filehandle. 
+    ## Will use cmdvcf.py print function to write to the same output later
     vcf_out.close()
     with open(args.out_vcf, "a") as vcf_out:
         for var in vcf_object.fetch():
@@ -82,17 +84,17 @@ def remove_cohort_headers(vcf_in: object):
     """
     get VCF headers of info-field that gets added from AnnotSV
 
-    Ignore [Ss]ample and Cohort specific, not valid VCF headers and not relevant for downsteam analysis
+    Ignore [Ss]ample and Cohort specific, not valid VCF headers and not relevant for downstream analysis
     """
     headers = []
     for key, record in vcf_in.header.info.items():
-        if key not in ['ample', 'cohort']:
-            info_dict = {}
-            info_dict['key'] = key
-            info_dict['description'] = record.description
-            info_dict['type'] = record.type
-            info_dict['number'] = record.number
-            headers.append(info_dict)
+        if not any(x in key.lower() for x in ['sample', 'cohort']):
+            headers.append({
+                'key': key,
+                'description': record.description,
+                'type': record.type,
+                'number': record.number
+            })
     return headers
 
 def read_annotsv_tsv(annotsv_tsv: str, keys: str):

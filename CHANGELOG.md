@@ -26,7 +26,6 @@
 ### 3.15.10
 * theano base_dir flag was not exported correctly for postprocess GATK. Should stop random crashes from happening
 
->>>>>>> master
 ### 3.15.9
 Update sentieon from 202308.01 to 202308.03
 
@@ -57,7 +56,6 @@ Add ./workflow dirpath to deploy script
 
 ### 3.15.2
 * Re-add GERP++ snv/indel annotations
->>>>>>> master
 
 ### 3.15.1
 * Update VEP to 113.3
