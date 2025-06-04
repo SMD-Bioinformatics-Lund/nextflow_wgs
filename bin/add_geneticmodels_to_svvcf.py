@@ -102,22 +102,30 @@ def is_del_hemi_homo(var_dict:dict,ped,individuals):
         
 
 def read_ped(pedfile: str):
+    """
+    Very specific function to read a trio pedigree file. Cannot get proband if not trio.
+    """
     ped = {}
     individuals = {}
     with open(pedfile, 'r') as f:
         for line in f:
             fields = line.strip().split('\t')
+            row_id = fields[1]
+            father = fields[2]
+            mother = fields[3]
+            sex = fields[4]
+            phenotype = fields[5]
             ind = {
-                "FATHER": fields[2],
-                "MOTHER": fields[3],
-                "SEX": fields[4],
-                "PHENO": fields[5]
+                "FATHER": father,
+                "MOTHER": mother,
+                "SEX": sex,
+                "PHENO": phenotype
             }
-            ped[fields[1]] = ind
-            if fields[2] != "0" or fields[3] != "0":
-                individuals["proband"] = fields[1]
-                individuals["mother"] = fields[3]
-                individuals["father"] = fields[2]
+            ped[row_id] = ind
+            if father != "0" or mother != "0":
+                individuals["proband"] = row_id
+                individuals["mother"] = mother
+                individuals["father"] = father
     if len(ped.keys()) == 1:
         for ind in ped:
             individuals['proband'] = ind
