@@ -3640,7 +3640,7 @@ process annotsv {
 }
 def annotsv_version(task) {
 	"""${task.process}:
-    annotsv: \$( echo \$(/AnnotSV/bin/AnnotSV --version) | sed -e "s/AnnotSV //g ; s/Copyright.*//" )"""
+    annotsv: \$( echo \$(AnnotSV --version) | sed -e "s/AnnotSV //g ; s/Copyright.*//" )"""
 }
 
 process vep_sv {
