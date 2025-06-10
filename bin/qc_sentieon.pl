@@ -223,13 +223,9 @@ sub coverage_calc {
     my @cov;
     open( COV, $coverage_file );
     while( <COV> ) {
-
-        unless( /^Locus/ ) {
-            my $vals = <COV>;
-            my @a = split /\t/, $vals;
-            push @cov,$a[1];
-        }
-        
+        next if /^Locus/;
+        my @a = split /\t/;
+        push @cov, $a[1];
     }
     my @sorted_cov = sort @cov;
 
