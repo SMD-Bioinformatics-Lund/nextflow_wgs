@@ -3,7 +3,7 @@
 import argparse
 import gzip
 from pathlib import Path
-from typing import TextIO
+from typing import Literal, TextIO
 
 
 description = """
@@ -11,23 +11,19 @@ Parse ROH output and UPD output into a single bed file
 This bed will then be loaded into Gens as a sample annotation track
 """
 
+# FIXME: Is this the UPD?
+TOP_COLOR = "rgba(255,186,60,255)"
+BOTTOM_COLOR = "rgba(255,75,75,255)"
 
-def open_file(path: Path) -> TextIO:
+
+def open_file(path: Path, read_or_write: Literal["r", "w"]) -> TextIO:
     if path.suffix == ".gz":
-        return gzip.open(path, "rt")
+        if read_or_write == "r":
+            return gzip.open(path, "rt")
+        else:
+            return gzip.open(path, "wt")
     else:
-        return path.open("r")
-
-
-# # This file was produced by: bcftools roh(1.9+htslib-1.9)
-# # The command line was: bcftools roh --rec-rate 1e-9 --AF-tag GNOMADAF -o roh.txt giab-trio-viktortestrun_dev-vh-split_prescore_annotsvbump-bam.SNPs.vcf
-# #
-# # RG    [2]Sample       [3]Chromosome   [4]Start        [5]End  [6]Length (bp)  [7]Number of markers    [8]Quality (average fwd-bwd phred score)
-# # ST    [2]Sample       [3]Chromosome   [4]Position     [5]State (0:HW, 1:AZ)   [6]Quality (fwd-bwd phred score)
-# ST      hg002   1       13868   0       3.0
-# ST      hg002   1       14210   0       99.0
-# ST      hg002   1       14354   0       99.0
-# ST      hg002   1       14464   0       99.0
+        return path.open(read_or_write)
 
 
 class RohEntry:
@@ -40,7 +36,7 @@ class RohEntry:
         self.qual = float(fields[5])
 
     def get_bed_fields(self) -> list[str]:
-        return [self.chrom, str(self.start), str(self.end), "ROH", ".", ".", ".", ".", "255,0,0"]
+        return [self.chrom, str(self.start), str(self.end), "ROH", ".", ".", ".", ".", TOP_COLOR]
 
 
 class UPDEntry:
@@ -58,7 +54,7 @@ class UPDEntry:
         self.details = details
 
     def get_bed_fields(self) -> list[str]:
-        return [self.chrom, str(self.start), str(self.end), "UPD", ".", ".", ".", ".", "0,0,255"]
+        return [self.chrom, str(self.start), str(self.end), "UPD", ".", ".", ".", ".", BOTTOM_COLOR]
 
 
 def main(roh: Path, upd: Path, roh_quality_threshold: int, output: Path):
@@ -66,7 +62,7 @@ def main(roh: Path, upd: Path, roh_quality_threshold: int, output: Path):
     roh_entries: list[RohEntry] = parse_roh(roh, roh_quality_threshold)
     upd_entries: list[UPDEntry] = parse_upd(upd)
 
-    with output.open("w") as out_fh:
+    with open_file(output, "w") as out_fh:
         for entry in roh_entries:
             print("\t".join(entry.get_bed_fields()), file=out_fh)
         for entry in upd_entries:
@@ -78,7 +74,7 @@ def main(roh: Path, upd: Path, roh_quality_threshold: int, output: Path):
 def parse_roh(roh_path: Path, qual_thres: float) -> list[RohEntry]:
 
     roh_entries: list[RohEntry] = []
-    with open_file(roh_path) as roh_fh:
+    with open_file(roh_path, "r") as roh_fh:
         for line in roh_fh:
             if line.startswith("#") or line.startswith("ST"):
                 continue
@@ -92,7 +88,7 @@ def parse_roh(roh_path: Path, qual_thres: float) -> list[RohEntry]:
 def parse_upd(upd: Path) -> list[UPDEntry]:
 
     upd_entries: list[UPDEntry] = []
-    with open_file(upd) as upd_fh:
+    with open_file(upd, "r") as upd_fh:
         for line in upd_fh:
             upd_entry = UPDEntry(line)
             upd_entries.append(upd_entry)
