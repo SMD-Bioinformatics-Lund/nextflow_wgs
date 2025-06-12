@@ -101,7 +101,6 @@ def main(
     sample: str,
     sex: str,
     roh_quality_threshold: int,
-    min_length: int,
     cov_diff_threshold: int,
     output_upd_roh: Path,
     output_chr_cov: Path,
@@ -128,11 +127,9 @@ def main(
 
     with open_file(output_upd_roh, "w") as out_fh:
         for entry in roh_entries:
-            if entry.get_length() > min_length:
-                print("\t".join(entry.get_bed_fields()), file=out_fh)
+            print("\t".join(entry.get_bed_fields()), file=out_fh)
         for entry in upd_entries:
-            if entry.get_length() > min_length:
-                print("\t".join(entry.get_bed_fields()), file=out_fh)
+            print("\t".join(entry.get_bed_fields()), file=out_fh)
 
     with open_file(output_chr_cov, "w") as out_fh:
         print("\t".join(["row_name", "type", "value", "color"]), file=out_fh)
@@ -236,7 +233,6 @@ def parse_arguments():
     parser.add_argument("--sex", required=True, type=str)
 
     parser.add_argument("--roh_quality_threshold", default=85, type=int)
-    parser.add_argument("--min_length", default=100000, type=int)
     parser.add_argument("--cov_diff_threshold", default=10, type=int)
 
     parser.add_argument("--output_upd_roh", type=Path)
@@ -261,7 +257,6 @@ if __name__ == "__main__":
         args.sample,
         args.sex,
         args.roh_quality_threshold,
-        args.min_length,
         args.cov_diff_threshold,
         args.output_upd_roh,
         args.output_chr_cov,
