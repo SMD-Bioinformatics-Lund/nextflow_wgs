@@ -40,7 +40,9 @@ class RohEntry:
         self.qual = float(fields[5])
 
     def get_length(self) -> int:
-        return self.end - self.start + 1
+        # FIXME: Keeping it in line with previous
+        return self.end - self.start
+        # return self.end - self.start + 1
 
     def get_bed_fields(self) -> list[str]:
         return [self.chrom, str(self.start), str(self.end), "ROH", ".", ".", ".", ".", TOP_COLOR]
@@ -62,7 +64,8 @@ class UPDEntry:
         self.details = details
 
     def get_length(self) -> int:
-        return self.end - self.start + 1
+        return self.end - self.start
+        # return self.end - self.start + 1
 
     def get_bed_fields(self) -> list[str]:
         return [self.chrom, str(self.start), str(self.end), "UPD", ".", ".", ".", ".", BOTTOM_COLOR]
@@ -96,6 +99,7 @@ def main(
     upd_path: Path,
     cov_path: Path,
     chrom_length_path: Path,
+    sample: str,
     roh_quality_threshold: int,
     min_length: int,
     cov_diff_threshold: int,
@@ -105,14 +109,16 @@ def main(
 ):
     chrom_lengths: dict[str, int] = parse_chrom_lengths(chrom_length_path)
     total_chrom_length = sum(chrom_lengths.values())
-    roh_entries: list[RohEntry] = parse_roh(roh_path, roh_quality_threshold)
+    roh_entries: list[RohEntry] = parse_roh(roh_path, sample, roh_quality_threshold)
     upd_entries: list[UPDEntry] = parse_upd(upd_path)
-    avg_cov_entries: list[ChromCovEntry] = parse_cov(cov_path, cov_diff_threshold)
+    # avg_cov_entries: list[ChromCovEntry] = parse_cov(cov_path, cov_diff_threshold)
 
     tot_roh_length = sum(
         [entry.get_length() for entry in roh_entries if entry.chrom not in SEX_CHROMS]
     )
-    roh_perc = tot_roh_length / total_chrom_length * 100
+    print(tot_roh_length)
+    print(total_chrom_length)
+    roh_perc = float(tot_roh_length) / float(total_chrom_length) * 100
 
     with open_file(output_upd_roh, "w") as out_fh:
         for entry in roh_entries:
@@ -122,15 +128,17 @@ def main(
             if entry.get_length() > min_length:
                 print("\t".join(entry.get_bed_fields()), file=out_fh)
 
-    with open_file(output_chr_cov, "w") as out_fh:
-        print("\t".join(["row_name", "type", "value", "color"]), file=out_fh)
-        for chrom_cov in avg_cov_entries:
-            label = "Estimated chromosomal copy numbers"
-            print(f"{chrom_cov.chrom}\t{label}\t{chrom_cov.cov}\t{chrom_cov.color}", file=out_fh)
+    # with open_file(output_chr_cov, "w") as out_fh:
+    #     print("\t".join(["row_name", "type", "value", "color"]), file=out_fh)
+    #     for chrom_cov in avg_cov_entries:
+    #         label = "Estimated chromosomal copy numbers"
+    #         print(f"{chrom_cov.chrom}\t{label}\t{chrom_cov.cov}\t{chrom_cov.color}", file=out_fh)
 
     with open_file(output_meta, "w") as out_fh:
         print("\t".join(["type", "value"]), file=out_fh)
-        print("\t".join(["%ROH", str(roh_perc)]), file=out_fh)
+        print(roh_perc)
+        # print("\t".join(["%ROH", str(roh_perc)]))
+        # print("\t".join(["%ROH", str(roh_perc)]), file=out_fh)
 
 
 def parse_chrom_lengths(chrom_lengths_path: Path) -> dict[str, int]:
@@ -182,7 +190,7 @@ def parse_cov(cov: Path, cov_diff_thres: float) -> list[ChromCovEntry]:
     return scaled_covs
 
 
-def parse_roh(roh_path: Path, qual_thres: float) -> list[RohEntry]:
+def parse_roh(roh_path: Path, sample: str, qual_thres: float) -> list[RohEntry]:
 
     roh_entries_per_chrom: list[RohEntry] = []
     with open_file(roh_path, "r") as roh_fh:
@@ -191,7 +199,7 @@ def parse_roh(roh_path: Path, qual_thres: float) -> list[RohEntry]:
                 continue
             line = line.rstrip()
             roh_entry = RohEntry(line)
-            if roh_entry.qual > qual_thres:
+            if roh_entry.sample == sample and roh_entry.qual > qual_thres:
                 roh_entries_per_chrom.append(roh_entry)
     return roh_entries_per_chrom
 
@@ -206,10 +214,6 @@ def parse_upd(upd: Path) -> list[UPDEntry]:
     return upd_entries
 
 
-def write_bed():
-    pass
-
-
 def parse_arguments():
     parser = argparse.ArgumentParser()
 
@@ -219,6 +223,8 @@ def parse_arguments():
     parser.add_argument("--upd", required=True, type=Path)
     parser.add_argument("--cov", required=True, type=Path)
     parser.add_argument("--chrom_lengths", required=True, type=Path)
+
+    parser.add_argument("--sample", required=True, type=str)
 
     parser.add_argument("--roh_quality_threshold", default=85, type=int)
     parser.add_argument("--min_length", default=100000, type=int)
@@ -239,6 +245,7 @@ if __name__ == "__main__":
         args.upd,
         args.cov,
         args.chrom_lengths,
+        args.sample,
         args.roh_quality_threshold,
         args.min_length,
         args.cov_diff_threshold,
