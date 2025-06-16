@@ -471,6 +471,10 @@ workflow NEXTFLOW_WGS {
 			ch_load_gens_v4_input = ch_samplesheet
 				.map { row -> tuple(row.group, row.id, row.sex, row.type) }
 				.join(generate_gens_v4_meta.out.meta, by: 0)
+
+			// FIXME: Test printing, remove before review
+			ch_load_gens_v4_input.view()
+
 			gens_v4_cron(ch_load_gens_v4_input)
 
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
@@ -2806,7 +2810,7 @@ process generate_gens_v4_meta {
 	tag "$group"
 	cpus 1
 	time '1h'
-	memory '2 GB'
+	memory '10 GB'
 
 	input:
 		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoise)
@@ -2815,7 +2819,7 @@ process generate_gens_v4_meta {
 		tuple val(group3), path(upd_sites)
 
 	output:
-		tuple path("${id}.gens_track.bed"), path("${id}.meta.tsv"), path("${id}.chrom_meta.tsv"), emit: meta
+		tuple val(group), path("${id}.gens_track.bed"), path("${id}.meta.tsv"), path("${id}.chrom_meta.tsv"), emit: meta
 	
 	when:
 		params.prepare_gens_data
@@ -2830,16 +2834,16 @@ process generate_gens_v4_meta {
 			--chrom_lengths ${params.GENOMEDICT} \
 			--sample ${id} \
 			--sex ${sex} \
-			--out_gens_track "${group}.gens_track.bed" \
-			--out_meta "${group}.meta.tsv" \
-			--out_per_chrom_meta "${group}.chrom_meta.tsv"
+			--out_gens_track "${id}.gens_track.bed" \
+			--out_meta "${id}.meta.tsv" \
+			--out_per_chrom_meta "${id}.chrom_meta.tsv"
 		"""
 
 	stub:
 		"""
-		touch "${group}.gens_track.bed"
-		touch "${group}.meta.tsv"
-		touch "${group}.chrom_meta.tsv"
+		touch "${id}.gens_track.bed"
+		touch "${id}.meta.tsv"
+		touch "${id}.chrom_meta.tsv"
 
 		touch "${id}.gens"
 		"""
@@ -2847,7 +2851,7 @@ process generate_gens_v4_meta {
 }
 
 process gens_v4_cron {
-	publishDir "${params.crondir}/gens", mode: "copy", overwrite: "true", pattern: "*.gens_v4"
+	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: 'true', pattern: "*.gens_v4"
 	tag "$id"
 	cpus 1
 	time '10m'
@@ -2864,7 +2868,7 @@ process gens_v4_cron {
 
 	script:
 		def meta_opts = type == "proband" ? 
-			"--meta ${params.gens_accessdir}/${meta_tsv.getName()} --chromosome-meta ${params.get_accessdir}/${chrom_meta_tsv.getName()}" : 
+			"--meta ${params.gens_accessdir}/${meta_tsv.getName()} --chromosome-meta ${params.gens_accessdir}/${chrom_meta_tsv.getName()}" : 
 			""
 		"""
 		echo "gens load sample \\
@@ -2872,7 +2876,7 @@ process gens_v4_cron {
 			--case-id $group \\
 			--sex $sex \\
 			--sample-type $type \\
-			--track ${params.gens_access}/${track_bed.getName()} \\
+			--track ${params.gens_accessdir}/${track_bed.getName()} \\
 			${meta_opts}" > ${id}.gens_v4
 		"""
 	
