@@ -461,7 +461,7 @@ workflow NEXTFLOW_WGS {
 
 			generate_gens_data(dnascope.out.gvcf_tbi.join(gatkcov.out.cov_gens, by: [0,1]))
 
-			generate_gens_v4_data(
+			generate_gens_v4_meta(
 				gatkcov.out.cov_plot.filter { it -> it[2] == "proband"},
 				roh.out.roh_plot,
 				upd.out.upd_bed,
@@ -2791,7 +2791,7 @@ process generate_gens_data {
 		"""
 }
 
-process generate_gens_v4_data {
+process generate_gens_v4_meta {
 	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: 'true', pattern: "*.tsv"
 	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: 'true', pattern: "*.bed"
 	tag "$group"
@@ -2806,9 +2806,9 @@ process generate_gens_v4_data {
 		tuple val(group3), path(upd_sites)
 
 	output:
-		path("${group}.gens_track.bed"), emit: track_bed
-		path("${group}.meta.tsv"), emit: meta_tsv
-		path("${group}.chrom_meta.tsv"), emit: chrom_meta_tsv
+		path("${id}.gens_track.bed"), emit: track_bed
+		path("${id}.meta.tsv"), emit: meta_tsv
+		path("${id}.chrom_meta.tsv"), emit: chrom_meta_tsv
 	
 	when:
 		params.prepare_gens_data
@@ -2833,6 +2833,8 @@ process generate_gens_v4_data {
 		touch "${group}.gens_track.bed"
 		touch "${group}.meta.tsv"
 		touch "${group}.chrom_meta.tsv"
+
+		touch "${id}.gens"
 		"""
 
 }
