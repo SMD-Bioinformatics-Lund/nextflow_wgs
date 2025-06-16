@@ -468,6 +468,9 @@ workflow NEXTFLOW_WGS {
 				upd.out.upd_sites,
 			)
 
+			gens_v4_cronjob_input = 
+			gens_v4_cronjob()
+
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 
 			ch_versions = ch_versions.mix(upd.out.versions.first())

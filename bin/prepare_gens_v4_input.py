@@ -19,8 +19,6 @@ Generates inputs for Gens v4+
 * Summarizes various UPD / ROH metrics
 """
 
-ROH_COLOR = "rgb(255,186,60)"
-UPD_COLOR = "rgb(255,75,75)"
 
 AUTO_CHROMS = [str(i) for i in range(1, 23)]
 SEX_CHROMS = ["X", "Y"]
@@ -29,17 +27,19 @@ CHROMS = AUTO_CHROMS + SEX_CHROMS
 
 def main(
     roh_path: Path,
-    upd_path: Path,
+    upd_regions_path: Path,
     upd_sites_path: Path,
     cov_path: Path,
     chrom_length_path: Path,
     sample: str,
     sex: str,
-    roh_quality_threshold: int,
+    roh_quality_threshold: float,
     cov_diff_threshold: int,
-    output_upd_roh: Path,
-    output_chr_cov: Path,
-    output_meta: Path,
+    color_roh: str,
+    color_upd: str,
+    out_gens_track: Path,
+    out_chrom_meta: Path,
+    out_meta: Path,
 ):
     LOG.info("Starting up")
 
@@ -49,7 +49,7 @@ def main(
     LOG.info("Parsing ROH")
     roh_entries: List[RohEntry] = parse_roh(roh_path, sample, roh_quality_threshold)
     LOG.info("Parsing UPD")
-    upd_entries: List[UPDEntry] = parse_upd(upd_path)
+    upd_entries: List[UPDEntry] = parse_upd(upd_regions_path)
     LOG.info("Parsing UPD sites")
     upd_site_info: Dict[str, dict[str, str]] = parse_upd_sites(upd_sites_path)
     LOG.info("Parsing coverage")
@@ -61,14 +61,14 @@ def main(
     roh_perc = float(tot_roh_length) / float(total_chrom_length) * 100
 
     LOG.info("Writing global meta")
-    with open_file(output_upd_roh, "w") as out_fh:
+    with open_file(out_gens_track, "w") as out_fh:
         for entry in roh_entries:
-            print("\t".join(entry.get_bed_fields()), file=out_fh)
+            print("\t".join(entry.get_bed_fields(color_roh)), file=out_fh)
         for entry in upd_entries:
-            print("\t".join(entry.get_bed_fields()), file=out_fh)
+            print("\t".join(entry.get_bed_fields(color_upd)), file=out_fh)
 
     LOG.info("Writing per-chromosome meta")
-    with open_file(output_chr_cov, "w") as out_fh:
+    with open_file(out_chrom_meta, "w") as out_fh:
 
         print("\t".join(["Chromosome", "type", "value", "color"]), file=out_fh)
         for chrom_cov in avg_cov_entries:
@@ -85,10 +85,10 @@ def main(
         ]
         for chrom in CHROMS:
             for upd_label in upd_labels:
-                field_value = upd_site_info[chrom][upd_label]
+                field_value = upd_site_info[chrom].get(upd_label, 0)
                 print(f"{chrom}\t{upd_label}\t{field_value}\trgb(0,0,0)", file=out_fh)
 
-    with open_file(output_meta, "w") as out_fh:
+    with open_file(out_meta, "w") as out_fh:
         print("\t".join(["type", "value"]), file=out_fh)
         print("\t".join(["%ROH", str(roh_perc)]), file=out_fh)
 
@@ -108,8 +108,8 @@ class RohEntry:
     def get_length(self) -> int:
         return self.end - self.start
 
-    def get_bed_fields(self) -> List[str]:
-        return [self.chrom, str(self.start), str(self.end), "ROH", ".", ".", ".", ".", ROH_COLOR]
+    def get_bed_fields(self, color: str) -> List[str]:
+        return [self.chrom, str(self.start), str(self.end), "ROH", ".", ".", ".", ".", color]
 
 
 class UPDEntry:
@@ -130,8 +130,8 @@ class UPDEntry:
     def get_length(self) -> int:
         return self.end - self.start
 
-    def get_bed_fields(self) -> List[str]:
-        return [self.chrom, str(self.start), str(self.end), "UPD", ".", ".", ".", ".", UPD_COLOR]
+    def get_bed_fields(self, color: str) -> List[str]:
+        return [self.chrom, str(self.start), str(self.end), "UPD", ".", ".", ".", ".", color]
 
 
 class CovEntry:
@@ -152,9 +152,6 @@ class ChromCovEntry:
         self.chrom = chrom
         self.cov = cov
         self.color = color
-
-    def get_fields(self) -> List[str]:
-        return [self.chrom, str(self.cov), self.color]
 
 
 def parse_upd_sites(upd_sites: Path) -> dict[str, dict[str, str]]:
@@ -245,7 +242,7 @@ def parse_cov(cov: Path, cov_diff_thres: float, sex: str) -> List[ChromCovEntry]
         color = "rgb(0,0,0)"
         chrom_count = 1 if sex == "M" and chrom in SEX_CHROMS else 2
         # Calculate the full value
-        cn_val = chrom_count * 2 ** avg_covs[chrom]
+        cn_val = chrom_count * 2 ** avg_covs.get(chrom, 0)
         if abs(cn_val - chrom_count) > cov_diff_thres:
             color = "rgb(255,0,0)"
 
@@ -339,15 +336,17 @@ def parse_arguments():
     parser.add_argument(
         "--roh_quality_threshold",
         default=85,
-        type=int,
+        type=float,
         help="Only entries with quality threshold above this in --roh are considered",
     )
     parser.add_argument(
         "--cov_diff_threshold",
         default=0.1,
-        type=int,
+        type=float,
         help="Chromosome coverage values differing more than this are colored in red in output data",
     )
+    parser.add_argument("--color_roh", default="rgb(255,186,60)", help="Color for ROH in track")
+    parser.add_argument("--color_upd", default="rgb(255,75,75)", help="Color for UPD in track")
 
     parser.add_argument(
         "--out_gens_track", required=True, type=Path, help="Bed ranges with UPD / ROH information"
@@ -374,7 +373,7 @@ if __name__ == "__main__":
     args = parse_arguments()
     main(
         args.roh,
-        args.upd,
+        args.upd_regions,
         args.upd_sites,
         args.cov,
         args.chrom_lengths,
@@ -382,7 +381,9 @@ if __name__ == "__main__":
         args.sex,
         args.roh_quality_threshold,
         args.cov_diff_threshold,
-        args.output_upd_roh,
-        args.output_chr_cov,
-        args.output_meta,
+        args.color_roh,
+        args.color_upd,
+        args.out_gens_track,
+        args.out_chrom_meta,
+        args.out_meta,
     )

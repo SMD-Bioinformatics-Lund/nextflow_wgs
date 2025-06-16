@@ -1,8 +1,8 @@
 # CHANGELOG
 
 ### 3.16.1
-* New process "prepare_gens_input" with new script to generate inputs needed for Gens
-* Add POD scripts to the bin/pod folder (still executed from with a container, but should be run from bin)
+* New process "prepare_gens_v4_input.py" with new script to generate inputs needed for Gens
+* Add POD scripts to the bin/pod folder (still executed from within a container, but should be run from bin)
 
 ### 3.16.0
 * AnnotSV bump 3.4.4
