@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.15.15
+* New process "prepare_gens_input" with new script to generate inputs needed for Gens
+* Add POD scripts to the bin/pod folder (still executed from with a container, but should be run from bin)
+
 ### 3.15.14
 * added a oncov1 profile, using the same logic as oncov2 but with relevant normal references
 

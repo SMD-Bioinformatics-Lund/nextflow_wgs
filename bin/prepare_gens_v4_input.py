@@ -350,16 +350,16 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "--output_upd_roh", required=True, type=Path, help="Bed ranges with UPD / ROH information"
+        "--out_gens_track", required=True, type=Path, help="Bed ranges with UPD / ROH information"
     )
     parser.add_argument(
-        "--output_per_chrom",
+        "--out_meta", required=True, type=Path, help="Output global meta info (i.e. ROH%)"
+    )
+    parser.add_argument(
+        "--out_chrom_meta",
         required=True,
         type=Path,
         help="Writes per-chromosome information about coverage and UPD details",
-    )
-    parser.add_argument(
-        "--output_meta", required=True, type=Path, help="Output global meta info (i.e. ROH%)"
     )
 
     args = parser.parse_args()

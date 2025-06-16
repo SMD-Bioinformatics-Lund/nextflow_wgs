@@ -461,6 +461,13 @@ workflow NEXTFLOW_WGS {
 
 			generate_gens_data(dnascope.out.gvcf_tbi.join(gatkcov.out.cov_gens, by: [0,1]))
 
+			generate_gens_v4_data(
+				gatkcov.out.cov_plot.filter { it -> it[2] == "proband"},
+				roh.out.roh_plot,
+				upd.out.upd_bed,
+				upd.out.upd_sites,
+			)
+
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 
 			ch_versions = ch_versions.mix(upd.out.versions.first())
@@ -2782,6 +2789,52 @@ process generate_gens_data {
 		touch "${id}.overview.json.gz"
 		touch "${id}.gens"
 		"""
+}
+
+process generate_gens_v4_data {
+	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: 'true', pattern: "*.tsv"
+	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: 'true', pattern: "*.bed"
+	tag "$group"
+	cpus 1
+	time '1h'
+	memory '2 GB'
+
+	input:
+		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoise)
+		tuple val(group2), path(roh)
+		path(upd_bed)
+		tuple val(group3), path(upd_sites)
+
+	output:
+		path("${group}.gens_track.bed"), emit: track_bed
+		path("${group}.meta.tsv"), emit: meta_tsv
+		path("${group}.chrom_meta.tsv"), emit: chrom_meta_tsv
+	
+	when:
+		params.prepare_gens_data
+	
+	script:
+		"""
+		prepare_gens_v4_input.py \
+			--roh ${roh} \
+			--upd_regions ${upd_bed} \
+			--upd_sites ${upd_sites} \
+			--cov ${cov_denoise} \
+			--chrom_lengths ${params.GENOMEDICT} \
+			--sample ${id} \
+			--sex ${sex} \
+			--out_gens_track "${group}.gens_track.bed" \
+			--out_meta "${group}.meta.tsv" \
+			--out_per_chrom_meta "${group}.chrom_meta.tsv"
+		"""
+
+	stub:
+		"""
+		touch "${group}.gens_track.bed"
+		touch "${group}.meta.tsv"
+		touch "${group}.chrom_meta.tsv"
+		"""
+
 }
 
 // SV-calling //
