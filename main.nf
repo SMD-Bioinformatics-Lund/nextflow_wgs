@@ -468,8 +468,10 @@ workflow NEXTFLOW_WGS {
 				upd.out.upd_sites,
 			)
 
-			gens_v4_cronjob_input = 
-			gens_v4_cronjob()
+			ch_load_gens_v4_input = ch_samplesheet
+				.map { row -> tuple(row.group, row.id, row.sex, row.type) }
+				.join(generate_gens_v4_meta.out.meta, by: 0)
+			gens_v4_cron(ch_load_gens_v4_input)
 
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 
@@ -2813,9 +2815,7 @@ process generate_gens_v4_meta {
 		tuple val(group3), path(upd_sites)
 
 	output:
-		path("${id}.gens_track.bed"), emit: track_bed
-		path("${id}.meta.tsv"), emit: meta_tsv
-		path("${id}.chrom_meta.tsv"), emit: chrom_meta_tsv
+		tuple path("${id}.gens_track.bed"), path("${id}.meta.tsv"), path("${id}.chrom_meta.tsv"), emit: meta
 	
 	when:
 		params.prepare_gens_data
@@ -2844,6 +2844,42 @@ process generate_gens_v4_meta {
 		touch "${id}.gens"
 		"""
 
+}
+
+process gens_v4_cron {
+	publishDir "${params.crondir}/gens", mode: "copy", overwrite: "true", pattern: "*.gens_v4"
+	tag "$id"
+	cpus 1
+	time '10m'
+	memory '1 GB'
+
+	input:
+		tuple val(group), val(id), val(sex), val(type), path(track_bed), path(meta_tsv), path(chrom_meta_tsv)
+	
+	output:
+		path("${id}.gens_v4"), emit: gens_v4_middleman
+	
+	when:
+		params.prepare_gens_data
+
+	script:
+		def meta_opts = type == "proband" ? 
+			"--meta ${params.gens_accessdir}/${meta_tsv.getName()} --chromosome-meta ${params.get_accessdir}/${chrom_meta_tsv.getName()}" : 
+			""
+		"""
+		echo "gens load sample \\
+			--sample-id $id \\
+			--case-id $group \\
+			--sex $sex \\
+			--sample-type $type \\
+			--track ${params.gens_access}/${track_bed.getName()} \\
+			${meta_opts}" > ${id}.gens_v4
+		"""
+	
+	stub:
+		"""
+		touch "${id}.gens_v4"
+		"""
 }
 
 // SV-calling //

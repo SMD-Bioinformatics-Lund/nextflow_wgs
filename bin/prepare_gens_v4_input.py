@@ -4,7 +4,7 @@ import argparse
 from collections import defaultdict
 import gzip
 from pathlib import Path
-from typing import Dict, List, Literal, TextIO
+from typing import Dict, List, Literal, TextIO, NamedTuple
 import logging
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -93,7 +93,7 @@ def main(
         print("\t".join(["%ROH", str(roh_perc)]), file=out_fh)
 
 
-class RohEntry:
+class RohEntry():
     def __init__(self, line):
         line = line.rstrip()
         fields = line.split("\t")
