@@ -2,6 +2,9 @@
 # command line:
 # R CMD BATCH --no-save --no-restore '--args filename' create_lattice_dotplots.R
 
+# NOTE: This script is currently run as part of a container, not from the bin folder
+# Keep here for reference, and eventually for extraction from the container
+
 args <- commandArgs(TRUE)
 
 pod_table <- read.table(args[1])

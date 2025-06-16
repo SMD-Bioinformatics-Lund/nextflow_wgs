@@ -5,6 +5,9 @@ use Getopt::Long;
 use Data::Dumper;
 #use JSON::MaybeXS qw(encode_json decode_json);
 
+# NOTE: This script is currently run as part of a container, not from the bin folder
+# Keep here for reference, and eventually for extraction from the container
+
 my $RSCRIPT = '/opt/plotting_POD.R'; # needs for a nice plot of the data
 my $DISTANCE = 1000000; # distance allowed between connected segments
 
