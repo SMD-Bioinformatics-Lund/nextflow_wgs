@@ -5,7 +5,10 @@ from collections import defaultdict
 import gzip
 from pathlib import Path
 from typing import Literal, TextIO
+import logging
 
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+LOG = logging.getLogger(__name__)
 
 description = """
 Parse ROH output and UPD output into a single bed file
@@ -116,14 +119,21 @@ def main(
     output_chr_cov: Path,
     output_meta: Path,
 ):
+    LOG.info("Starting up")
+
+    LOG.info("Parsing chromosomes")
     chrom_lengths: dict[str, int] = parse_chrom_lengths(chrom_length_path)
     total_chrom_length = sum(chrom_lengths.values())
+    LOG.info("Parsing ROH")
     roh_entries: list[RohEntry] = parse_roh(roh_path, sample, roh_quality_threshold)
+    LOG.info("Parsing UPD")
     upd_entries: list[UPDEntry] = parse_upd(upd_path)
+    LOG.info("Parsing UPD sites")
     upd_site_info: dict[str, dict[str, str]] = parse_upd_sites(upd_sites_path)
+    LOG.info("Parsing coverage")
     avg_cov_entries: list[ChromCovEntry] = parse_cov(cov_path, cov_diff_threshold, sex)
 
-    print("Number ROH entries", len(roh_entries))
+    # LOG.info("Number ROH entries", len(roh_entries))
 
     tot_roh_length = sum(
         [
@@ -132,16 +142,18 @@ def main(
             if entry.chrom not in SEX_CHROMS and entry.chrom in CHROMS
         ]
     )
-    print("ROH tot length", tot_roh_length)
-    print("Tot chrom length", total_chrom_length)
+    # print("ROH tot length", tot_roh_length)
+    # print("Tot chrom length", total_chrom_length)
     roh_perc = float(tot_roh_length) / float(total_chrom_length) * 100
 
+    LOG.info("Writing global meta")
     with open_file(output_upd_roh, "w") as out_fh:
         for entry in roh_entries:
             print("\t".join(entry.get_bed_fields()), file=out_fh)
         for entry in upd_entries:
             print("\t".join(entry.get_bed_fields()), file=out_fh)
 
+    LOG.info("Writing per-chromosome meta")
     with open_file(output_chr_cov, "w") as out_fh:
 
         print("\t".join(["Chromosome", "type", "value", "color"]), file=out_fh)
@@ -178,6 +190,7 @@ def parse_upd_sites(upd_sites: Path) -> dict[str, dict[str, str]]:
 
     with open_file(upd_sites, "r") as in_fh:
         for line in in_fh:
+            line = line.rstrip()
             fields = line.split("\t")
             chrom = fields[0]
             upd_type = fields[3]
@@ -191,17 +204,19 @@ def parse_upd_sites(upd_sites: Path) -> dict[str, dict[str, str]]:
 
     out_fields: dict[str, dict[str, str]] = defaultdict(dict)
     for chrom in CHROMS:
-        chrom_tot = sum_per_chrom[chrom]
+        chrom_tot = sum_per_chrom[chrom] 
         chrom_types: dict[str, int] = sum_chrom_type[chrom]
 
-        paternal = chrom_types["UPD_PATERNAL_ORIGIN"]
-        paternal_perc = round(100 * paternal / chrom_tot, 1)
-        maternal = chrom_types["UPD_MATERNAL_ORIGIN"]
-        maternal_perc = round(100 * maternal / chrom_tot, 1)
-        anti = chrom_types["ANTI_UPD"]
-        anti_perc = round(100 * anti / chrom_tot, 1)
+        print(chrom_types)
+
+        paternal = chrom_types.get("UPD_PATERNAL_ORIGIN") or 0
+        paternal_perc = round(100 * paternal / chrom_tot, 1) if chrom_tot > 0 else 0
+        maternal = chrom_types.get("UPD_MATERNAL_ORIGIN") or 0
+        maternal_perc = round(100 * maternal / chrom_tot, 1) if chrom_tot > 0 else 0
+        anti = chrom_types.get("ANTI_UPD") or 0
+        anti_perc = round(100 * anti / chrom_tot, 1) if chrom_tot > 0 else 0
         non_informative = paternal + maternal + anti
-        non_informative_perc = round(100 * non_informative / chrom_tot, 1)
+        non_informative_perc = round(100 * non_informative / chrom_tot, 1) if chrom_tot > 0 else 0
 
         chrom_info: dict[str, str] = {
             "Chromosome": chrom,
