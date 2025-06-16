@@ -56,11 +56,7 @@ def main(
     avg_cov_entries: List[ChromCovEntry] = parse_cov(cov_path, cov_diff_threshold, sex)
 
     tot_roh_length = sum(
-        [
-            entry.get_length()
-            for entry in roh_entries
-            if entry.chrom in AUTO_CHROMS
-        ]
+        [entry.get_length() for entry in roh_entries if entry.chrom in AUTO_CHROMS]
     )
     roh_perc = float(tot_roh_length) / float(total_chrom_length) * 100
 
@@ -159,14 +155,6 @@ class ChromCovEntry:
 
     def get_fields(self) -> List[str]:
         return [self.chrom, str(self.cov), self.color]
-
-
-class UPDSite:
-    def __init__(self, chrom: str, start: int, end: int, type: str):
-        self.chrom = chrom
-        self.start = start
-        self.end = end
-        self.type = type
 
 
 def parse_upd_sites(upd_sites: Path) -> dict[str, dict[str, str]]:
