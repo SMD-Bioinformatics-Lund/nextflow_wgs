@@ -284,6 +284,10 @@ def parse_upd(upd: Path) -> List[UPDEntry]:
 
 
 def open_file(path: Path, read_or_write: str) -> TextIO:
+    
+    if read_or_write == "w":
+        path.parent.mkdir(parents=True, exist_ok=True)
+
     if path.suffix == ".gz":
         if read_or_write == "r":
             return gzip.open(path, "rt")
