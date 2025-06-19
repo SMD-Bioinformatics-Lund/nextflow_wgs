@@ -36,7 +36,8 @@ def main(
     roh_quality_threshold: float,
     cov_diff_threshold: int,
     color_roh: str,
-    color_upd: str,
+    color_upd_maternal: str,
+    color_upd_paternal: str,
     out_gens_track: Path,
     out_chrom_meta: Path,
     out_meta: Path,
@@ -65,7 +66,12 @@ def main(
         for entry in roh_entries:
             print("\t".join(entry.get_bed_fields(color_roh)), file=out_fh)
         for entry in upd_entries:
-            print("\t".join(entry.get_bed_fields(color_upd)), file=out_fh)
+            color = (
+                color_upd_paternal
+                if entry.origin == "PATERNAL"
+                else color_upd_maternal
+            )
+            print("\t".join(entry.get_bed_fields(color)), file=out_fh)
 
     LOG.info("Writing per-chromosome meta")
     with open_file(out_chrom_meta, "w") as out_fh:
@@ -93,7 +99,7 @@ def main(
         print("\t".join(["%ROH", str(roh_perc)]), file=out_fh)
 
 
-class RohEntry():
+class RohEntry:
     def __init__(self, line):
         line = line.rstrip()
         fields = line.split("\t")
@@ -126,6 +132,7 @@ class UPDEntry:
             key, value = entry.split("=")
             details[key] = value
         self.details = details
+        self.origin = details["ORIGIN"]
 
     def get_length(self) -> int:
         return self.end - self.start
@@ -346,7 +353,12 @@ def parse_arguments():
         help="Chromosome coverage values differing more than this are colored in red in output data",
     )
     parser.add_argument("--color_roh", default="rgb(255,186,60)", help="Color for ROH in track")
-    parser.add_argument("--color_upd", default="rgb(255,75,75)", help="Color for UPD in track")
+    parser.add_argument(
+        "--color_upd_maternal", default="rgb(255,75,75)", help="Color for maternal UPD in track"
+    )
+    parser.add_argument(
+        "--color_upd_paternal", default="rgb(75,75,255)", help="Color for paternal UPD in track"
+    )
 
     parser.add_argument(
         "--out_gens_track", required=True, type=Path, help="Bed ranges with UPD / ROH information"
@@ -382,7 +394,8 @@ if __name__ == "__main__":
         args.roh_quality_threshold,
         args.cov_diff_threshold,
         args.color_roh,
-        args.color_upd,
+        args.color_upd_maternal,
+        args.color_upd_paternal,
         args.out_gens_track,
         args.out_chrom_meta,
         args.out_meta,
