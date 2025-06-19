@@ -462,17 +462,13 @@ workflow NEXTFLOW_WGS {
 			generate_gens_data(dnascope.out.gvcf_tbi.join(gatkcov.out.cov_gens, by: [0,1]))
 
 			generate_gens_v4_meta(
-				gatkcov.out.cov_plot.filter { it -> it[2] == "proband"},
+				gatkcov.out.cov_plot,
 				roh.out.roh_plot,
 				upd.out.upd_bed,
 				upd.out.upd_sites,
 			)
 
-			ch_load_gens_v4_input = ch_samplesheet
-				.map { row -> tuple(row.group, row.id, row.sex, row.type) }
-				.join(generate_gens_v4_meta.out.meta, by: 0)
-
-			gens_v4_cron(ch_load_gens_v4_input)
+			gens_v4_cron(generate_gens_v4_meta.out.meta)
 
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 
@@ -2816,24 +2812,30 @@ process generate_gens_v4_meta {
 		tuple val(group3), path(upd_sites)
 
 	output:
-		tuple val(group), path("${id}.gens_track.bed"), path("${id}.meta.tsv"), path("${id}.chrom_meta.tsv"), emit: meta
+		tuple val(group), val(id), val(type), val(sex), path("${id}.gens_track.bed"), path("${id}.meta.tsv"), path("${id}.chrom_meta.tsv"), emit: meta
 	
 	when:
 		params.prepare_gens_data
 	
 	script:
 		"""
-		prepare_gens_v4_input.py \\
-			--roh ${roh} \\
-			--upd_regions ${upd_bed} \\
-			--upd_sites ${upd_sites} \\
-			--cov ${cov_denoise} \\
-			--chrom_lengths ${params.GENOMEDICT} \\
-			--sample ${id} \\
-			--sex ${sex} \\
-			--out_gens_track "${id}.gens_track.bed" \\
-			--out_meta "${id}.meta.tsv" \\
-			--out_chrom_meta "${id}.chrom_meta.tsv"
+		if [ "$type" == "proband" ]; then
+			prepare_gens_v4_input.py \\
+				--roh ${roh} \\
+				--upd_regions ${upd_bed} \\
+				--upd_sites ${upd_sites} \\
+				--cov ${cov_denoise} \\
+				--chrom_lengths ${params.GENOMEDICT} \\
+				--sample ${id} \\
+				--sex ${sex} \\
+				--out_gens_track "${id}.gens_track.bed" \\
+				--out_meta "${id}.meta.tsv" \\
+				--out_chrom_meta "${id}.chrom_meta.tsv"
+		else
+			touch "${id}.gens_track.bed"
+			touch "${id}.meta.tsv"
+			touch "${id}.chrom_meta.tsv"
+		fi
 		"""
 
 	stub:
@@ -2844,7 +2846,6 @@ process generate_gens_v4_meta {
 
 		touch "${id}.gens"
 		"""
-
 }
 
 process gens_v4_cron {
@@ -2865,7 +2866,7 @@ process gens_v4_cron {
 
 	script:
 		def meta_opts = type == "proband" ? 
-			"--meta ${params.gens_accessdir}/${meta_tsv.getName()} --chromosome-meta ${params.gens_accessdir}/${chrom_meta_tsv.getName()}" : 
+			"--track ${params.gens_accessdir}/${track_bed.getName()} --meta ${params.gens_accessdir}/${meta_tsv.getName()} --chromosome-meta ${params.gens_accessdir}/${chrom_meta_tsv.getName()}" : 
 			""
 		"""
 		echo "gens load sample \\
@@ -2873,7 +2874,6 @@ process gens_v4_cron {
 			--case-id $group \\
 			--sex $sex \\
 			--sample-type $type \\
-			--track ${params.gens_accessdir}/${track_bed.getName()} \\
 			${meta_opts}" > ${id}.gens_v4
 		"""
 	
