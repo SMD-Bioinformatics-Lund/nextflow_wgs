@@ -472,9 +472,6 @@ workflow NEXTFLOW_WGS {
 				.map { row -> tuple(row.group, row.id, row.sex, row.type) }
 				.join(generate_gens_v4_meta.out.meta, by: 0)
 
-			// FIXME: Test printing, remove before review
-			ch_load_gens_v4_input.view()
-
 			gens_v4_cron(ch_load_gens_v4_input)
 
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
