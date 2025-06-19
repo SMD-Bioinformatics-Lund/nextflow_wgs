@@ -34,7 +34,7 @@ def main(
     sample: str,
     sex: str,
     roh_quality_threshold: float,
-    cov_diff_threshold: int,
+    cov_diff_threshold: float,
     color_roh: str,
     color_upd_maternal: str,
     color_upd_paternal: str,
