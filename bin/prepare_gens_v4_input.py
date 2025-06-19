@@ -45,14 +45,14 @@ def main(
     LOG.info("Starting up")
 
     LOG.info("Parsing chromosomes")
-    chrom_lengths: dict[str, int] = parse_chrom_lengths(chrom_length_path)
+    chrom_lengths: Dict[str, int] = parse_chrom_lengths(chrom_length_path)
     total_chrom_length = sum(chrom_lengths.values())
     LOG.info("Parsing ROH")
     roh_entries: List[RohEntry] = parse_roh(roh_path, sample, roh_quality_threshold)
     LOG.info("Parsing UPD")
     upd_entries: List[UPDEntry] = parse_upd(upd_regions_path)
     LOG.info("Parsing UPD sites")
-    upd_site_info: Dict[str, dict[str, str]] = parse_upd_sites(upd_sites_path)
+    upd_site_info: Dict[str, Dict[str, str]] = parse_upd_sites(upd_sites_path)
     LOG.info("Parsing coverage")
     avg_cov_entries: List[ChromCovEntry] = parse_cov(cov_path, cov_diff_threshold, sex)
 
@@ -157,10 +157,10 @@ class ChromCovEntry:
         self.color = color
 
 
-def parse_upd_sites(upd_sites: Path) -> dict[str, dict[str, str]]:
+def parse_upd_sites(upd_sites: Path) -> Dict[str, Dict[str, str]]:
 
-    sum_per_chrom: dict[str, int] = {}
-    sum_chrom_type: dict[str, dict[str, int]] = {}
+    sum_per_chrom: Dict[str, int] = {}
+    sum_chrom_type: Dict[str, Dict[str, int]] = {}
 
     for chrom in CHROMS:
         sum_per_chrom[chrom] = 0
@@ -180,10 +180,10 @@ def parse_upd_sites(upd_sites: Path) -> dict[str, dict[str, str]]:
 
             sum_chrom_type[chrom][upd_type] += 1
 
-    out_fields: dict[str, dict[str, str]] = defaultdict(dict)
+    out_fields: Dict[str, Dict[str, str]] = defaultdict(dict)
     for chrom in CHROMS:
         chrom_tot = sum_per_chrom[chrom]
-        chrom_types: dict[str, int] = sum_chrom_type[chrom]
+        chrom_types: Dict[str, int] = sum_chrom_type[chrom]
 
         paternal = chrom_types.get("UPD_PATERNAL_ORIGIN") or 0
         paternal_perc = round(100 * paternal / chrom_tot, 1) if chrom_tot > 0 else 0
@@ -194,7 +194,7 @@ def parse_upd_sites(upd_sites: Path) -> dict[str, dict[str, str]]:
         non_informative = paternal + maternal + anti
         non_informative_perc = round(100 * non_informative / chrom_tot, 1) if chrom_tot > 0 else 0
 
-        chrom_info: dict[str, str] = {
+        chrom_info: Dict[str, str] = {
             "Total SNPs": str(chrom_tot),
             "Non-informative": f"{non_informative} ({non_informative_perc}%)",
             "Mismatch father": f"{paternal} ({paternal_perc}%)",
@@ -207,7 +207,7 @@ def parse_upd_sites(upd_sites: Path) -> dict[str, dict[str, str]]:
     return out_fields
 
 
-def parse_chrom_lengths(chrom_lengths_path: Path) -> dict[str, int]:
+def parse_chrom_lengths(chrom_lengths_path: Path) -> Dict[str, int]:
     chrom_lenghts = {}
     with open(chrom_lengths_path, "r") as in_fh:
         for line in in_fh:
