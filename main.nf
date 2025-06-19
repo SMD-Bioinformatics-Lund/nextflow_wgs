@@ -464,7 +464,10 @@ workflow NEXTFLOW_WGS {
 			ch_gens_v4_meta = gatkcov.out.cov_plot
 				.combine(roh.out.roh_plot)
 				.combine(upd.out.upd_bed)
-				.combine(upd.out.upd_sites)
+				.combine(upd.out.upd_sites.map { it -> it[1]})
+
+			// Check - how is it looking
+			ch_gens_v4_meta.view()
 
 			generate_gens_v4_meta(ch_gens_v4_meta)
 
