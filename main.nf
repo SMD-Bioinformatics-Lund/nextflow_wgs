@@ -461,13 +461,12 @@ workflow NEXTFLOW_WGS {
 
 			generate_gens_data(dnascope.out.gvcf_tbi.join(gatkcov.out.cov_gens, by: [0,1]))
 
+			// FIXME: We need to publish these files to access as well, isn't it
+
 			ch_gens_v4_meta = gatkcov.out.cov_plot
 				.combine(roh.out.roh_plot.map { it -> it[1] })
 				.combine(upd.out.upd_bed)
 				.combine(upd.out.upd_sites.map { it -> it[1] })
-
-			// Check - how is it looking
-			ch_gens_v4_meta.view()
 
 			generate_gens_v4_meta(ch_gens_v4_meta)
 
