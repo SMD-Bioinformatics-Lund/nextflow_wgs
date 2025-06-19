@@ -4,7 +4,7 @@ import argparse
 from collections import defaultdict
 import gzip
 from pathlib import Path
-from typing import Dict, List, Literal, TextIO, NamedTuple
+from typing import Dict, List, TextIO
 import logging
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -66,11 +66,7 @@ def main(
         for entry in roh_entries:
             print("\t".join(entry.get_bed_fields(color_roh)), file=out_fh)
         for entry in upd_entries:
-            color = (
-                color_upd_paternal
-                if entry.origin == "PATERNAL"
-                else color_upd_maternal
-            )
+            color = color_upd_paternal if entry.origin == "PATERNAL" else color_upd_maternal
             print("\t".join(entry.get_bed_fields(color)), file=out_fh)
 
     LOG.info("Writing per-chromosome meta")
@@ -286,14 +282,20 @@ def parse_upd(upd: Path) -> List[UPDEntry]:
     return upd_entries
 
 
-def open_file(path: Path, read_or_write: Literal["r", "w"]) -> TextIO:
+def open_file(path: Path, read_or_write: str) -> TextIO:
     if path.suffix == ".gz":
         if read_or_write == "r":
             return gzip.open(path, "rt")
-        else:
+        elif read_or_write == "w":
             return gzip.open(path, "wt")
+        else:
+            raise ValueError(f"Unknown read_or_write value: {read_or_write}, expected r or w")
     else:
-        return path.open(read_or_write)
+        if read_or_write == "r":
+            return path.open("r")
+        elif read_or_write == "w":
+            return path.open("r")
+        raise ValueError(f"Unknown read_or_write value: {read_or_write}, expected r or w")
 
 
 def parse_arguments():
