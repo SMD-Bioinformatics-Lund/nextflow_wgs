@@ -461,12 +461,12 @@ workflow NEXTFLOW_WGS {
 
 			generate_gens_data(dnascope.out.gvcf_tbi.join(gatkcov.out.cov_gens, by: [0,1]))
 
-			generate_gens_v4_meta(
-				gatkcov.out.cov_plot,
-				roh.out.roh_plot,
-				upd.out.upd_bed,
-				upd.out.upd_sites,
-			)
+			ch_gens_v4_meta = gatkcov.out.cov_plot
+				.combine(roh.out.roh_plot)
+				.combine(upd.out.upd_bed)
+				.combine(upd.out.upd_sites)
+
+			generate_gens_v4_meta(ch_gens_v4_meta)
 
 			gens_v4_cron(generate_gens_v4_meta.out.meta)
 
@@ -2806,10 +2806,7 @@ process generate_gens_v4_meta {
 	memory '10 GB'
 
 	input:
-		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoise)
-		tuple val(group2), path(roh)
-		path(upd_bed)
-		tuple val(group3), path(upd_sites)
+		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoise), path(roh), path(upd_bed), path(upd_sites)
 
 	output:
 		tuple val(group), val(id), val(type), val(sex), path("${id}.gens_track.bed"), path("${id}.meta.tsv"), path("${id}.chrom_meta.tsv"), emit: meta
