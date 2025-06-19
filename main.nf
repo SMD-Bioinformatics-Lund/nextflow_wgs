@@ -2836,7 +2836,7 @@ process generate_gens_v4_meta {
 			--sex ${sex} \
 			--out_gens_track "${id}.gens_track.bed" \
 			--out_meta "${id}.meta.tsv" \
-			--out_per_chrom_meta "${id}.chrom_meta.tsv"
+			--out_chrom_meta "${id}.chrom_meta.tsv"
 		"""
 
 	stub:
