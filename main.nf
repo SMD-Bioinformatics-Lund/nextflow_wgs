@@ -2826,16 +2826,16 @@ process generate_gens_v4_meta {
 	
 	script:
 		"""
-		prepare_gens_v4_input.py \
-			--roh ${roh} \
-			--upd_regions ${upd_bed} \
-			--upd_sites ${upd_sites} \
-			--cov ${cov_denoise} \
-			--chrom_lengths ${params.GENOMEDICT} \
-			--sample ${id} \
-			--sex ${sex} \
-			--out_gens_track "${id}.gens_track.bed" \
-			--out_meta "${id}.meta.tsv" \
+		prepare_gens_v4_input.py \\
+			--roh ${roh} \\
+			--upd_regions ${upd_bed} \\
+			--upd_sites ${upd_sites} \\
+			--cov ${cov_denoise} \\
+			--chrom_lengths ${params.GENOMEDICT} \\
+			--sample ${id} \\
+			--sex ${sex} \\
+			--out_gens_track "${id}.gens_track.bed" \\
+			--out_meta "${id}.meta.tsv" \\
 			--out_chrom_meta "${id}.chrom_meta.tsv"
 		"""
 

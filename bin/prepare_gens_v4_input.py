@@ -61,7 +61,7 @@ def main(
     )
     roh_perc = float(tot_roh_length) / float(total_chrom_length) * 100
 
-    LOG.info("Writing global meta")
+    LOG.info("Writing global meta to %s", str(out_gens_track))
     with open_file(out_gens_track, "w") as out_fh:
         for entry in roh_entries:
             print("\t".join(entry.get_bed_fields(color_roh)), file=out_fh)
@@ -69,7 +69,7 @@ def main(
             color = color_upd_paternal if entry.origin == "PATERNAL" else color_upd_maternal
             print("\t".join(entry.get_bed_fields(color)), file=out_fh)
 
-    LOG.info("Writing per-chromosome meta")
+    LOG.info("Writing per-chromosome meta to %s", str(out_chrom_meta))
     with open_file(out_chrom_meta, "w") as out_fh:
 
         print("\t".join(["Chromosome", "type", "value", "color"]), file=out_fh)
@@ -90,6 +90,7 @@ def main(
                 field_value = upd_site_info[chrom].get(upd_label, 0)
                 print(f"{chrom}\t{upd_label}\t{field_value}\trgb(0,0,0)", file=out_fh)
 
+    LOG.info("Writing sample-wide meta to %s", str(out_meta))
     with open_file(out_meta, "w") as out_fh:
         print("\t".join(["type", "value"]), file=out_fh)
         print("\t".join(["%ROH", str(roh_perc)]), file=out_fh)
@@ -294,7 +295,7 @@ def open_file(path: Path, read_or_write: str) -> TextIO:
         if read_or_write == "r":
             return path.open("r")
         elif read_or_write == "w":
-            return path.open("r")
+            return path.open("w")
         raise ValueError(f"Unknown read_or_write value: {read_or_write}, expected r or w")
 
 
