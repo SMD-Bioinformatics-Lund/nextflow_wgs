@@ -2802,7 +2802,7 @@ process generate_gens_data {
 process generate_gens_v4_meta {
 	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: 'true', pattern: "*.tsv"
 	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: 'true', pattern: "*.bed"
-	tag "$group"
+	tag "$id"
 	cpus 1
 	time '1h'
 	memory '10 GB'
@@ -2855,7 +2855,7 @@ process gens_v4_cron {
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(id), val(sex), val(type), path(track_bed), path(meta_tsv), path(chrom_meta_tsv)
+		tuple val(group), val(id), val(type), val(sex), path(track_bed), path(meta_tsv), path(chrom_meta_tsv)
 	
 	output:
 		path("${id}.gens_v4"), emit: gens_v4_middleman
