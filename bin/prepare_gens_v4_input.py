@@ -209,7 +209,7 @@ def parse_upd_sites(upd_sites: Path) -> Dict[str, Dict[str, str]]:
 
 
 def parse_chrom_lengths(chrom_lengths_path: Path) -> Dict[str, int]:
-    chrom_lenghts = {}
+    chrom_lengths = {}
     with open(chrom_lengths_path, "r") as in_fh:
         for line in in_fh:
             line = line.rstrip()
@@ -219,8 +219,8 @@ def parse_chrom_lengths(chrom_lengths_path: Path) -> Dict[str, int]:
             chrom = fields[1].split(":")[1]
             length = fields[2].split(":")[1]
             if chrom in AUTO_CHROMS:
-                chrom_lenghts[chrom] = int(length)
-    return chrom_lenghts
+                chrom_lengths[chrom] = int(length)
+    return chrom_lengths
 
 
 def parse_cov(cov: Path, cov_diff_thres: float, sex: str) -> List[ChromCovEntry]:
@@ -268,7 +268,7 @@ def parse_roh(roh_path: Path, sample: str, qual_thres: float) -> List[RohEntry]:
             if len(fields) < 7:
                 continue
             roh_entry = RohEntry(line)
-            if roh_entry.sample == sample and roh_entry.quality > qual_thres:
+            if roh_entry.sample == sample and roh_entry.quality >= qual_thres:
                 roh_entries_per_chrom.append(roh_entry)
     return roh_entries_per_chrom
 
