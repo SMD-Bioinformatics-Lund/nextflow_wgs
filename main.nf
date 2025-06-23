@@ -461,6 +461,15 @@ workflow NEXTFLOW_WGS {
 
 			generate_gens_data(dnascope.out.gvcf_tbi.join(gatkcov.out.cov_gens, by: [0,1]))
 
+			ch_gens_v4_meta = gatkcov.out.cov_plot
+				.combine(roh.out.roh_plot.map { it -> it[1] })
+				.combine(upd.out.upd_bed)
+				.combine(upd.out.upd_sites.map { it -> it[1] })
+
+			generate_gens_v4_meta(ch_gens_v4_meta)
+
+			gens_v4_cron(generate_gens_v4_meta.out.meta)
+
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 
 			ch_versions = ch_versions.mix(upd.out.versions.first())
@@ -2785,6 +2794,102 @@ process generate_gens_data {
 		touch "${id}.baf.bed.gz.tbi"
 		touch "${id}.overview.json.gz"
 		touch "${id}.gens"
+		"""
+}
+
+process generate_gens_v4_meta {
+	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: 'true', pattern: "*.tsv"
+	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: 'true', pattern: "*.bed"
+	tag "$id"
+	cpus 1
+	time '1h'
+	memory '10 GB'
+
+	input:
+		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoise), path(roh), path(upd_bed), path(upd_sites)
+
+	output:
+		tuple val(group), val(id), val(type), val(sex), path("${id}.gens_track.bed"), path("${id}.meta.tsv"), path("${id}.chrom_meta.tsv"), emit: meta
+	
+	when:
+		params.prepare_gens_data
+	
+	script:
+		"""
+		if [ "$type" == "proband" ]; then
+			prepare_gens_v4_input.py \\
+				--roh ${roh} \\
+				--upd_regions ${upd_bed} \\
+				--upd_sites ${upd_sites} \\
+				--cov ${cov_denoise} \\
+				--chrom_lengths ${params.GENOMEDICT} \\
+				--sample ${id} \\
+				--sex ${sex} \\
+				--out_gens_track "${id}.gens_track.bed" \\
+				--out_meta "${id}.meta.tsv" \\
+				--out_chrom_meta "${id}.chrom_meta.tsv"
+		else
+			touch "${id}.gens_track.bed"
+			touch "${id}.meta.tsv"
+			touch "${id}.chrom_meta.tsv"
+		fi
+		"""
+
+	stub:
+		"""
+		touch "${id}.gens_track.bed"
+		touch "${id}.meta.tsv"
+		touch "${id}.chrom_meta.tsv"
+
+		touch "${id}.gens"
+		"""
+}
+
+process gens_v4_cron {
+	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: 'true', pattern: "*.gens_v4"
+	tag "$id"
+	cpus 1
+	time '10m'
+	memory '1 GB'
+
+	input:
+		tuple val(group), val(id), val(type), val(sex), path(track_bed), path(meta_tsv), path(chrom_meta_tsv)
+	
+	output:
+		path("${id}.gens_v4"), emit: gens_v4_middleman
+	
+	when:
+		params.prepare_gens_data
+
+	script:
+		def meta_opts = type == "proband" ? 
+			"--meta ${params.gens_accessdir}/${meta_tsv.getName()} --meta ${params.gens_accessdir}/${chrom_meta_tsv.getName()}":
+			""
+		"""
+		echo "gens load sample \\
+			--sample-id $id \\
+			--case-id $group \\
+			--genome-build 38 \\
+			--sex $sex \\
+			--sample-type $type \\
+			--baf ${params.gens_accessdir}/${id}.baf.bed.gz \\
+			--coverage ${params.gens_accessdir}/${id}.cov.bed.gz \\
+			--overview-json ${params.gens_accessdir}/${id}.overview.json.gz \\
+			${meta_opts}" > ${id}.gens_v4
+
+		if [[ "$type" == "proband" ]]; then
+			echo "gens load sample-annotation \\
+				--sample-id $id \\
+				--case-id $group \\
+				--genome-build 38 \\
+				--file ${params.gens_accessdir}/${track_bed.getName()} \\
+				--name \\\"UPD and ROH\\\"" >> ${id}.gens_v4
+		fi
+		"""
+	
+	stub:
+		"""
+		touch "${id}.gens_v4"
 		"""
 }
 
