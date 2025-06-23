@@ -2865,7 +2865,7 @@ process gens_v4_cron {
 
 	script:
 		def meta_opts = type == "proband" ? 
-			"--track ${params.gens_accessdir}/${track_bed.getName()} --meta ${params.gens_accessdir}/${meta_tsv.getName()} --chromosome-meta ${params.gens_accessdir}/${chrom_meta_tsv.getName()}" : 
+			"--meta ${params.gens_accessdir}/${meta_tsv.getName()} --chromosome-meta ${params.gens_accessdir}/${chrom_meta_tsv.getName()}":
 			""
 		"""
 		echo "gens load sample \\
@@ -2878,6 +2878,15 @@ process gens_v4_cron {
 			--coverage ${params.gens_accessdir}/${id}.cov.bed.gz \\
 			--overview-json ${params.gens_accessdir}/${id}.overview.json.gz \\
 			${meta_opts}" > ${id}.gens_v4
+
+		if [[ "$type" == "proband" ]]; then
+			echo "gens load sample-annotation \\
+				--sample-id $id \\
+				--case-id $group \\
+				--genome-build 38 \\
+				--file ${params.gens_accessdir}/${track_bed.getName()} \\
+				--name \"UPD and ROH\"" >> ${id}.gens_v4
+		fi
 		"""
 	
 	stub:
