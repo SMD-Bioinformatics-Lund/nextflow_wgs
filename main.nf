@@ -2865,7 +2865,7 @@ process gens_v4_cron {
 
 	script:
 		def meta_opts = type == "proband" ? 
-			"--meta ${params.gens_accessdir}/${meta_tsv.getName()} --chromosome-meta ${params.gens_accessdir}/${chrom_meta_tsv.getName()}":
+			"--meta ${params.gens_accessdir}/${meta_tsv.getName()} --meta ${params.gens_accessdir}/${chrom_meta_tsv.getName()}":
 			""
 		"""
 		echo "gens load sample \\
