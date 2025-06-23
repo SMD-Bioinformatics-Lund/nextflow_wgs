@@ -135,7 +135,7 @@ class UPDEntry:
         return self.end - self.start
 
     def get_bed_fields(self, color: str) -> List[str]:
-        return [self.chrom, str(self.start), str(self.end), f"UPD (${self.origin})", ".", ".", ".", ".", color]
+        return [self.chrom, str(self.start), str(self.end), f"UPD ({self.origin})", ".", ".", ".", ".", color]
 
 
 class CovEntry:
