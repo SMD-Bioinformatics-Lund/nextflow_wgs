@@ -2871,8 +2871,12 @@ process gens_v4_cron {
 		echo "gens load sample \\
 			--sample-id $id \\
 			--case-id $group \\
+			--genome-build 38 \\
 			--sex $sex \\
 			--sample-type $type \\
+			--baf ${params.gens_accessdir}/${id}.baf.bed.gz \\
+			--coverage ${params.gens_accessdir}/${id}.cov.bed.gz \\
+			--overview-json ${params.gens_accessdir}/${id}.overview.json.gz \\
 			${meta_opts}" > ${id}.gens_v4
 		"""
 	
