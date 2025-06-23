@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.16.1
+* Increase manta max run time
+
 ### 3.16.0
 * AnnotSV bump 3.4.4
 * bcftools bump 1.21
