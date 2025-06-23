@@ -3081,7 +3081,7 @@ process manta {
 	cpus  56
 	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
 	tag "$id"
-	time '10h'
+	time '15h'
 	memory '150 GB'
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
