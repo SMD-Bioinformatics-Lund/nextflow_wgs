@@ -989,9 +989,6 @@ process dedupdummy {
 	output:
 		tuple val(group), val(id), path("dummy"), emit: dedup_dummy
 
-	when:
-		params.run_melt
-
 	script:
 	"""
 	echo test > dummy
