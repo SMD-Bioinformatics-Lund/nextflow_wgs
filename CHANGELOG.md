@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.17.1
+* Fix median calculation bug in qc_sentieon.pl
+
 ### 3.17.0
 * New process "prepare_gens_v4_input.py" with new script to generate inputs needed for Gens
 * Add POD scripts to the bin/pod folder (still executed from within a container, but should be run from bin)
