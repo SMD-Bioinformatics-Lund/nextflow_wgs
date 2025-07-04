@@ -1,5 +1,23 @@
 # CHANGELOG
 
+### 3.17.0
+* New process "prepare_gens_v4_input.py" with new script to generate inputs needed for Gens
+* Add POD scripts to the bin/pod folder (still executed from within a container, but should be run from bin)
+
+### 3.16.1
+* Increase manta max run time
+
+### 3.16.0
+* AnnotSV bump 3.4.4
+* bcftools bump 1.21
+* prescore_sv.pl retirement, replace by four python scripts
+  * add_annotsv.py: adds annotsv score to variants
+  * add_genetic_models_to_svvcf.py: adds genetic models, and homo- hemizygous deletion annotations to vcf
+  * sv_varcall_penalies.py: adds caller specific penalties to variants with only one caller
+  * add_omim_morbid_sv.py: adds omim morbid status to variants overlapping genes in OMIM-AUTO gene list
+* dbvar/clinvar for SVs as a separate bcftools annotate process
+* gnomadSV with VEP, and bumped to latest version
+
 ### 3.15.14
 * added a oncov1 profile, using the same logic as oncov2 but with relevant normal references
 
