@@ -250,10 +250,12 @@ workflow NEXTFLOW_WGS {
 	ch_output_info = ch_output_info.mix(bamtoyaml.out.bamchoice_INFO)
 
 	ch_bam_start_dedup_dummy = Channel.empty()
-	if(params.run_melt) {
-		dedupdummy(ch_bam_start)
-		ch_bam_start_dedup_dummy = dedupdummy.out.dedup_dummy
-	}
+	dedupdummy(ch_bam_start)
+	ch_bam_start_dedup_dummy = dedupdummy.out.dedup_dummy
+	// if(params.run_melt) {
+	// 	dedupdummy(ch_bam_start)
+	// 	ch_bam_start_dedup_dummy = dedupdummy.out.dedup_dummy
+	// }
 
 	ch_bam_bai = Channel.empty()
 	ch_bam_bai = ch_bam_bai.mix(copy_bam.out.bam_bai)
@@ -980,7 +982,7 @@ process copy_bam {
 }
 
 
-// For melt to work if started
+// Provide dummy dedup when starting from bam
 process dedupdummy {
 	input:
 		tuple val(group), val(id), path(bam), path(bai)

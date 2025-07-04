@@ -228,7 +228,6 @@ sub coverage_calc {
         push @cov, $a[1];
     }
     close COV;
-
     my @sorted_cov = sort { $a <=> $b } @cov;
 
     my $len_cov = scalar(@sorted_cov);
