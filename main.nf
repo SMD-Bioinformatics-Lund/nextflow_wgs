@@ -252,10 +252,6 @@ workflow NEXTFLOW_WGS {
 	ch_bam_start_dedup_dummy = Channel.empty()
 	dedupdummy(ch_bam_start)
 	ch_bam_start_dedup_dummy = dedupdummy.out.dedup_dummy
-	// if(params.run_melt) {
-	// 	dedupdummy(ch_bam_start)
-	// 	ch_bam_start_dedup_dummy = dedupdummy.out.dedup_dummy
-	// }
 
 	ch_bam_bai = Channel.empty()
 	ch_bam_bai = ch_bam_bai.mix(copy_bam.out.bam_bai)
