@@ -223,25 +223,20 @@ sub coverage_calc {
     my @cov;
     open( COV, $coverage_file );
     while( <COV> ) {
-
-        unless( /^Locus/ ) {
-            my $vals = <COV>;
-            my @a = split /\t/, $vals;
-            push @cov,$a[1];
-        }
-        
+        next if /^Locus/;
+        my @a = split /\t/;
+        push @cov, $a[1];
     }
-    my @sorted_cov = sort @cov;
+    close COV;
+    my @sorted_cov = sort { $a <=> $b } @cov;
 
-    my $len_cov = scalar(@cov);
+    my $len_cov = scalar(@sorted_cov);
     my $median;
-    if (($len_cov / 2) =~ /\d+\.\d+/) { 
-        my $median_index = ($len_cov / 2) + 0.5;
-        $median = $sorted_cov[$median_index-1];
+    if ($len_cov % 2) {
+        $median = $sorted_cov[ int($len_cov/2) ];
     }
     else {
-        my $median_index = ($len_cov / 2);
-        $median = ($sorted_cov[$median_index-1] + $sorted_cov[$median_index-1]) / 2;
+        $median = ( $sorted_cov[$len_cov/2 - 1] + $sorted_cov[$len_cov/2] ) / 2;
     }
 
 
