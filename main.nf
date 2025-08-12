@@ -1925,7 +1925,9 @@ process freebayes {
 		}
 		else {
 			"""
-			touch "${id}.pathfreebayes.vcf_no_header.tsv.gz"
+			touch "${id}.pathfreebayes.vcf_no_header.tsv"
+			// Needed as it downstream is concatenated with zcat
+			gzip "${id}.pathfreebayes.vcf_no_header.tsv"
 
 			${freebayes_version(task)}
 			"""
