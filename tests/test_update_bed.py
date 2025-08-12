@@ -1,5 +1,8 @@
 from pathlib import Path
 import gzip
+import shutil
+from typing import Callable
+import pytest
 
 from bin.reference_tools.update_bed import (
     write_ensembl_bed,
@@ -29,6 +32,12 @@ chr2\tENSEMBL\texon\t3100\t3200\t.\t+\t.\tgene_id "gene2"; transcript_id "transc
 chr3\tENSEMBL\ttranscript\t4000\t5000\t.\t+\t.\tgene_id "gene3"; transcript_biotype "protein_coding";
 chr3\tENSEMBL\texon\t4400\t4500\t.\t+\t.\tgene_id "gene3"; transcript_id "transcript3";
 """
+
+
+@pytest.fixture(scope="session")
+def require_bedtools():
+    if shutil.which("bedtools") is None:
+        pytest.skip("bedtools not found in PATH")
 
 
 def get_file_string(rows: list[list[str]]) -> str:
@@ -154,8 +163,10 @@ chr2\t12345\t.\tG\tA\t.\t.\tCLNSIG=Likely_pathogenic
         assert expected_benign_clinvar_reasons[key] == variant.reason
 
 
-def test_compare_clinvar(tmp_path: Path):
+def test_compare_clinvar(tmp_path: Path, require_bedtools: Callable):
     """Given mock entries with different sets of clinvar variants, check what is added, removed and retained"""
+
+    require_bedtools()
 
     new_clinvar = {
         "chr1:1000_A_G": ClinVarVariant(
@@ -212,8 +223,10 @@ chr2\t5000\t6000\tdefault_annot
     assert current_old_to_remove == expected_old_to_remove
 
 
-def test_main(tmp_path: Path):
+def test_main(tmp_path: Path, require_bedtools: Callable):
     """Check that the full script runs and check that outputs are present with correct information"""
+
+    require_bedtools()
 
     old_clinvar_content = """\
 ##fileformat=VCFv4.2
