@@ -163,10 +163,8 @@ chr2\t12345\t.\tG\tA\t.\t.\tCLNSIG=Likely_pathogenic
         assert expected_benign_clinvar_reasons[key] == variant.reason
 
 
-def test_compare_clinvar(tmp_path: Path, require_bedtools: Callable):
+def test_compare_clinvar(tmp_path: Path, require_bedtools: None):
     """Given mock entries with different sets of clinvar variants, check what is added, removed and retained"""
-
-    require_bedtools()
 
     new_clinvar = {
         "chr1:1000_A_G": ClinVarVariant(
@@ -223,10 +221,8 @@ chr2\t5000\t6000\tdefault_annot
     assert current_old_to_remove == expected_old_to_remove
 
 
-def test_main(tmp_path: Path, require_bedtools: Callable):
+def test_main(tmp_path: Path, require_bedtools: None):
     """Check that the full script runs and check that outputs are present with correct information"""
-
-    require_bedtools()
 
     old_clinvar_content = """\
 ##fileformat=VCFv4.2
