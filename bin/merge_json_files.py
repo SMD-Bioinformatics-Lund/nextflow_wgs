@@ -30,4 +30,4 @@ if __name__ == "__main__":
 
     file_paths = sys.argv[1:]
     merged_json = merge_json_files(file_paths)
-    print(json.dumps(merged_json, indent=4))
+    print(json.dumps(merged_json, indent=4, sort_keys=True))
