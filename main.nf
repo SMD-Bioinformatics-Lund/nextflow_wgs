@@ -1,6 +1,8 @@
 #!/usr/bin/env nextflow
 
 include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
+include { IDSNP_CALL } from './modules/idsnp.nf'
+include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
 
 nextflow.enable.dsl=2
 
@@ -269,7 +271,7 @@ workflow NEXTFLOW_WGS {
 			def father = row.father
 			def mother = row.mother
 			tuple(group, id, type, sex, mother, father)
-			}
+		}
 
 	create_ped(ch_ped_input)
 	ch_ped_base = create_ped.out.ped_base
@@ -326,6 +328,9 @@ workflow NEXTFLOW_WGS {
 	)
 
 	ch_qc_json = ch_qc_json.mix(sentieon_qc_postprocess.out.qc_json)
+
+	IDSNP_CALL(ch_bam_bai, params.idsnps)
+	IDSNP_VCF_TO_JSON(IDSNP_CALL.out.vcf)
 
 	// COVERAGE //
 	d4_coverage(ch_bam_bai)

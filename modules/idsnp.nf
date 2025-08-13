@@ -9,19 +9,19 @@ def bcftools_version(task) {
 
 process IDSNP_CALL {
     label 'process_single'
-    tag "${meta.id}"
+    tag "${id}"
     container "${params.container_bcftools}"
 
     input:
-        tuple val(meta), path(bam), path(bai)
+        tuple val(group), val(id), path(bam), path(bai)
         val idsnp_params
 
     output:
-        tuple val(meta), path("*final.vcf"), emit: vcf
-        tuple val(meta), path("*versions.yml"), emit: versions
+        tuple val(group), val(id), path("*final.vcf"), emit: vcf
+        tuple val(group), val(id), path("*versions.yml"), emit: versions
 
     script:
-        def prefix  = "${meta.sample}"
+        def prefix  = "${id}"
         def max_depth = 1000
         def min_map_qual = 10
         """
@@ -50,7 +50,7 @@ process IDSNP_CALL {
         """
 
     stub:
-        def prefix = "${meta.sample}"
+        def prefix = "${id}"
         """
         touch ${prefix}.final.vcf
         touch ${prefix}.genotypes.json
