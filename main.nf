@@ -1925,7 +1925,7 @@ process freebayes {
 		}
 		else {
 			"""
-			touch "${id}.pathfreebayes.vcf_no_header.tsv"
+			touch "${id}.pathfreebayes.vcf_no_header.tsv.gz"
 
 			${freebayes_version(task)}
 			"""
