@@ -73,6 +73,7 @@ process IDSNP_VCF_TO_JSON {
     
     script:
     def prefix = "${meta.sample}"
+    // FIXME: Add tests
     """
     genotype_to_json.py "${vcf}" "${prefix}.genotypes.json"
     """
