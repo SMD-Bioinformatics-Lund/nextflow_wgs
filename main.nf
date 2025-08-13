@@ -2360,6 +2360,7 @@ process split_normalize {
 		if [[ -s "$vcfconcat" ]]; then
 			zcat $vcf $vcfconcat > ${id}.concat.freebayes.vcf
 		else
+			# Otherwise it crashes for modycf where $vcfconcat is empty
 			zcat $vcf > ${id}.concat.freebayes.vcf
 		fi
 		vcfbreakmulti ${id}.concat.freebayes.vcf > ${group}.multibreak.vcf
