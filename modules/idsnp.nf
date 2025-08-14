@@ -68,7 +68,6 @@ process IDSNP_VCF_TO_JSON {
     
     output:
         tuple val(group), val(id), path("*.json"), emit: json
-        path("*versions.yml"), emit: versions
     
     script:
     def prefix = "${id}"
