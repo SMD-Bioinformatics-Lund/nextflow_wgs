@@ -331,6 +331,8 @@ workflow NEXTFLOW_WGS {
 
 	IDSNP_CALL(ch_bam_bai, params.idsnps)
 	IDSNP_VCF_TO_JSON(IDSNP_CALL.out.vcf)
+	ch_versions = ch_versions.mix(IDSNP_CALL.out.versions.first())
+	ch_versions = ch_versions.mix(IDSNP_VCF_TO_JSON.out.versions.first())
 
 	// COVERAGE //
 	d4_coverage(ch_bam_bai)

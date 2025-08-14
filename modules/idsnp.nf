@@ -18,7 +18,7 @@ process IDSNP_CALL {
 
     output:
         tuple val(group), val(id), path("*final.vcf"), emit: vcf
-        tuple val(group), val(id), path("*versions.yml"), emit: versions
+        path("*versions.yml"), emit: versions
 
     script:
         def prefix  = "${id}"
@@ -53,7 +53,6 @@ process IDSNP_CALL {
         def prefix = "${id}"
         """
         touch ${prefix}.final.vcf
-        touch ${prefix}.genotypes.json
 
         ${bcftools_version(task)}
         """
@@ -62,14 +61,14 @@ process IDSNP_CALL {
 process IDSNP_VCF_TO_JSON {
     label 'process_single'
     tag "${id}"
-    container "${params.containers.python}"
+    container "${params.container_python}"
 
     input:
         tuple val(group), val(id), path(vcf)
     
     output:
         tuple val(group), val(id), path("*.json"), emit: json
-        tuple val(group), val(id), path("*versions.yml"), emit: versions
+        path("*versions.yml"), emit: versions
     
     script:
     def prefix = "${id}"
