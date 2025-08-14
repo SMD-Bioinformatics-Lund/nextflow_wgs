@@ -1,6 +1,6 @@
 #
 
-name: Basic python tests
+name: Basic python checks
 
 on:
   push:
