@@ -61,25 +61,24 @@ process IDSNP_CALL {
 
 process IDSNP_VCF_TO_JSON {
     label 'process_single'
-    tag "${meta.id}"
+    tag "${id}"
     container "${params.containers.python}"
 
     input:
-        tuple val(meta), path(vcf)
+        tuple val(group), val(id), path(vcf)
     
     output:
-        tuple val(meta), path("*.json"), emit: json
-        tuple val(meta), path("*versions.yml"), emit: versions
+        tuple val(group), val(id), path("*.json"), emit: json
+        tuple val(group), val(id), path("*versions.yml"), emit: versions
     
     script:
-    def prefix = "${meta.sample}"
-    // FIXME: Add tests
+    def prefix = "${id}"
     """
     genotype_to_json.py "${vcf}" "${prefix}.genotypes.json"
     """
 
     stub:
-    def prefix = "${meta.sample}"
+    def prefix = "${id}"
     """
     touch "${prefix}.genotypes.json"
     """
