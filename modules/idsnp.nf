@@ -62,7 +62,7 @@ process IDSNP_VCF_TO_JSON {
     label 'process_single'
     tag "${id}"
     container "${params.container_python}"
-	publishDir "${params.results_output_dir}/qc", mode: 'copy' , overwrite: 'true', pattern: '*.json'
+	publishDir "${params.outdir}/${params.subdir}/qc", mode: 'copy' , overwrite: 'true', pattern: '*.json'
 
     input:
         tuple val(group), val(id), path(vcf)
