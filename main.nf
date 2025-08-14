@@ -2357,7 +2357,12 @@ process split_normalize {
 	// rename M to MT because genmod does not recognize M
 	if (params.onco || params.assay == "modycf") {
 		"""
-		zcat $vcf $vcfconcat > ${id}.concat.freebayes.vcf
+		if [[ -s "$vcfconcat" ]]; then
+			zcat $vcf $vcfconcat > ${id}.concat.freebayes.vcf
+		else
+			# Otherwise it crashes for modycf where $vcfconcat is empty
+			zcat $vcf > ${id}.concat.freebayes.vcf
+		fi
 		vcfbreakmulti ${id}.concat.freebayes.vcf > ${group}.multibreak.vcf
 		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
 		bcftools sort ${group}.norm.vcf | vcfuniq > ${group}.norm.uniq.vcf

@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### 3.17.2
+* Fix so that modycf does not crash in split_normalize
+* Sort QC output JSON on keys to allow easy diffing in PipeEval
+* Add GitHub action to run Pytest
+
 ### 3.17.1
 * Fix median calculation bug in qc_sentieon.pl
 

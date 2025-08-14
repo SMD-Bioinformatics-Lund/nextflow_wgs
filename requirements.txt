@@ -3,3 +3,4 @@ charset-normalizer==3.3.2
 idna==3.8
 requests==2.32.3
 urllib3==2.2.2
+pytest==8.4.1
