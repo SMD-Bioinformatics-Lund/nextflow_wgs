@@ -24,7 +24,7 @@ def parse_genotype_file(genotype_file_path: str) -> Dict[str, str]:
         for line in genotype_file:
             if line.startswith("#"):
                 continue
-            parts = line.split()
+            parts = line.split("\t")
             var_id = parts[2]
             sample_genotype = parts[9]
             genotype = sample_genotype.split(":")[0]
