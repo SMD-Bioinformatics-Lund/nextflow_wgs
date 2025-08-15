@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.17.3
+* Changed annotation keys for dbVar. CLNSIG CLNACC now available for scout for SVs
+
 ### 3.17.2
 * Fix so that modycf does not crash in split_normalize
 * Sort QC output JSON on keys to allow easy diffing in PipeEval
