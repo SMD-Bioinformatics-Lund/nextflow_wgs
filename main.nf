@@ -2894,14 +2894,14 @@ process gens_v4_cron {
 				--sample-id $id \\
 				--case-id $group \\
 				--genome-build 38 \\
-				--file ${params.gens_accessdir}/${track_bed.getName()} \\
+				--file ${params.gens_accessdir}/${track_roh.getName()} \\
 				--name \\\"ROH\\\"" >> ${id}.gens_v4
 			
 			echo "gens load sample-annotation \\
 				--sample-id $id \\
 				--case-id $group \\
 				--genome-build 38 \\
-				--file ${params.gens_accessdir}/${track_bed.getName()} \\
+				--file ${params.gens_accessdir}/${track_upd.getName()} \\
 				--name \\\"UPD\\\"" >> ${id}.gens_v4
 		fi
 		"""
