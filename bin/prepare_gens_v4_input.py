@@ -69,7 +69,14 @@ def main(
 
     with open_file(out_gens_track_upd, "w") as out_fh:
         for entry in upd_entries:
-            color = color_upd_paternal if entry.origin == "PATERNAL" else color_upd_maternal
+            if entry.origin == "PATERNAL":
+                color = color_upd_paternal
+            elif entry.origin == "MATERNAL":
+                color = color_upd_maternal
+            else:
+                raise ValueError(
+                    f"The entry.origin of '{entry.origin}' is not expected, expected PATERNAL or MATERNAL"
+                )
             print("\t".join(entry.get_bed_fields(color)), file=out_fh)
 
     LOG.info("Writing per-chromosome meta to %s", str(out_chrom_meta))
@@ -138,7 +145,17 @@ class UPDEntry:
         return self.end - self.start
 
     def get_bed_fields(self, color: str) -> List[str]:
-        return [self.chrom, str(self.start), str(self.end), f"UPD ({self.origin})", ".", ".", ".", ".", color]
+        return [
+            self.chrom,
+            str(self.start),
+            str(self.end),
+            f"UPD ({self.origin})",
+            ".",
+            ".",
+            ".",
+            ".",
+            color,
+        ]
 
 
 class CovEntry:
@@ -287,7 +304,7 @@ def parse_upd(upd: Path) -> List[UPDEntry]:
 
 
 def open_file(path: Path, read_or_write: str) -> TextIO:
-    
+
     if read_or_write == "w":
         path.parent.mkdir(parents=True, exist_ok=True)
 
