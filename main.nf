@@ -480,8 +480,6 @@ workflow NEXTFLOW_WGS {
 
 			ch_versions = ch_versions.mix(upd.out.versions.first())
 			ch_versions = ch_versions.mix(roh.out.versions.first())
-
-
 		}
 	}
 
@@ -2841,7 +2839,8 @@ process generate_gens_v4_meta {
 				--out_meta "${id}.meta.tsv" \\
 				--out_chrom_meta "${id}.chrom_meta.tsv"
 		else
-			touch "${id}.gens_track.bed"
+			touch "${id}.gens_track.roh.bed"
+			touch "${id}.gens_track.upd.bed"
 			touch "${id}.meta.tsv"
 			touch "${id}.chrom_meta.tsv"
 		fi
@@ -2849,7 +2848,8 @@ process generate_gens_v4_meta {
 
 	stub:
 		"""
-		touch "${id}.gens_track.bed"
+		touch "${id}.gens_track.roh.bed"
+		touch "${id}.gens_track.upd.bed"
 		touch "${id}.meta.tsv"
 		touch "${id}.chrom_meta.tsv"
 
