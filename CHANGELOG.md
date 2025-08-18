@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.18.1
+* Fix father/mother mismatch flip in new Gens UPD tracks
+* Split UPD and ROH into two separate tracks for new Gens tracks
+
 ### 3.18.0
 * Add ID-SNPs
 

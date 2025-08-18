@@ -38,7 +38,8 @@ def main(
     color_roh: str,
     color_upd_maternal: str,
     color_upd_paternal: str,
-    out_gens_track: Path,
+    out_gens_track_roh: Path,
+    out_gens_track_upd: Path,
     out_chrom_meta: Path,
     out_meta: Path,
 ):
@@ -61,10 +62,12 @@ def main(
     )
     roh_perc = float(tot_roh_length) / float(total_chrom_length) * 100
 
-    LOG.info("Writing global meta to %s", str(out_gens_track))
-    with open_file(out_gens_track, "w") as out_fh:
+    LOG.info("Writing global meta to %s", str(out_gens_track_roh))
+    with open_file(out_gens_track_roh, "w") as out_fh:
         for entry in roh_entries:
             print("\t".join(entry.get_bed_fields(color_roh)), file=out_fh)
+
+    with open_file(out_gens_track_upd, "w") as out_fh:
         for entry in upd_entries:
             color = color_upd_paternal if entry.origin == "PATERNAL" else color_upd_maternal
             print("\t".join(entry.get_bed_fields(color)), file=out_fh)
@@ -368,7 +371,10 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "--out_gens_track", required=True, type=Path, help="Bed ranges with UPD / ROH information"
+        "--out_gens_track_roh", required=True, type=Path, help="Bed ranges with ROH information"
+    )
+    parser.add_argument(
+        "--out_gens_track_upd", required=True, type=Path, help="Bed ranges with UPD information"
     )
     parser.add_argument(
         "--out_meta", required=True, type=Path, help="Output global meta info (i.e. ROH%)"
@@ -403,7 +409,8 @@ if __name__ == "__main__":
         args.color_roh,
         args.color_upd_maternal,
         args.color_upd_paternal,
-        args.out_gens_track,
+        args.out_gens_track_roh,
+        args.out_gens_track_upd,
         args.out_chrom_meta,
         args.out_meta,
     )

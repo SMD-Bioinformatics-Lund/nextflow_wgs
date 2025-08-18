@@ -2820,7 +2820,7 @@ process generate_gens_v4_meta {
 		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoise), path(roh), path(upd_bed), path(upd_sites)
 
 	output:
-		tuple val(group), val(id), val(type), val(sex), path("${id}.gens_track.bed"), path("${id}.meta.tsv"), path("${id}.chrom_meta.tsv"), emit: meta
+		tuple val(group), val(id), val(type), val(sex), path("${id}.gens_track.roh.bed"), path("${id}.gens_track.upd.bed"), path("${id}.meta.tsv"), path("${id}.chrom_meta.tsv"), emit: meta
 	
 	when:
 		params.prepare_gens_data
@@ -2836,7 +2836,8 @@ process generate_gens_v4_meta {
 				--chrom_lengths ${params.GENOMEDICT} \\
 				--sample ${id} \\
 				--sex ${sex} \\
-				--out_gens_track "${id}.gens_track.bed" \\
+				--out_gens_track_roh "${id}.gens_track.roh.bed" \\
+				--out_gens_track_upd "${id}.gens_track.upd.bed" \\
 				--out_meta "${id}.meta.tsv" \\
 				--out_chrom_meta "${id}.chrom_meta.tsv"
 		else
@@ -2864,7 +2865,7 @@ process gens_v4_cron {
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(id), val(type), val(sex), path(track_bed), path(meta_tsv), path(chrom_meta_tsv)
+		tuple val(group), val(id), val(type), val(sex), path(track_roh), path(track_upd), path(meta_tsv), path(chrom_meta_tsv)
 	
 	output:
 		path("${id}.gens_v4"), emit: gens_v4_middleman
@@ -2894,7 +2895,14 @@ process gens_v4_cron {
 				--case-id $group \\
 				--genome-build 38 \\
 				--file ${params.gens_accessdir}/${track_bed.getName()} \\
-				--name \\\"UPD and ROH\\\"" >> ${id}.gens_v4
+				--name \\\"ROH\\\"" >> ${id}.gens_v4
+			
+			echo "gens load sample-annotation \\
+				--sample-id $id \\
+				--case-id $group \\
+				--genome-build 38 \\
+				--file ${params.gens_accessdir}/${track_bed.getName()} \\
+				--name \\\"UPD\\\"" >> ${id}.gens_v4
 		fi
 		"""
 	
