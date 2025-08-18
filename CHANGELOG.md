@@ -1,7 +1,11 @@
 # CHANGELOG
 
-### 3.17.3
+
+### 3.18.1
 * Changed annotation keys for dbVar. CLNSIG CLNACC now available for scout for SVs
+
+### 3.18.0
+* Add ID-SNPs
 
 ### 3.17.2
 * Fix so that modycf does not crash in split_normalize
