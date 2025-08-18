@@ -1,5 +1,9 @@
 # CHANGELOG
 
+
+### 3.18.1
+* Changed annotation keys for dbVar. CLNSIG CLNACC now available for scout for SVs
+
 ### 3.18.0
 * Add ID-SNPs
 
