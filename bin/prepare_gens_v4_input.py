@@ -186,20 +186,20 @@ def parse_upd_sites(upd_sites: Path) -> Dict[str, Dict[str, str]]:
         chrom_tot = sum_per_chrom[chrom]
         chrom_types: Dict[str, int] = sum_chrom_type[chrom]
 
-        paternal = chrom_types.get("UPD_PATERNAL_ORIGIN") or 0
-        paternal_perc = round(100 * paternal / chrom_tot, 1) if chrom_tot > 0 else 0
-        maternal = chrom_types.get("UPD_MATERNAL_ORIGIN") or 0
-        maternal_perc = round(100 * maternal / chrom_tot, 1) if chrom_tot > 0 else 0
+        paternal_origin = chrom_types.get("UPD_PATERNAL_ORIGIN") or 0
+        paternal_origin_perc = round(100 * paternal_origin / chrom_tot, 1) if chrom_tot > 0 else 0
+        maternal_origin = chrom_types.get("UPD_MATERNAL_ORIGIN") or 0
+        maternal_origin_perc = round(100 * maternal_origin / chrom_tot, 1) if chrom_tot > 0 else 0
         anti = chrom_types.get("ANTI_UPD") or 0
         anti_perc = round(100 * anti / chrom_tot, 1) if chrom_tot > 0 else 0
-        non_informative = paternal + maternal + anti
+        non_informative = paternal_origin + maternal_origin + anti
         non_informative_perc = round(100 * non_informative / chrom_tot, 1) if chrom_tot > 0 else 0
 
         chrom_info: Dict[str, str] = {
             "Total SNPs": str(chrom_tot),
             "Non-informative": f"{non_informative} ({non_informative_perc}%)",
-            "Mismatch father": f"{paternal} ({paternal_perc}%)",
-            "Mismatch mother": f"{maternal} ({maternal_perc}%)",
+            "Mismatch mother": f"{paternal_origin} ({paternal_origin_perc}%)",
+            "Mismatch father": f"{maternal_origin} ({maternal_origin_perc}%)",
             "Anti-UPD": f"{anti} ({anti_perc}%)",
         }
 
