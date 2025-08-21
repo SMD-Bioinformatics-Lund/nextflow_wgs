@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.18.3
+* Update deploy script to also copy modules folder
+
 ### 3.18.2
 * Fix father/mother mismatch flip in new Gens UPD tracks
 * Split UPD and ROH into two separate tracks for new Gens tracks
