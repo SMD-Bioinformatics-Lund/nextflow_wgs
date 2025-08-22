@@ -38,7 +38,8 @@ def main(
     color_roh: str,
     color_upd_maternal: str,
     color_upd_paternal: str,
-    out_gens_track: Path,
+    out_gens_track_roh: Path,
+    out_gens_track_upd: Path,
     out_chrom_meta: Path,
     out_meta: Path,
 ):
@@ -61,12 +62,21 @@ def main(
     )
     roh_perc = float(tot_roh_length) / float(total_chrom_length) * 100
 
-    LOG.info("Writing global meta to %s", str(out_gens_track))
-    with open_file(out_gens_track, "w") as out_fh:
+    LOG.info("Writing global meta to %s", str(out_gens_track_roh))
+    with open_file(out_gens_track_roh, "w") as out_fh:
         for entry in roh_entries:
             print("\t".join(entry.get_bed_fields(color_roh)), file=out_fh)
+
+    with open_file(out_gens_track_upd, "w") as out_fh:
         for entry in upd_entries:
-            color = color_upd_paternal if entry.origin == "PATERNAL" else color_upd_maternal
+            if entry.origin == "PATERNAL":
+                color = color_upd_paternal
+            elif entry.origin == "MATERNAL":
+                color = color_upd_maternal
+            else:
+                raise ValueError(
+                    f"The entry.origin of '{entry.origin}' is not expected, expected PATERNAL or MATERNAL"
+                )
             print("\t".join(entry.get_bed_fields(color)), file=out_fh)
 
     LOG.info("Writing per-chromosome meta to %s", str(out_chrom_meta))
@@ -135,7 +145,17 @@ class UPDEntry:
         return self.end - self.start
 
     def get_bed_fields(self, color: str) -> List[str]:
-        return [self.chrom, str(self.start), str(self.end), f"UPD ({self.origin})", ".", ".", ".", ".", color]
+        return [
+            self.chrom,
+            str(self.start),
+            str(self.end),
+            f"UPD ({self.origin})",
+            ".",
+            ".",
+            ".",
+            ".",
+            color,
+        ]
 
 
 class CovEntry:
@@ -186,20 +206,20 @@ def parse_upd_sites(upd_sites: Path) -> Dict[str, Dict[str, str]]:
         chrom_tot = sum_per_chrom[chrom]
         chrom_types: Dict[str, int] = sum_chrom_type[chrom]
 
-        paternal = chrom_types.get("UPD_PATERNAL_ORIGIN") or 0
-        paternal_perc = round(100 * paternal / chrom_tot, 1) if chrom_tot > 0 else 0
-        maternal = chrom_types.get("UPD_MATERNAL_ORIGIN") or 0
-        maternal_perc = round(100 * maternal / chrom_tot, 1) if chrom_tot > 0 else 0
+        paternal_origin = chrom_types.get("UPD_PATERNAL_ORIGIN") or 0
+        paternal_origin_perc = round(100 * paternal_origin / chrom_tot, 1) if chrom_tot > 0 else 0
+        maternal_origin = chrom_types.get("UPD_MATERNAL_ORIGIN") or 0
+        maternal_origin_perc = round(100 * maternal_origin / chrom_tot, 1) if chrom_tot > 0 else 0
         anti = chrom_types.get("ANTI_UPD") or 0
         anti_perc = round(100 * anti / chrom_tot, 1) if chrom_tot > 0 else 0
-        non_informative = paternal + maternal + anti
+        non_informative = paternal_origin + maternal_origin + anti
         non_informative_perc = round(100 * non_informative / chrom_tot, 1) if chrom_tot > 0 else 0
 
         chrom_info: Dict[str, str] = {
             "Total SNPs": str(chrom_tot),
             "Non-informative": f"{non_informative} ({non_informative_perc}%)",
-            "Mismatch father": f"{paternal} ({paternal_perc}%)",
-            "Mismatch mother": f"{maternal} ({maternal_perc}%)",
+            "Mismatch mother": f"{paternal_origin} ({paternal_origin_perc}%)",
+            "Mismatch father": f"{maternal_origin} ({maternal_origin_perc}%)",
             "Anti-UPD": f"{anti} ({anti_perc}%)",
         }
 
@@ -284,7 +304,7 @@ def parse_upd(upd: Path) -> List[UPDEntry]:
 
 
 def open_file(path: Path, read_or_write: str) -> TextIO:
-    
+
     if read_or_write == "w":
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -368,7 +388,10 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "--out_gens_track", required=True, type=Path, help="Bed ranges with UPD / ROH information"
+        "--out_gens_track_roh", required=True, type=Path, help="Bed ranges with ROH information"
+    )
+    parser.add_argument(
+        "--out_gens_track_upd", required=True, type=Path, help="Bed ranges with UPD information"
     )
     parser.add_argument(
         "--out_meta", required=True, type=Path, help="Output global meta info (i.e. ROH%)"
@@ -403,7 +426,8 @@ if __name__ == "__main__":
         args.color_roh,
         args.color_upd_maternal,
         args.color_upd_paternal,
-        args.out_gens_track,
+        args.out_gens_track_roh,
+        args.out_gens_track_upd,
         args.out_chrom_meta,
         args.out_meta,
     )

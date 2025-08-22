@@ -1,7 +1,14 @@
 # CHANGELOG
 
-### 3.18.2
+### 3.18.4
 * Reinstate publishDir for verifybam. Will only have effect on wgs.
+
+### 3.18.3
+* Update deploy script to also copy modules folder
+
+### 3.18.2
+* Fix father/mother mismatch flip in new Gens UPD tracks
+* Split UPD and ROH into two separate tracks for new Gens tracks
 
 ### 3.18.1
 * Changed annotation keys for dbVar. CLNSIG CLNACC now available for scout for SVs
