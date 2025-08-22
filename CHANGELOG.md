@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.18.4
+* Reinstate publishDir for verifybam. Will only have effect on wgs.
+
 ### 3.18.3
 * Update deploy script to also copy modules folder
 

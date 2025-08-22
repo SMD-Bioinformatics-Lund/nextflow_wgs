@@ -1294,7 +1294,7 @@ def d4_coverage_version(task) {
 process verifybamid2 {
 	cpus 16
 	memory '10 GB'
-	// publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: 'true', pattern: '*.selfSM'
+	publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: 'true', pattern: '*.selfSM'
 	tag "$id"
 	container  "${params.container_verifybamid2}"
 
