@@ -1,5 +1,11 @@
 # CHANGELOG
 
+### 3.18.5
+* Update bed file:
+  - New user-added genes
+  - Clinvar updated from 2024-12-30 to 2025-08-17
+  
+
 ### 3.18.4
 * Reinstate publishDir for verifybam. Will only have effect on wgs.
 
