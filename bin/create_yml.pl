@@ -138,6 +138,14 @@ my %assays = (
         'ahus' => {
             'institute' => 'ahus',
             'institute_owner' => 'klingen-genlista'
+        },
+        'fh' => {
+            'institute' => 'MODY',
+            'institute_owner' => 'klingen-genlista'
+        },
+        'aat' => {
+            'institute' => 'MODY',
+            'institute_owner' => 'klingen-genlista'
         }
     },
     'myeloid-const' => {
