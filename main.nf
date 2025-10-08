@@ -643,7 +643,7 @@ workflow NEXTFLOW_WGS {
 				postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf
 			)
 
-			ch_panel_svs_count = ch_postprocessed_merged_sv_vcf.out.merged_postprocessed_vcf.map { item ->
+			ch_panel_svs_count = postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf.map { item ->
 				def group = item[0]
 				def id = item[1]
 				def merged_vcf = item[2]
