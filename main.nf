@@ -650,11 +650,10 @@ workflow NEXTFLOW_WGS {
 
 				println "merged vcf from tuple: ${merged_vcf}"
 
-				def count = 0   // Default value for stub runs
-
-				def COUNT
+				def count = 1   // Default value for stub runs
 
 				if (merged_vcf.exists() && merged_vcf.size() > 0) {
+					count = 0
 					println "Reading qc_json file: ${qc_json}"
 
 					vcf.eachLine { line ->
@@ -662,21 +661,15 @@ workflow NEXTFLOW_WGS {
 							count++
 						}
 					}
-
-					COUNT = count ?: 0  // Default to "NA" if not present
-
-				} else {
-					println "Warning: Empty or missing qc_json file for ${id}. Using default stub values."
-					COUNT = 0
-				}
-				if (COUNT > 0) {
 					tuple(group, id, merged_vcf)
-				}
-				else {
-					Channel.empty()
-				}
 				
+			}.filter { group, id, merged_vcf, count ->
+    			count > 0
 			}
+			.map { group, id, merged_vcf, count ->
+    			tuple(group, id, merged_vcf)
+			}
+
 			ch_panel_svs_count.view()
 
 			ch_versions = ch_versions.mix(manta_panel.out.versions.first())
