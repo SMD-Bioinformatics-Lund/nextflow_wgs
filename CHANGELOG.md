@@ -1,5 +1,12 @@
 # CHANGELOG
 
+### 3.18.7
+* constitutional profile
+  - bed and interval files
+  - SV references
+* SV logic changes for panels
+ - added a function to count SV calls, if 0 no annotation
+
 ### 3.18.6
 * gmshem profile
   - bed and interval files
