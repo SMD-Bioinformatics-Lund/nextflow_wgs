@@ -1,6 +1,6 @@
 # CHANGELOG
 
-### 3.18.7
+### 3.19.0
 * constitutional profile
   - bed and interval files
   - SV references
