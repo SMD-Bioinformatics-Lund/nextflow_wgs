@@ -643,17 +643,16 @@ workflow NEXTFLOW_WGS {
 				postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf
 			)
 
+			// COUNT NUMBER OF SVs, if no called don't do annotation ///
 			ch_panel_svs_count = postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf.map { item ->
 				def group = item[0]
 				def id = item[1]
 				def merged_vcf = item[2]
 
-				println "merged vcf from tuple: ${merged_vcf}"
-
 				def count = 1   // Default value for stub runs
 
 				if (merged_vcf.exists() && merged_vcf.size() > 0) {
-					count = 0
+					count = 0  // Reset stub value
 					println "Reading qc_json file: ${qc_json}"
 
 					vcf.eachLine { line ->
@@ -663,7 +662,7 @@ workflow NEXTFLOW_WGS {
 					}
 				
 				}
-				tuple(group, id, merged_vcf)
+				tuple(group, id, merged_vcf, count)
 			}
 			.filter { group, id, merged_vcf, count ->
     			count > 0
@@ -671,8 +670,6 @@ workflow NEXTFLOW_WGS {
 			.map { group, id, merged_vcf, count ->
     			tuple(group, id, merged_vcf)
 			}
-
-			ch_panel_svs_count.view()
 
 			ch_versions = ch_versions.mix(manta_panel.out.versions.first())
 			ch_versions = ch_versions.mix(cnvkit_panel.out.versions.first())
