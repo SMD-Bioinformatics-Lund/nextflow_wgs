@@ -650,7 +650,7 @@ workflow NEXTFLOW_WGS {
 
 				println "merged vcf from tuple: ${merged_vcf}"
 
-				def count = "NA"   // Default value for stub runs
+				def count = 0   // Default value for stub runs
 
 				def COUNT
 
@@ -663,13 +663,19 @@ workflow NEXTFLOW_WGS {
 						}
 					}
 
-					COUNT = count ?: "NA"  // Default to "NA" if not present
+					COUNT = count ?: 0  // Default to "NA" if not present
 
 				} else {
 					println "Warning: Empty or missing qc_json file for ${id}. Using default stub values."
-					COUNT = 1
+					COUNT = 0
 				}
-				tuple(group, id, COUNT)
+				if (COUNT > 0) {
+					tuple(group, id, merged_vcf)
+				}
+				else {
+					Channel.empty()
+				}
+				
 			}
 			ch_panel_svs_count.view()
 
@@ -681,7 +687,7 @@ workflow NEXTFLOW_WGS {
 
 		// ANNOTATE SVs //
 		ch_proband_meta = ch_split_normalize_meta
-		filter_proband_null_calls(ch_postprocessed_merged_sv_vcf,ch_proband_meta)
+		filter_proband_null_calls(ch_panel_svs_count,ch_proband_meta)
 		tdup_to_dup(filter_proband_null_calls.out.filtered_vcf)
 		annotsv(tdup_to_dup.out.renamed_vcf)
 		vep_sv(tdup_to_dup.out.renamed_vcf)
