@@ -653,7 +653,7 @@ workflow NEXTFLOW_WGS {
 
 				if (merged_vcf.exists() && merged_vcf.size() > 0) {
 					count = 0  // Reset stub value
-					vcf.eachLine { line ->
+					merged_vcf.eachLine { line ->
 						if (!line.startsWith('#')) {
 							count++
 						}

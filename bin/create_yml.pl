@@ -168,6 +168,31 @@ my %assays = (
             'institute' => 'cf-test',
             'institute_owner' => 'cf',
         }
+    },
+    'constitutionalv1-0' => {
+        'rankm' => 'OncoV2.0-SNV-RM-v5.0',
+        'svrankm' => 'OncoV2.0-SV-Panel-RM-v1.0.2',
+        'capture_kit' => 'constitutionalv1-0',
+        'mody' => {
+            'institute' => 'MODY',
+            'institute_owner' => 'MODY',
+        },
+        'fh' => {
+            'institute' => 'FH',
+            'institute_owner' => 'FH'
+        },
+        'aat' => {
+            'institute' => 'MODY',
+            'institute_owner' => 'MODY'
+        },
+        'hab' => {
+            'institute' => 'hemofili',
+            'institute_owner' => 'hemofili'
+        },
+        'cf' => {
+            'institute' => 'cystic-fibrosis',
+            'institute_owner' => 'cystic-fibrosis',
+        }
     }
     
 );
