@@ -643,6 +643,36 @@ workflow NEXTFLOW_WGS {
 				postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf
 			)
 
+			ch_panel_svs_count = ch_postprocessed_merged_sv_vcf.out.merged_postprocessed_vcf.map { item ->
+				def group = item[0]
+				def id = item[1]
+				def merged_vcf = item[2]
+
+				println "merged vcf from tuple: ${merged_vcf}"
+
+				def count = "NA"   // Default value for stub runs
+
+				def COUNT
+
+				if (merged_vcf.exists() && merged_vcf.size() > 0) {
+					println "Reading qc_json file: ${qc_json}"
+
+					vcf.eachLine { line ->
+						if (!line.startsWith('#')) {
+							count++
+						}
+					}
+
+					COUNT = count ?: "NA"  // Default to "NA" if not present
+
+				} else {
+					println "Warning: Empty or missing qc_json file for ${id}. Using default stub values."
+					COUNT = 1
+				}
+				tuple(group, id, COUNT)
+			}
+			ch_panel_svs_count.view()
+
 			ch_versions = ch_versions.mix(manta_panel.out.versions.first())
 			ch_versions = ch_versions.mix(cnvkit_panel.out.versions.first())
 			ch_versions = ch_versions.mix(svdb_merge_panel.out.versions.first())
