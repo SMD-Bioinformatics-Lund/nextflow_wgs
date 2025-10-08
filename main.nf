@@ -661,9 +661,11 @@ workflow NEXTFLOW_WGS {
 							count++
 						}
 					}
-					tuple(group, id, merged_vcf)
 				
-			}.filter { group, id, merged_vcf, count ->
+				}
+				tuple(group, id, merged_vcf)
+			}
+			.filter { group, id, merged_vcf, count ->
     			count > 0
 			}
 			.map { group, id, merged_vcf, count ->
