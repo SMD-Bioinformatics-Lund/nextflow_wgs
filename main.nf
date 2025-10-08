@@ -653,8 +653,6 @@ workflow NEXTFLOW_WGS {
 
 				if (merged_vcf.exists() && merged_vcf.size() > 0) {
 					count = 0  // Reset stub value
-					println "Reading qc_json file: ${qc_json}"
-
 					vcf.eachLine { line ->
 						if (!line.startsWith('#')) {
 							count++
