@@ -668,11 +668,13 @@ workflow NEXTFLOW_WGS {
 			}
 
 			// Split into two channels: one with SVs, one without
-			ch_panel_svs_present = ch_panel_svs_check.filter { group, id, merged_vcf, has_sv -> has_sv }
-													.map { group, id, merged_vcf, has_sv -> tuple(group, id, merged_vcf) }
+			ch_panel_svs_present = ch_panel_svs_check
+				.filter { group, id, merged_vcf, has_sv -> has_sv }
+				.map { group, id, merged_vcf, has_sv -> tuple(group, id, merged_vcf) }
 
-			ch_panel_svs_absent  = ch_panel_svs_check.filter { group, id, merged_vcf, has_sv -> !has_sv }
-													.map { group, id, merged_vcf, has_sv -> tuple(group, "proband", merged_vcf) } //this assumes no trio on panel ever. 
+			ch_panel_svs_absent = ch_panel_svs_check
+				.filter { group, id, merged_vcf, has_sv -> !has_sv }
+				.map { group, id, merged_vcf, has_sv -> tuple(group, "proband", merged_vcf) } //this assumes no trio on panel ever. 
 
 			ch_versions = ch_versions.mix(manta_panel.out.versions.first())
 			ch_versions = ch_versions.mix(cnvkit_panel.out.versions.first())
