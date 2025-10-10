@@ -649,26 +649,30 @@ workflow NEXTFLOW_WGS {
 				def id = item[1]
 				def merged_vcf = item[2]
 
-				def has_sv = true   // Default value for stub runs
+				def has_sv = true // to allow for stub
 
 				if (merged_vcf.exists() && merged_vcf.size() > 0) {
-					has_sv = false   // Reset stub value
-					merged_vcf.eachLine { line ->
-						if (!line.startsWith('#')) {
-							has_sv = true
+					has_sv = false
+					merged_vcf.withReader { reader ->
+						String line
+						while ((line = reader.readLine()) != null) {
+							if (!line.startsWith('#')) {
+								has_sv = true
+								break
+							}
 						}
 					}
-				
 				}
+
 				tuple(group, id, merged_vcf, has_sv)
 			}
 
 			// Split into two channels: one with SVs, one without
 			ch_panel_svs_present = ch_panel_svs_check.filter { group, id, merged_vcf, has_sv -> has_sv }
-													.map { group, id, merged_vcf }
+													.map { tuple(group, id, merged_vcf) }
 
 			ch_panel_svs_absent  = ch_panel_svs_check.filter { group, id, merged_vcf, has_sv -> !has_sv }
-													.map { group, merged_vcf }
+													.map { tuple(group, merged_vcf) }
 
 			ch_versions = ch_versions.mix(manta_panel.out.versions.first())
 			ch_versions = ch_versions.mix(cnvkit_panel.out.versions.first())
