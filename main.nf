@@ -649,21 +649,17 @@ workflow NEXTFLOW_WGS {
 				def id = item[1]
 				def merged_vcf = item[2]
 
-				def has_sv = true // to allow for stub
+				def has_sv = true   // Default value for stub runs
 
 				if (merged_vcf.exists() && merged_vcf.size() > 0) {
-					has_sv = false
-					merged_vcf.withReader { reader ->
-						String line
-						while ((line = reader.readLine()) != null) {
-							if (!line.startsWith('#')) {
-								has_sv = true
-								break
-							}
+					has_sv = false   // Reset stub value
+					merged_vcf.eachLine { line ->
+						if (!line.startsWith('#')) {
+							has_sv = true
 						}
 					}
+				
 				}
-
 				tuple(group, id, merged_vcf, has_sv)
 			}
 
