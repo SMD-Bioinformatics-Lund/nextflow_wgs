@@ -7,12 +7,6 @@
 * SV logic changes for panels
  - added a function to count SV calls, if 0 no annotation
 
-### 3.18.6
-* gmshem profile
-  - bed and interval files
-  - new output and cron folders
-  - organized profile for readability
-
 ### 3.18.5
 * Update bed file:
   - New user-added genes
