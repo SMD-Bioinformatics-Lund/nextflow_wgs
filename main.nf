@@ -672,7 +672,7 @@ workflow NEXTFLOW_WGS {
 													.map { group, id, merged_vcf, has_sv -> tuple(group, id, merged_vcf) }
 
 			ch_panel_svs_absent  = ch_panel_svs_check.filter { group, id, merged_vcf, has_sv -> !has_sv }
-													.map { group, id, merged_vcf, has_sv -> tuple(group, merged_vcf) }
+													.map { group, id, merged_vcf, has_sv -> tuple(group, "base", merged_vcf) }
 
 			ch_versions = ch_versions.mix(manta_panel.out.versions.first())
 			ch_versions = ch_versions.mix(cnvkit_panel.out.versions.first())
@@ -701,7 +701,7 @@ workflow NEXTFLOW_WGS {
 		add_omim_morbid_to_svvcf(add_annotsv_to_svvcf.out.vcf)
 		add_callerpenalties_to_svvcf(add_omim_morbid_to_svvcf.out.vcf)
 
-		ch_add_geneticmodels_to_svvcf_input = add_callerpenalties_to_svvcf.out.vcf.mix(ch_panel_svs_absent).cross(ch_ped_prescore)
+		ch_add_geneticmodels_to_svvcf_input = add_callerpenalties_to_svvcf.out.vcf.cross(ch_ped_prescore)
 			.map{
 				item ->
 				def group = item[0][0]
@@ -712,7 +712,7 @@ workflow NEXTFLOW_WGS {
 			}
 		add_geneticmodels_to_svvcf(ch_add_geneticmodels_to_svvcf_input)
 		score_sv(add_geneticmodels_to_svvcf.out.annotated_sv_vcf)
-		bgzip_scored_genmod(score_sv.out.scored_vcf)
+		bgzip_scored_genmod(score_sv.out.scored_vcf.mix(ch_panel_svs_absent))
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
 
 		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf, ch_svvcf_to_bed_meta)
