@@ -644,30 +644,35 @@ workflow NEXTFLOW_WGS {
 			)
 
 			// COUNT NUMBER OF SVs, if no called don't do annotation ///
-			ch_panel_svs_count = postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf.map { item ->
+			ch_panel_svs_check = postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf.map { item ->
 				def group = item[0]
 				def id = item[1]
 				def merged_vcf = item[2]
 
-				def count = 1   // Default value for stub runs
+				def has_sv = true // to allow for stub
 
 				if (merged_vcf.exists() && merged_vcf.size() > 0) {
-					count = 0  // Reset stub value
-					merged_vcf.eachLine { line ->
-						if (!line.startsWith('#')) {
-							count++
+					has_sv = false
+					merged_vcf.withReader { reader ->
+						reader.eachLine { line ->
+							if (!line.startsWith('#')) {
+								has_sv = true
+								reader.close()
+								return
+							}
 						}
 					}
-				
 				}
-				tuple(group, id, merged_vcf, count)
+
+				tuple(group, id, merged_vcf, has_sv)
 			}
-			.filter { group, id, merged_vcf, count ->
-    			count > 0
-			}
-			.map { group, id, merged_vcf, count ->
-    			tuple(group, id, merged_vcf)
-			}
+
+			// Split into two channels: one with SVs, one without
+			ch_panel_svs_present = ch_panel_svs_check.filter { group, id, merged_vcf, has_sv -> has_sv }
+													.map { group, id, merged_vcf }
+
+			ch_panel_svs_absent  = ch_panel_svs_check.filter { group, id, merged_vcf, has_sv -> !has_sv }
+													.map { group, merged_vcf }
 
 			ch_versions = ch_versions.mix(manta_panel.out.versions.first())
 			ch_versions = ch_versions.mix(cnvkit_panel.out.versions.first())
@@ -677,7 +682,7 @@ workflow NEXTFLOW_WGS {
 
 		// ANNOTATE SVs //
 		ch_proband_meta = ch_split_normalize_meta
-		filter_proband_null_calls(ch_panel_svs_count,ch_proband_meta)
+		filter_proband_null_calls(ch_panel_svs_present,ch_proband_meta)
 		tdup_to_dup(filter_proband_null_calls.out.filtered_vcf)
 		annotsv(tdup_to_dup.out.renamed_vcf)
 		vep_sv(tdup_to_dup.out.renamed_vcf)
@@ -696,7 +701,7 @@ workflow NEXTFLOW_WGS {
 		add_omim_morbid_to_svvcf(add_annotsv_to_svvcf.out.vcf)
 		add_callerpenalties_to_svvcf(add_omim_morbid_to_svvcf.out.vcf)
 
-		ch_add_geneticmodels_to_svvcf_input = add_callerpenalties_to_svvcf.out.vcf.cross(ch_ped_prescore)
+		ch_add_geneticmodels_to_svvcf_input = add_callerpenalties_to_svvcf.out.vcf.mix(ch_panel_svs_absent).cross(ch_ped_prescore)
 			.map{
 				item ->
 				def group = item[0][0]
