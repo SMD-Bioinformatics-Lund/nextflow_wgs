@@ -654,11 +654,11 @@ workflow NEXTFLOW_WGS {
 				if (merged_vcf.exists() && merged_vcf.size() > 0) {
 					has_sv = false
 					merged_vcf.withReader { reader ->
-						reader.eachLine { line ->
+						String line
+						while ((line = reader.readLine()) != null) {
 							if (!line.startsWith('#')) {
 								has_sv = true
-								reader.close()
-								return
+								break
 							}
 						}
 					}
