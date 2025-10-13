@@ -617,7 +617,8 @@ workflow NEXTFLOW_WGS {
 			ch_versions = ch_versions.mix(melt.out.versions.first())
 			ch_versions = ch_versions.mix(intersect_melt.out.versions.first())
 		}
-
+		ch_panel_svs_present = Channel.empty()
+		ch_panel_svs_absent = Channel.empty()
 		if (params.antype == "panel") {
 			ch_panel_merge = Channel.empty()
 			manta_panel(ch_bam_bai)
