@@ -487,6 +487,8 @@ workflow NEXTFLOW_WGS {
 
 	if (params.sv) {
 		ch_smn_tsv = Channel.empty()
+		ch_panel_svs_present = Channel.empty()
+		ch_panel_svs_absent = Channel.empty()
 		ch_postprocessed_merged_sv_vcf = Channel.empty()
 		if(params.antype  == "wgs") {
 			// SMN CALLING //
@@ -557,6 +559,7 @@ workflow NEXTFLOW_WGS {
 				ch_filtered_merged_gatk_calls.groupTuple()
 			)
 			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(svdb_merge.out.merged_bndless_vcf)
+			ch_panel_svs_present = ch_postprocessed_merged_sv_vcf
 			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge.out.merged_vcf)
 
 			ch_versions = ch_versions.mix(manta.out.versions.first())
@@ -643,6 +646,39 @@ workflow NEXTFLOW_WGS {
 				postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf
 			)
 
+			// COUNT NUMBER OF SVs, if no called don't do annotation ///
+			ch_panel_svs_check = postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf.map { item ->
+				def group = item[0]
+				def id = item[1]
+				def merged_vcf = item[2]
+
+				def has_sv = true // to allow for stub
+
+				if (merged_vcf.exists() && merged_vcf.size() > 0) {
+					has_sv = false
+					merged_vcf.withReader { reader ->
+						String line
+						while ((line = reader.readLine()) != null) {
+							if (!line.startsWith('#')) {
+								has_sv = true
+								break
+							}
+						}
+					}
+				}
+
+				tuple(group, id, merged_vcf, has_sv)
+			}
+
+			// Split into two channels: one with SVs, one without
+			ch_panel_svs_present = ch_panel_svs_check
+				.filter { group, id, merged_vcf, has_sv -> has_sv }
+				.map { group, id, merged_vcf, has_sv -> tuple(group, id, merged_vcf) }
+
+			ch_panel_svs_absent = ch_panel_svs_check
+				.filter { group, id, merged_vcf, has_sv -> !has_sv }
+				.map { group, id, merged_vcf, has_sv -> tuple(group, "proband", merged_vcf) } //this assumes no trio on panel ever. 
+
 			ch_versions = ch_versions.mix(manta_panel.out.versions.first())
 			ch_versions = ch_versions.mix(cnvkit_panel.out.versions.first())
 			ch_versions = ch_versions.mix(svdb_merge_panel.out.versions.first())
@@ -651,7 +687,7 @@ workflow NEXTFLOW_WGS {
 
 		// ANNOTATE SVs //
 		ch_proband_meta = ch_split_normalize_meta
-		filter_proband_null_calls(ch_postprocessed_merged_sv_vcf,ch_proband_meta)
+		filter_proband_null_calls(ch_panel_svs_present,ch_proband_meta)
 		tdup_to_dup(filter_proband_null_calls.out.filtered_vcf)
 		annotsv(tdup_to_dup.out.renamed_vcf)
 		vep_sv(tdup_to_dup.out.renamed_vcf)
@@ -681,7 +717,7 @@ workflow NEXTFLOW_WGS {
 			}
 		add_geneticmodels_to_svvcf(ch_add_geneticmodels_to_svvcf_input)
 		score_sv(add_geneticmodels_to_svvcf.out.annotated_sv_vcf)
-		bgzip_scored_genmod(score_sv.out.scored_vcf)
+		bgzip_scored_genmod(score_sv.out.scored_vcf.mix(ch_panel_svs_absent))
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
 
 		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf, ch_svvcf_to_bed_meta)
