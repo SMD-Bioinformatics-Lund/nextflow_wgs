@@ -487,6 +487,8 @@ workflow NEXTFLOW_WGS {
 
 	if (params.sv) {
 		ch_smn_tsv = Channel.empty()
+		ch_panel_svs_present = Channel.empty()
+		ch_panel_svs_absent = Channel.empty()
 		ch_postprocessed_merged_sv_vcf = Channel.empty()
 		if(params.antype  == "wgs") {
 			// SMN CALLING //
@@ -557,6 +559,7 @@ workflow NEXTFLOW_WGS {
 				ch_filtered_merged_gatk_calls.groupTuple()
 			)
 			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(svdb_merge.out.merged_bndless_vcf)
+			ch_panel_svs_present = ch_postprocessed_merged_sv_vcf
 			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge.out.merged_vcf)
 
 			ch_versions = ch_versions.mix(manta.out.versions.first())
@@ -617,8 +620,7 @@ workflow NEXTFLOW_WGS {
 			ch_versions = ch_versions.mix(melt.out.versions.first())
 			ch_versions = ch_versions.mix(intersect_melt.out.versions.first())
 		}
-		ch_panel_svs_present = Channel.empty()
-		ch_panel_svs_absent = Channel.empty()
+
 		if (params.antype == "panel") {
 			ch_panel_merge = Channel.empty()
 			manta_panel(ch_bam_bai)
