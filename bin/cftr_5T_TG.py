@@ -16,7 +16,11 @@ CENTER_11TG = 117548617
 PADDING_11TG = 20
 REF_TG_REPS = 11
 BAD_TG_COUNT = 13
+UPPER_RATIO_HETEROZYGOTE = 1
+LOWER_RATIO_HETEROZYGOTE = 0.5
+
 CFTR_REGION = { 
+    "chrom": "7",
     "start": 117548601,
     "end" : 117548640,
     "ref": ['T', 'T', 'T', 'T', 'G', 'A', 'T', 'G', 'T', 'G', 'T', 'G', 'T', 'G', 'T', 'G',
@@ -46,12 +50,12 @@ def main(args):
     
     variants = []
     variation_combo_str = None
-    for var in vcf_object.fetch("7", CFTR_REGION['start'], CFTR_REGION["end"]):
+    for var in vcf_object.fetch(CFTR_REGION['chrom'], CFTR_REGION['start'], CFTR_REGION["end"]):
         variants.append({
             "pos": var.pos,
             "ref": var.ref,
             "alt": var.alts[0],
-            "id": f"7_{var.pos}_{var.ref}_{var.alts[0]}"
+            "id": f"{CFTR_REGION['chrom']}_{var.pos}_{var.ref}_{var.alts[0]}"
         })
     if len(variants) == 0:
         print_vcf(vcf_object,args.out_vcf,variation_combo_str)
@@ -193,7 +197,7 @@ def find_one_or_two_alleles(allele_counts):
 
         ratio = top2 / top1 if top1 != 0 else 0
 
-        if 0.80 <= ratio <= 1:
+        if LOWER_RATIO_HETEROZYGOTE <= ratio <= UPPER_RATIO_HETEROZYGOTE:
             return sorted_items[0][0], sorted_items[1][0]
         else:
             return sorted_items[0][0], None
