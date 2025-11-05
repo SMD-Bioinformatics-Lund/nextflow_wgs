@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.19.1
+* Gens v4 label updates
+* Don't output Gens v4 UPD info for singles
+
 ### 3.19.0
 * constitutional profile
   - bed and interval files
