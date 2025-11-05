@@ -2935,7 +2935,7 @@ process gens_v4_cron {
 				--name \\\"LOH\\\"" >> ${id}.gens_v4
 
 			# Only load UPD track for proband with family
-			if [[ "$params.mode" == "family" ]]; then
+			if [[ "${params.mode}" == "family" ]]; then
 				echo "gens load sample-annotation \\
 					--sample-id $id \\
 					--case-id $group \\
