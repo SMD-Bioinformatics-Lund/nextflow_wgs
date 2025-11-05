@@ -42,6 +42,7 @@ def main(
     out_gens_track_upd: Path,
     out_chrom_meta: Path,
     out_meta: Path,
+    analysis_mode: str,
 ):
     LOG.info("Starting up")
 
@@ -52,8 +53,15 @@ def main(
     roh_entries: List[RohEntry] = parse_roh(roh_path, sample, roh_quality_threshold)
     LOG.info("Parsing UPD")
     upd_entries: List[UPDEntry] = parse_upd(upd_regions_path)
-    LOG.info("Parsing UPD sites")
-    upd_site_info: Dict[str, Dict[str, str]] = parse_upd_sites(upd_sites_path)
+
+    is_single_sample = analysis_mode == "single"
+
+    if is_single_sample:
+        LOG.info("Skipping UPD site parsing for single-sample analysis")
+        upd_site_info: Dict[str, Dict[str, str]] = defaultdict(dict)
+    else:
+        LOG.info("Parsing UPD sites")
+        upd_site_info: Dict[str, Dict[str, str]] = parse_upd_sites(upd_sites_path)
     LOG.info("Parsing coverage")
     avg_cov_entries: List[ChromCovEntry] = parse_cov(cov_path, cov_diff_threshold, sex)
 
@@ -84,17 +92,19 @@ def main(
 
         print("\t".join(["Chromosome", "type", "value", "color"]), file=out_fh)
         for chrom_cov in avg_cov_entries:
-            label = "Estimated chromosomal copy numbers"
+            label = "Estimated copy number"
             print(f"{chrom_cov.chrom}\t{label}\t{chrom_cov.cov}\t{chrom_cov.color}", file=out_fh)
 
-        upd_labels = [
-            # "Chromosome",
-            "Total SNPs",
-            "Non-informative",
-            "Mismatch father",
-            "Mismatch mother",
-            "Anti-UPD",
-        ]
+        if not is_single_sample:
+            upd_labels = [
+                "Total SNPs",
+                "Non-informative",
+                "Mismatch father",
+                "Mismatch mother",
+                "Anti-UPD",
+            ]
+        else:
+            upd_labels = []
         for chrom in CHROMS:
             for upd_label in upd_labels:
                 field_value = upd_site_info[chrom].get(upd_label, 0)
@@ -103,7 +113,7 @@ def main(
     LOG.info("Writing sample-wide meta to %s", str(out_meta))
     with open_file(out_meta, "w") as out_fh:
         print("\t".join(["type", "value"]), file=out_fh)
-        print("\t".join(["%ROH", str(roh_perc)]), file=out_fh)
+        print("\t".join(["%Autosomal LOH", str(roh_perc)]), file=out_fh)
 
 
 class RohEntry:
@@ -402,6 +412,12 @@ def parse_arguments():
         type=Path,
         help="Writes per-chromosome information about coverage and UPD details",
     )
+    parser.add_argument(
+        "--analysis_mode",
+        default="family",
+        choices=["family", "single"],
+        help="Generate Gens input for either family (UPD info in meta table) or single"
+    )
 
     args = parser.parse_args()
 
@@ -430,4 +446,5 @@ if __name__ == "__main__":
         args.out_gens_track_upd,
         args.out_chrom_meta,
         args.out_meta,
+        args.analysis_mode,
     )

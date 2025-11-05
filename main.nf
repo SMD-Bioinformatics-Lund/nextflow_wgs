@@ -2873,7 +2873,8 @@ process generate_gens_v4_meta {
 				--out_gens_track_roh "${id}.gens_track.roh.bed" \\
 				--out_gens_track_upd "${id}.gens_track.upd.bed" \\
 				--out_meta "${id}.meta.tsv" \\
-				--out_chrom_meta "${id}.chrom_meta.tsv"
+				--out_chrom_meta "${id}.chrom_meta.tsv" \\
+				--analysis_mode "${params.mode}"
 		else
 			touch "${id}.gens_track.roh.bed"
 			touch "${id}.gens_track.upd.bed"
@@ -2931,14 +2932,17 @@ process gens_v4_cron {
 				--case-id $group \\
 				--genome-build 38 \\
 				--file ${params.gens_accessdir}/${track_roh.getName()} \\
-				--name \\\"ROH\\\"" >> ${id}.gens_v4
-			
-			echo "gens load sample-annotation \\
-				--sample-id $id \\
-				--case-id $group \\
-				--genome-build 38 \\
-				--file ${params.gens_accessdir}/${track_upd.getName()} \\
-				--name \\\"UPD\\\"" >> ${id}.gens_v4
+				--name \\\"LOH\\\"" >> ${id}.gens_v4
+
+			# Only load UPD track for proband with family
+			if [[ "$params.mode" == "family" ]]; then
+				echo "gens load sample-annotation \\
+					--sample-id $id \\
+					--case-id $group \\
+					--genome-build 38 \\
+					--file ${params.gens_accessdir}/${track_upd.getName()} \\
+					--name \\\"UPS\\\"" >> ${id}.gens_v4
+			fi
 		fi
 		"""
 	
