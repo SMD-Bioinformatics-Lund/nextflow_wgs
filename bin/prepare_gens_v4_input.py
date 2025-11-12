@@ -163,7 +163,7 @@ class UPDEntry:
             self.chrom,
             str(self.start),
             str(self.end),
-            f"UPD ({self.origin})",
+            f"Uniparental segment ({self.origin})",
             ".",
             ".",
             ".",
