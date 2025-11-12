@@ -2807,6 +2807,7 @@ process overview_plot {
 		"""
 }
 
+// FIXME: Need a newer Python version container or?
 process generate_gens_data {
 	publishDir "${params.results_output_dir}/plot_data", mode: 'copy' , overwrite: 'true', pattern: "*.gz*"
 	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: 'true', pattern: "*.gens"
@@ -2827,7 +2828,13 @@ process generate_gens_data {
 
 	script:
 		"""
-		generate_gens_data.pl $cov_stand $gvcf $id $params.GENS_GNOMAD
+		generate_gens_data.py \
+			--label $id \
+			--coverage $cov_stand \
+			--gvcf $gvcf \
+			--baf_positions $params.GENS_GNOMAD \
+			--bgzip_tabix_output
+
 		echo "gens load sample --sample-id $id --case-id $group --genome-build 38 --baf ${params.gens_accessdir}/${id}.baf.bed.gz --coverage ${params.gens_accessdir}/${id}.cov.bed.gz --overview-json ${params.gens_accessdir}/${id}.overview.json.gz" > ${id}.gens
 		"""
 
