@@ -2814,7 +2814,7 @@ process generate_gens_data {
 	cpus 1
 	time '3h'
 	memory '5 GB'
-	container  "${params.container_python}"
+	container  "${params.container_generate_gens_data}"
 
 	input:
 		tuple val(group), val(id), path(gvcf), path(gvcf_index), path(cov_stand), path(cov_denoise)
