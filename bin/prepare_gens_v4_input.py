@@ -92,6 +92,10 @@ def main(
 
         print("\t".join(["Chromosome", "type", "value", "color"]), file=out_fh)
         for chrom_cov in avg_cov_entries:
+
+            if chrom_cov.chrom == "Y" and sex == "F":
+                continue
+
             label = "Estimated copy number"
             print(f"{chrom_cov.chrom}\t{label}\t{chrom_cov.cov}\t{chrom_cov.color}", file=out_fh)
 
