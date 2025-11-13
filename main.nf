@@ -2836,7 +2836,7 @@ process generate_gens_data {
 			--bgzip_tabix_output \
 			--outdir .
 
-		echo "gens load sample --sample-id $id --case-id $group --genome-build 38 --baf ${params.gens_accessdir}/${id}.baf.bed.gz --coverage ${params.gens_accessdir}/${id}.cov.bed.gz --overview-json ${params.gens_accessdir}/${id}.overview.json.gz" > ${id}.gens
+		echo "gens load sample --sample-id $id --case-id $group --genome-build 38 --baf ${params.gens_accessdir}/${id}.baf.bed.gz --coverage ${params.gens_accessdir}/${id}.cov.bed.gz > ${id}.gens
 		"""
 
 	stub:
