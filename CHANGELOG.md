@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.19.1
+* Add new config param `params.cdm_assay`
+* Change constitutionalv1-0 CDM assay from `mody` to `constitutionalv1-0`
+
 ### 3.19.0
 * constitutional profile
   - bed and interval files
