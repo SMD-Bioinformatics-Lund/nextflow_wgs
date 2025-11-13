@@ -2820,7 +2820,7 @@ process generate_gens_data {
 		tuple val(group), val(id), path(gvcf), path(gvcf_index), path(cov_stand), path(cov_denoise)
 
 	output:
-		tuple path("${id}.cov.bed.gz"), path("${id}.baf.bed.gz"), path("${id}.cov.bed.gz.tbi"), path("${id}.baf.bed.gz.tbi"), path("${id}.overview.json.gz")
+		tuple path("${id}.cov.bed.gz"), path("${id}.baf.bed.gz"), path("${id}.cov.bed.gz.tbi"), path("${id}.baf.bed.gz.tbi")
 		path("${id}.gens"), emit: gens_middleman
 
 	when:
