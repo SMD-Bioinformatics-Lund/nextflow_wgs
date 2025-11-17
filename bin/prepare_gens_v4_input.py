@@ -13,10 +13,10 @@ LOG = logging.getLogger(__name__)
 description = """
 Generates inputs for Gens v4+
 
-* Parses ROH output and UPD output into a single bed file
-* Calculates overal ROH %
+* Parses LOH output and UPD output into a single bed file
+* Calculates overall LOH %
 * Calculates average chromosome coverage
-* Summarizes various UPD / ROH metrics
+* Summarizes various UPD / LOH metrics
 """
 
 
@@ -49,7 +49,7 @@ def main(
     LOG.info("Parsing chromosomes")
     chrom_lengths: Dict[str, int] = parse_chrom_lengths(chrom_length_path)
     total_chrom_length = sum(chrom_lengths.values())
-    LOG.info("Parsing ROH")
+    LOG.info("Parsing LOH")
     roh_entries: List[RohEntry] = parse_roh(roh_path, sample, roh_quality_threshold)
     LOG.info("Parsing UPD")
     upd_entries: List[UPDEntry] = parse_upd(upd_regions_path)
@@ -90,7 +90,7 @@ def main(
     LOG.info("Writing per-chromosome meta to %s", str(out_chrom_meta))
     with open_file(out_chrom_meta, "w") as out_fh:
 
-        print("\t".join(["Chromosome", "type", "value", "color"]), file=out_fh)
+        print("\t".join(["Chromosome", "type", "value"]), file=out_fh)
         for chrom_cov in avg_cov_entries:
 
             if chrom_cov.chrom == "Y" and sex == "F":
@@ -116,7 +116,7 @@ def main(
         for chrom in CHROMS:
             for upd_label in upd_labels:
                 field_value = upd_site_info[chrom].get(upd_label, 0)
-                print(f"{chrom}\t{upd_label}\t{field_value}\trgb(0,0,0)", file=out_fh)
+                print(f"{chrom}\t{upd_label}\t{field_value}", file=out_fh)
 
     LOG.info("Writing sample-wide meta to %s", str(out_meta))
     with open_file(out_meta, "w") as out_fh:
@@ -140,7 +140,7 @@ class RohEntry:
         return self.end - self.start
 
     def get_bed_fields(self, color: str) -> List[str]:
-        return [self.chrom, str(self.start), str(self.end), "ROH", ".", ".", ".", ".", color]
+        return [self.chrom, str(self.start), str(self.end), "LOH", ".", ".", ".", ".", color]
 
 
 class UPDEntry:
@@ -350,7 +350,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description=description)
 
     parser.add_argument(
-        "--roh", required=True, type=Path, help="ROH output as provided by the bcftools command roh"
+        "--roh", required=True, type=Path, help="ROH (LOH) output as provided by the bcftools command roh"
     )
     parser.add_argument(
         "--upd_regions",
@@ -417,7 +417,7 @@ def parse_arguments():
         "--out_gens_track_upd", required=True, type=Path, help="Bed ranges with UPD information"
     )
     parser.add_argument(
-        "--out_meta", required=True, type=Path, help="Output global meta info (i.e. ROH%)"
+        "--out_meta", required=True, type=Path, help="Output global meta info (i.e. LOH%)"
     )
     parser.add_argument(
         "--out_chrom_meta",
