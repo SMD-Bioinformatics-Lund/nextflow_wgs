@@ -103,9 +103,13 @@ def main(
             upd_labels = [
                 "Total SNPs",
                 "Non-informative",
+                "Non-informative (%)",
                 "Mismatch father",
+                "Mismatch father (%)",
                 "Mismatch mother",
+                "Mismatch mother (%)",
                 "Anti-UPD",
+                "Anti-UPD (%)",
             ]
         else:
             upd_labels = []
@@ -232,10 +236,14 @@ def parse_upd_sites(upd_sites: Path) -> Dict[str, Dict[str, str]]:
 
         chrom_info: Dict[str, str] = {
             "Total SNPs": str(chrom_tot),
-            "Non-informative": f"{non_informative} ({non_informative_perc}%)",
-            "Mismatch mother": f"{paternal_origin} ({paternal_origin_perc}%)",
-            "Mismatch father": f"{maternal_origin} ({maternal_origin_perc}%)",
-            "Anti-UPD": f"{anti} ({anti_perc}%)",
+            "Non-informative": f"{non_informative}",
+            "Non-informative (%)": f"{non_informative_perc}",
+            "Mismatch mother": f"{paternal_origin}",
+            "Mismatch mother (%)": f"{paternal_origin_perc}",
+            "Mismatch father": f"{maternal_origin}",
+            "Mismatch father (%)": f"{maternal_origin_perc}",
+            "Anti-UPD": f"{anti}",
+            "Anti-UPD (%)": f"{anti_perc}",
         }
 
         out_fields[chrom] = chrom_info
