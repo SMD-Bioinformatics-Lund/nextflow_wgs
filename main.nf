@@ -2814,13 +2814,12 @@ process generate_gens_data {
 	cpus 1
 	time '3h'
 	memory '5 GB'
-	container  "${params.container_generate_gens_data}"
 
 	input:
 		tuple val(group), val(id), path(gvcf), path(gvcf_index), path(cov_stand), path(cov_denoise)
 
 	output:
-		tuple path("${id}.cov.bed.gz"), path("${id}.baf.bed.gz"), path("${id}.cov.bed.gz.tbi"), path("${id}.baf.bed.gz.tbi")
+		tuple path("${id}.cov.bed.gz"), path("${id}.baf.bed.gz"), path("${id}.cov.bed.gz.tbi"), path("${id}.baf.bed.gz.tbi"), path("${id}.overview.json.gz")
 		path("${id}.gens"), emit: gens_middleman
 
 	when:
@@ -2828,15 +2827,8 @@ process generate_gens_data {
 
 	script:
 		"""
-		generate_gens_data.py \
-			--label $id \
-			--coverage $cov_stand \
-			--gvcf $gvcf \
-			--baf_positions $params.GENS_GNOMAD \
-			--bgzip_tabix_output \
-			--outdir .
-
-		echo "gens load sample --sample-id $id --case-id $group --genome-build 38 --baf ${params.gens_accessdir}/${id}.baf.bed.gz --coverage ${params.gens_accessdir}/${id}.cov.bed.gz > ${id}.gens
+		generate_gens_data.pl $cov_stand $gvcf $id $params.GENS_GNOMAD
+		echo "gens load sample --sample-id $id --case-id $group --genome-build 38 --baf ${params.gens_accessdir}/${id}.baf.bed.gz --coverage ${params.gens_accessdir}/${id}.cov.bed.gz --overview-json ${params.gens_accessdir}/${id}.overview.json.gz" > ${id}.gens
 		"""
 
 	stub:
@@ -2930,8 +2922,7 @@ process gens_v4_cron {
 			--sex $sex \\
 			--sample-type $type \\
 			--baf ${params.gens_accessdir}/${id}.baf.bed.gz \\
-			--coverage ${params.gens_accessdir}/${id}.cov.bed.gz \\
-			--overview-json ${params.gens_accessdir}/${id}.overview.json.gz \\
+			--coverage ${params.gens_accessdir}/${id}.cov.bed.gz
 			${meta_opts}" > ${id}.gens_v4
 
 		if [[ "$type" == "proband" ]]; then

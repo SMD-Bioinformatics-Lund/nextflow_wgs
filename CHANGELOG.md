@@ -4,7 +4,6 @@
 * Gens v4 label updates
 * Don't output Gens v4 UPD track for singles and parent samples
 * Don't calculate Y-coverage for females
-* Start using the new Python Gens preprocessing script
 
 ### 3.19.0
 * constitutional profile

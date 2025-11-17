@@ -185,6 +185,7 @@ class CovEntry:
         return self.end - self.start
 
 
+# FIXME: Skip the color column here?
 class ChromCovEntry:
     def __init__(self, chrom: str, cov: float, color: str):
         self.chrom = chrom
