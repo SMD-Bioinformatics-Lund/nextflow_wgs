@@ -2922,7 +2922,7 @@ process gens_v4_cron {
 			--sex $sex \\
 			--sample-type $type \\
 			--baf ${params.gens_accessdir}/${id}.baf.bed.gz \\
-			--coverage ${params.gens_accessdir}/${id}.cov.bed.gz
+			--coverage ${params.gens_accessdir}/${id}.cov.bed.gz \\
 			${meta_opts}" > ${id}.gens_v4
 
 		if [[ "$type" == "proband" ]]; then
