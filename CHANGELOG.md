@@ -1,6 +1,6 @@
 # CHANGELOG
 
-### 3.19.1
+### 3.20.0
 * Gens v4 label updates
 * Don't CRON load Gens v4 UPD track for singles and parent samples
 * Don't calculate Y-coverage for females
