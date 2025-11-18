@@ -34,7 +34,6 @@ def main(
     sample: str,
     sex: str,
     roh_quality_threshold: float,
-    cov_diff_threshold: float,
     color_roh: str,
     color_upd_maternal: str,
     color_upd_paternal: str,
@@ -63,7 +62,7 @@ def main(
         LOG.info("Parsing UPD sites")
         upd_site_info: Dict[str, Dict[str, str]] = parse_upd_sites(upd_sites_path)
     LOG.info("Parsing coverage")
-    avg_cov_entries: List[ChromCovEntry] = parse_cov(cov_path, cov_diff_threshold, sex)
+    avg_cov_entries: List[ChromCovEntry] = parse_cov(cov_path, sex)
 
     tot_roh_length = sum(
         [entry.get_length() for entry in roh_entries if entry.chrom in AUTO_CHROMS]
@@ -191,7 +190,7 @@ class CovEntry:
 
 
 class ChromCovEntry:
-    def __init__(self, chrom: str, cov: float, color: str):
+    def __init__(self, chrom: str, cov: float):
         self.chrom = chrom
         self.cov = cov
 
@@ -265,7 +264,7 @@ def parse_chrom_lengths(chrom_lengths_path: Path) -> Dict[str, int]:
     return chrom_lengths
 
 
-def parse_cov(cov: Path, cov_diff_thres: float, sex: str) -> List[ChromCovEntry]:
+def parse_cov(cov: Path, sex: str) -> List[ChromCovEntry]:
     cov_sums = {}
     with open_file(cov, "r") as cov_fh:
         for line in cov_fh:
@@ -285,14 +284,11 @@ def parse_cov(cov: Path, cov_diff_thres: float, sex: str) -> List[ChromCovEntry]
     scaled_covs = []
     for chrom in CHROMS:
 
-        color = "rgb(0,0,0)"
         chrom_count = 1 if sex == "M" and chrom in SEX_CHROMS else 2
         # Calculate the full value
         cn_val = chrom_count * 2 ** avg_covs.get(chrom, 0)
-        if abs(cn_val - chrom_count) > cov_diff_thres:
-            color = "rgb(255,0,0)"
 
-        scaled_covs.append(ChromCovEntry(chrom, round(cn_val, 2), color))
+        scaled_covs.append(ChromCovEntry(chrom, round(cn_val, 2)))
 
     return scaled_covs
 
@@ -395,12 +391,6 @@ def parse_arguments():
         type=float,
         help="Only entries with quality threshold above this in --roh are considered",
     )
-    parser.add_argument(
-        "--cov_diff_threshold",
-        default=0.1,
-        type=float,
-        help="Chromosome coverage values differing more than this are colored in red in output data",
-    )
     parser.add_argument("--color_roh", default="rgb(255,186,60)", help="Color for ROH in track")
     parser.add_argument(
         "--color_upd_maternal", default="rgb(255,75,75)", help="Color for maternal UPD in track"
@@ -450,7 +440,6 @@ if __name__ == "__main__":
         args.sample,
         args.sex,
         args.roh_quality_threshold,
-        args.cov_diff_threshold,
         args.color_roh,
         args.color_upd_maternal,
         args.color_upd_paternal,
