@@ -2859,7 +2859,6 @@ process generate_gens_data_v4 {
 
 	output:
 		tuple path("${id}_v4.cov.bed.gz"), path("${id}_v4.baf.bed.gz"), path("${id}_v4.cov.bed.gz.tbi"), path("${id}_v4.baf.bed.gz.tbi")
-		path("${id}_v4.gens"), emit: gens_v4_middleman
 
 	when:
 		params.prepare_gens_data
