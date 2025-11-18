@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### TBD
+* Use generate_gens_data.PY for Gens v4 input
+
 ### 3.19.0
 * constitutional profile
   - bed and interval files
