@@ -467,6 +467,8 @@ workflow NEXTFLOW_WGS {
 
 			generate_gens_data(dnascope.out.gvcf_tbi.join(gatkcov.out.cov_gens, by: [0,1]))
 
+			generate_gens_data_v4(dnascope.out.gvcf_tbi.join(gatkcov.out.cov_gens, by: [0,1]))
+
 			ch_gens_v4_meta = gatkcov.out.cov_plot
 				.combine(roh.out.roh_plot.map { it -> it[1] })
 				.combine(upd.out.upd_bed)
@@ -2842,6 +2844,46 @@ process generate_gens_data {
 		"""
 }
 
+// FIXME: After dropping old Gens, this will be the standard generate_gens_data process
+// The output should be the same, minus the non-used overview JSON that is removed
+process generate_gens_data_v4 {
+	publishDir "${params.results_output_dir}/plot_data", mode: 'copy' , overwrite: 'true', pattern: "*.gz*"
+	tag "$group"
+	cpus 1
+	time '3h'
+	memory '5 GB'
+	container  "${params.container_generate_gens_data}"
+
+	input:
+		tuple val(group), val(id), path(gvcf), path(gvcf_index), path(cov_stand), path(cov_denoise)
+
+	output:
+		tuple path("${id}_v4.cov.bed.gz"), path("${id}_v4.baf.bed.gz"), path("${id}_v4.cov.bed.gz.tbi"), path("${id}_v4.baf.bed.gz.tbi")
+		path("${id}_v4.gens"), emit: gens_v4_middleman
+
+	when:
+		params.prepare_gens_data
+
+	script:
+		"""
+		generate_gens_data.py \
+			--label "${id}_v4" \
+			--coverage $cov_stand \
+			--gvcf $gvcf \
+			--baf_positions $params.GENS_GNOMAD \
+			--bgzip_tabix_output \
+			--outdir .
+		"""
+
+	stub:
+		"""
+		touch "${id}_v4.cov.bed.gz"
+		touch "${id}_v4.baf.bed.gz"
+		touch "${id}_v4.cov.bed.gz.tbi"
+		touch "${id}_v4.baf.bed.gz.tbi"
+		"""
+}
+
 process generate_gens_v4_meta {
 	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: 'true', pattern: "*.tsv"
 	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: 'true', pattern: "*.bed"
@@ -2913,6 +2955,7 @@ process gens_v4_cron {
 		def meta_opts = type == "proband" ? 
 			"--meta ${params.gens_accessdir}/${meta_tsv.getName()} --meta ${params.gens_accessdir}/${chrom_meta_tsv.getName()}":
 			""
+		def gens_v4_id = "${id}_v4"
 		"""
 		echo "gens load sample \\
 			--sample-id $id \\
@@ -2920,9 +2963,8 @@ process gens_v4_cron {
 			--genome-build 38 \\
 			--sex $sex \\
 			--sample-type $type \\
-			--baf ${params.gens_accessdir}/${id}.baf.bed.gz \\
-			--coverage ${params.gens_accessdir}/${id}.cov.bed.gz \\
-			--overview-json ${params.gens_accessdir}/${id}.overview.json.gz \\
+			--baf ${params.gens_accessdir}/${gens_v4_id}.baf.bed.gz \\
+			--coverage ${params.gens_accessdir}/${gens_v4_id}.cov.bed.gz \\
 			${meta_opts}" > ${id}.gens_v4
 
 		if [[ "$type" == "proband" ]]; then
