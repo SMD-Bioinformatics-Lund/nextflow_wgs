@@ -13,10 +13,10 @@ LOG = logging.getLogger(__name__)
 description = """
 Generates inputs for Gens v4+
 
-* Parses LOH output and UPD output into a single bed file
-* Calculates overall LOH %
+* Parses ROH output and UPD output into a single bed file
+* Calculates overall ROH %
 * Calculates average chromosome coverage
-* Summarizes various UPD / LOH metrics
+* Summarizes various UPD / ROH metrics
 """
 
 
@@ -49,7 +49,7 @@ def main(
     LOG.info("Parsing chromosomes")
     chrom_lengths: Dict[str, int] = parse_chrom_lengths(chrom_length_path)
     total_chrom_length = sum(chrom_lengths.values())
-    LOG.info("Parsing LOH")
+    LOG.info("Parsing ROH")
     roh_entries: List[RohEntry] = parse_roh(roh_path, sample, roh_quality_threshold)
     LOG.info("Parsing UPD")
     upd_entries: List[UPDEntry] = parse_upd(upd_regions_path)
@@ -93,11 +93,12 @@ def main(
         print("\t".join(["Chromosome", "type", "value"]), file=out_fh)
         for chrom_cov in avg_cov_entries:
 
+            # Skip Y chromosome coverage for females
             if chrom_cov.chrom == "Y" and sex == "F":
                 continue
 
             label = "Estimated copy number"
-            print(f"{chrom_cov.chrom}\t{label}\t{chrom_cov.cov}\t{chrom_cov.color}", file=out_fh)
+            print(f"{chrom_cov.chrom}\t{label}\t{chrom_cov.cov}", file=out_fh)
 
         if not is_single_sample:
             upd_labels = [
@@ -189,12 +190,10 @@ class CovEntry:
         return self.end - self.start
 
 
-# FIXME: Skip the color column here?
 class ChromCovEntry:
     def __init__(self, chrom: str, cov: float, color: str):
         self.chrom = chrom
         self.cov = cov
-        self.color = color
 
 
 def parse_upd_sites(upd_sites: Path) -> Dict[str, Dict[str, str]]:

@@ -2,7 +2,7 @@
 
 ### 3.19.1
 * Gens v4 label updates
-* Don't output Gens v4 UPD track for singles and parent samples
+* Don't CRON load Gens v4 UPD track for singles and parent samples
 * Don't calculate Y-coverage for females
 * Split the UPD metrics for sample meta data into separate count and percentage fields
 
