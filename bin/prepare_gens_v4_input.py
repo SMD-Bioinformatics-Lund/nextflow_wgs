@@ -19,6 +19,7 @@ Generates inputs for Gens v4+
 * Summarizes various UPD / ROH metrics
 """
 
+VERSION = "1.1.0"
 
 AUTO_CHROMS = [str(i) for i in range(1, 23)]
 SEX_CHROMS = ["X", "Y"]
@@ -325,6 +326,8 @@ def open_file(path: Path, read_or_write: str) -> TextIO:
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description=description)
+
+    parser.add_argument("-v", "--version", action="version", version=VERSION)
 
     parser.add_argument(
         "--roh", required=True, type=Path, help="ROH output as provided by the bcftools command roh"
