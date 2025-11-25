@@ -2510,7 +2510,7 @@ process qc_to_cdm {
 		idx =  parts.findIndexOf {it ==~ /......_......_...._........../}
 		rundir = parts[0..idx].join("/")
 		"""
-		echo "--run-folder $rundir --sample-id $id --subassay $diagnosis --assay $params.assay --qc ${params.results_output_dir}/qc/${id}.QC" > ${id}.cdm
+	    echo "--run-folder ${rundir} --sample-id ${id} --subassay ${diagnosis} --assay ${params.cdm_assay} --qc ${params.results_output_dir}/qc/${id}.QC" > ${id}.cdm
 		"""
 }
 
