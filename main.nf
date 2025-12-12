@@ -2895,7 +2895,7 @@ process generate_gens_v4_meta {
 }
 
 process gens_v4_cron {
-	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: 'true', pattern: "*.gens_v4"
+	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: 'true', pattern: "*.gens_v4_const"
 	tag "$id"
 	cpus 1
 	time '10m'
@@ -2905,7 +2905,7 @@ process gens_v4_cron {
 		tuple val(group), val(id), val(type), val(sex), path(track_roh), path(track_upd), path(meta_tsv), path(chrom_meta_tsv)
 	
 	output:
-		path("${id}.gens_v4"), emit: gens_v4_middleman
+		path("${id}.gens_v4_const"), emit: gens_v4_middleman
 	
 	when:
 		params.prepare_gens_data
@@ -2923,7 +2923,7 @@ process gens_v4_cron {
 			--sample-type $type \\
 			--baf ${params.gens_accessdir}/${id}.baf.bed.gz \\
 			--coverage ${params.gens_accessdir}/${id}.cov.bed.gz \\
-			${meta_opts}" > ${id}.gens_v4
+			${meta_opts}" > ${id}.gens_v4_const
 
 		if [[ "$type" == "proband" ]]; then
 			echo "gens load sample-annotation \\
@@ -2931,7 +2931,7 @@ process gens_v4_cron {
 				--case-id $group \\
 				--genome-build 38 \\
 				--file ${params.gens_accessdir}/${track_roh.getName()} \\
-				--name \\\"LOH\\\"" >> ${id}.gens_v4
+				--name \\\"LOH\\\"" >> ${id}.gens_v4_const
 
 			# Only load UPD track for proband with family
 			if [[ "${params.mode}" == "family" ]]; then
@@ -2940,14 +2940,14 @@ process gens_v4_cron {
 					--case-id $group \\
 					--genome-build 38 \\
 					--file ${params.gens_accessdir}/${track_upd.getName()} \\
-					--name \\\"UPS\\\"" >> ${id}.gens_v4
+					--name \\\"UPS\\\"" >> ${id}.gens_v4_const
 			fi
 		fi
 		"""
 	
 	stub:
 		"""
-		touch "${id}.gens_v4"
+		touch "${id}.gens_v4_const"
 		"""
 }
 

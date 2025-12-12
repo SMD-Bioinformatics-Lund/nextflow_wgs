@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.20.1
+* Update Gens CRON suffix `.gens_v4` -> `.gens_v4_const`
+
 ### 3.20.0
 * Gens v4 label updates
 * Don't CRON load Gens v4 UPD track for singles and parent samples
