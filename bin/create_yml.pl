@@ -178,8 +178,8 @@ my %assays = (
             'institute_owner' => 'MODY',
         },
         'fh' => {
-            'institute' => 'FH',
-            'institute_owner' => 'FH'
+            'institute' => 'constitutional',
+            'institute_owner' => 'constitutional'
         },
         'aat' => {
             'institute' => 'MODY',
