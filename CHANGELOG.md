@@ -1,7 +1,10 @@
 # CHANGELOG
 
-### 3.20.1
+### 3.20.2
 * added clinical scout institute to familjär hyperkolesterlomi
+
+### 3.20.1
+* Update Gens CRON suffix `.gens_v4` -> `.gens_v4_const`
 
 ### 3.20.0
 * Gens v4 label updates
