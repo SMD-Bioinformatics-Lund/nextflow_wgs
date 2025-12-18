@@ -2906,8 +2906,7 @@ process gens_v4_cron {
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(id), val(type), val(sex), path(track_roh), path(track_upd), path(meta_tsv), path(chrom_meta_tsv)
-		tuple val(group2), val(id2), val(_gens_input_data_is_done)
+		tuple val(group), val(id), val(type), val(sex), path(track_roh), path(track_upd), path(meta_tsv), path(chrom_meta_tsv), val(_gens_input_data_is_done)
 	
 	output:
 		path("${id}.gens_v4_const"), emit: gens_v4_middleman
