@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.20.3
+* Wait for Gens data before generating Gens v4 CRON script
+
 ### 3.20.2
 * added clinical scout institute to familjär hyperkolesterlomi
 
