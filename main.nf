@@ -474,7 +474,10 @@ workflow NEXTFLOW_WGS {
 
 			generate_gens_v4_meta(ch_gens_v4_meta)
 
-			gens_v4_cron(generate_gens_v4_meta.out.meta)
+			ch_cron_meta = generate_gens_v4_meta.out.meta
+				.join(generate_gens_data.out.is_done, by: [0,1])
+
+			gens_v4_cron(ch_cron_meta)
 
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 
@@ -2820,7 +2823,8 @@ process generate_gens_data {
 
 	output:
 		tuple path("${id}.cov.bed.gz"), path("${id}.baf.bed.gz"), path("${id}.cov.bed.gz.tbi"), path("${id}.baf.bed.gz.tbi"), path("${id}.overview.json.gz")
-		path("${id}.gens"), emit: gens_middleman
+		tuple val(group), val(id), val(true), 	emit: is_done
+		path("${id}.gens"), 					emit: gens_middleman
 
 	when:
 		params.prepare_gens_data
@@ -2902,7 +2906,7 @@ process gens_v4_cron {
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(id), val(type), val(sex), path(track_roh), path(track_upd), path(meta_tsv), path(chrom_meta_tsv)
+		tuple val(group), val(id), val(type), val(sex), path(track_roh), path(track_upd), path(meta_tsv), path(chrom_meta_tsv), val(_gens_input_data_is_done)
 	
 	output:
 		path("${id}.gens_v4_const"), emit: gens_v4_middleman
