@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.20.4
+* Peddy activated for constitutional
+
 ### 3.20.3
 * Wait for Gens data before generating Gens v4 CRON script
 
