@@ -6,7 +6,7 @@ include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
 include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
 
 nextflow.enable.dsl=2
-
+def validation_summary
 
 workflow {
 
@@ -18,6 +18,7 @@ workflow {
 	params.results_output_dir = params.outdir + '/' + params.subdir
 
 	VALIDATE_SAMPLES_CSV(params.csv)
+	validation_summary = VALIDATE_SAMPLES_CSV.out.validation_errors
 	// TODO: Pass these to processes in meta?
 	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
 	params.trio = file(params.csv).countLines() > 3 ? true : false
@@ -71,13 +72,16 @@ workflow {
 workflow.onComplete {
 
 		def completed_at = "${workflow.complete}"
-
+		def success = "${workflow.success}"
+		if (validation_summary && validation_summary.size() > 0) {
+			success = false
+		}
 		def msg = """\
 		Pipeline execution summary
 		---------------------------
 		Completed at: ${completed_at}
 		Duration    : ${workflow.duration}
-		Success     : ${workflow.success}
+		Success     : ${success}
 		scriptFile  : ${workflow.scriptFile}
 		workDir     : ${workflow.workDir}
 		csv         : ${params.csv}
