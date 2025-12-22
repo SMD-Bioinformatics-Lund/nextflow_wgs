@@ -3,6 +3,7 @@
 include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
+include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
 
 nextflow.enable.dsl=2
 
@@ -16,6 +17,7 @@ workflow {
 	//       params.outdir won't work.
 	params.results_output_dir = params.outdir + '/' + params.subdir
 
+	VALIDATE_SAMPLES_CSV(params.csv)
 	// TODO: Pass these to processes in meta?
 	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
 	params.trio = file(params.csv).countLines() > 3 ? true : false
