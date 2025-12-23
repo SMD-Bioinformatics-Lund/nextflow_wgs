@@ -11,14 +11,18 @@ workflow VALIDATE_SAMPLES_CSV {
 	def errorMessages = []
 
 	if (!csv.exists())
-		errorMessages << "Samples CSV does not exist: ${csv}"
-		error "Samples CSV does not exist: ${csv}"
+		def msg = "Samples CSV does not exist: ${csv}"
+		error msg
+		errorMessages.add(msg)
+		
 
 	def lines = csv.readLines()
 
 	if (lines.size() < 2)
-		errorMessages << "CSV is empty or has no data rows: ${csv}"
-		error "Samples CSV is empty or has no data rows"
+		def msg = "Samples CSV is empty or has no data rows"
+		error msg
+		errorMessages.add(msg)
+		
 
 	def REQUIRED_COLUMNS = [
 		'clarity_sample_id',
@@ -41,16 +45,18 @@ workflow VALIDATE_SAMPLES_CSV {
 	def missing = REQUIRED_COLUMNS - header
 
 	if (missing)
-		errorMessages << "Missing columns: ${missing.join(', ')}"
-		error "Missing required columns: ${missing.join(', ')}"
+		def msg = "Missing required columns: ${missing.join(', ')}"
+		error msg
+		errorMessages.add(msg)
+		
 
 	def rows = []
 	lines.drop(1).eachWithIndex { line, i ->
 		def vals = line.split(',', -1)
 		if (vals.size() != header.size())
 			def msg = "Line ${idx+2} has ${vals.size()} columns, expected ${header.size()}"
-			errorMessages << msg
 			error msg
+			errorMessages.add(msg)
 
 		rows << [header, vals].transpose().collectEntries()
 	}
@@ -58,8 +64,8 @@ workflow VALIDATE_SAMPLES_CSV {
     rows.each { r ->
         if (!(r.sex in ['M','F'])) {
             def msg = "Invalid sex '${r.sex}' for sample ${r.id}"
-            errorMessages << msg
             error msg
+			errorMessages.add(msg)
         }
     }
 
@@ -69,26 +75,31 @@ workflow VALIDATE_SAMPLES_CSV {
 
 	probandsByGroup.each { groupId, probands ->
 		if (probands.size() > 1)
-			errorMessages << "Group '${groupId}' has multiple probands: ${probands*.id.join(', ')}"
-			error "Group '${groupId}' has multiple probands: ${probands*.id.join(', ')}"
+			def msg = "Group '${groupId}' has multiple probands: ${probands*.id.join(', ')}"
+			error msg
+			errorMessages.add(msg)
 	}
 
 	def ids = rows*.id
 	def dup = ids.findAll { id -> ids.count(id) > 1 }.unique()
 	if (dup)
-		errorMessages << "Duplicate sample IDs: ${dup.join(', ')}"
-		error "Duplicate sample IDs: ${dup.join(', ')}"
+		def msg = "Duplicate sample IDs: ${dup.join(', ')}"
+		error msg
+		errorMessages.add(msg)
+		
 
 	rows.each {
 		if (!(it.sex in ['M','F']))
-			errorMessages << "Invalid sex '${it.sex}' for sample ${it.id}"
-			error "Invalid sex '${it.sex}' for sample ${it.id}"
+			def msg = "Invalid sex '${it.sex}' for sample ${it.id}"
+			error msg
+			errorMessages.add(msg)
 	}
 
 	def probands = rows.findAll { it.type == 'proband' }
 	if (!probands)
-		errorMessages << "At least one sample must have type=proband"
-		error "At least one sample must have type=proband"
+		def msg = "At least one sample must have type=proband"
+		error msg
+		errorMessages.add(msg)
 
 	def byId = rows.collectEntries { [(it.id): it] }
 	def groupBySample = rows.collectEntries { [(it.id): it.group] }
@@ -96,8 +107,9 @@ workflow VALIDATE_SAMPLES_CSV {
 	rows.each { r ->
 		['read1','read2'].each { fq ->
 			if (!file(r[fq]).exists())
-				errorMessages << "FASTQ not found: ${r[fq]} (sample ${r.id})"
-				error "FASTQ not found: ${r[fq]} (sample ${r.id})"
+				def msg = "FASTQ not found: ${r[fq]} (sample ${r.id})"
+				error msg
+				errorMessages.add(msg)
 		}
 	}
 
@@ -113,38 +125,44 @@ workflow VALIDATE_SAMPLES_CSV {
 
 		/* partial trio not allowed */
 		if (!fatherId || !motherId)
-			errorMessages << "Proband ${p.id} must define both parents or none"
-			error "Proband ${p.id} must define both parents or none"
-
+			def msg = "Proband ${p.id} must define both parents or none"
+			error msg
+			errorMessages.add(msg)
 		/* parent existence */
 		if (!byId.containsKey(fatherId))
-			errorMessages << "Father '${fatherId}' not found in CSV (proband ${p.id})"
-			error "Father '${fatherId}' not found in CSV (proband ${p.id})"
+			def msg = "Father '${fatherId}' not found in CSV (proband ${p.id})"
+			error msg
+			errorMessages.add(msg)
 
 		if (!byId.containsKey(motherId))
-			errorMessages << "Mother '${motherId}' not found in CSV (proband ${p.id})"
-			error "Mother '${motherId}' not found in CSV (proband ${p.id})"
+			def msg = "Mother '${motherId}' not found in CSV (proband ${p.id})"
+			error msg
+			errorMessages.add(msg)
 
 		def father = byId[fatherId]
 		def mother = byId[motherId]
 
 		/* sex checks */
 		if (father.sex != 'M')
-			errorMessages << "Father '${fatherId}' must have sex=M (found '${father.sex}')"
-			error "Father '${fatherId}' must have sex=M (found '${father.sex}')"
+			def msg = "Father '${fatherId}' must have sex=M (found '${father.sex}')"
+			error msg
+			errorMessages.add(msg)
 
 		if (mother.sex != 'F')
-			errorMessages << "Mother '${motherId}' must have sex=F (found '${mother.sex}')"
-			error "Mother '${motherId}' must have sex=F (found '${mother.sex}')"
+			def msg = "Mother '${motherId}' must have sex=F (found '${mother.sex}')"
+			error msg
+			errorMessages.add(msg)
 		
 		/* parents must be in same group */
 		if (groupBySample[fatherId] != groupId)
-			errorMessages << "Father '${fatherId}' is in group '${groupBySample[fatherId]}', expected '${groupId}' (proband ${p.id})"
-			error "Father '${fatherId}' is in group '${groupBySample[fatherId]}', expected '${groupId}' (proband ${p.id})"
+			def msg = "Father '${fatherId}' is in group '${groupBySample[fatherId]}', expected '${groupId}' (proband ${p.id})"
+			error msg
+			errorMessages.add(msg)
 
 		if (groupBySample[motherId] != groupId)
-			errorMessages << "Mother '${motherId}' is in group '${groupBySample[motherId]}', expected '${groupId}' (proband ${p.id})"
-			error "Mother '${motherId}' is in group '${groupBySample[motherId]}', expected '${groupId}' (proband ${p.id})"
+			def msg = "Mother '${motherId}' is in group '${groupBySample[motherId]}', expected '${groupId}' (proband ${p.id})"
+			error msg
+			errorMessages.add(msg)
 
 		/* track parent reuse */
 		parentUsage[fatherId] << groupId
@@ -155,6 +173,6 @@ workflow VALIDATE_SAMPLES_CSV {
 
 	emit:
 	validated_csv = samples_csv
-	validation_errors = errorMessages
+	validation_errors = Channel.value(errorMessages)
 }
 
