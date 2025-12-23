@@ -6,7 +6,7 @@ include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
 include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
 
 nextflow.enable.dsl=2
-def validation_summary
+
 
 workflow {
 
@@ -62,7 +62,7 @@ workflow {
 		.splitCsv(header: true)
 		.set { ch_samplesheet }
 
-	NEXTFLOW_WGS(ch_samplesheet)
+	NEXTFLOW_WGS(ch_samplesheet, VALIDATE_SAMPLES_CSV.out.validation_errors)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect{ it }
 
@@ -120,6 +120,7 @@ workflow NEXTFLOW_WGS {
 
 	take:
 	ch_samplesheet
+	ch_validated
 
 	main:
 	// Output channels:

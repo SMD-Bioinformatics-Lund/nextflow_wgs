@@ -200,7 +200,6 @@ workflow VALIDATE_SAMPLES_CSV {
 	VALIDATE_CSV_PROCESS(errorMessages)
 
 	emit:
-	validated_csv = samples_csv
 	validation_errors = VALIDATE_CSV_PROCESS.out.error
 }
 
