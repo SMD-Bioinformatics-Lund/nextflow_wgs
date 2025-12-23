@@ -17,14 +17,6 @@ workflow {
 	//       params.outdir won't work.
 	params.results_output_dir = params.outdir + '/' + params.subdir
 
-
-
-
-
-    // pipeline continues only if validation passed
-
-
-
 	// TODO: Pass these to processes in meta?
 	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
 	params.trio = file(params.csv).countLines() > 3 ? true : false
@@ -59,9 +51,9 @@ workflow {
 	VALIDATE_SAMPLES_CSV(params.csv)
 
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
-	    .splitCsv(header: true)
+		.splitCsv(header: true)
 
-       	NEXTFLOW_WGS(ch_samplesheet)
+	NEXTFLOW_WGS(ch_samplesheet)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect{ it }
 
