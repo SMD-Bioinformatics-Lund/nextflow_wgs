@@ -3,6 +3,7 @@
 include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
+include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
 
 nextflow.enable.dsl=2
 
@@ -47,10 +48,10 @@ workflow {
 
 	ch_versions = Channel.empty()
 
-	Channel
-		.fromPath(params.csv)
+	VALIDATE_SAMPLES_CSV(params.csv)
+
+	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
-		.set { ch_samplesheet }
 
 	NEXTFLOW_WGS(ch_samplesheet)
 
