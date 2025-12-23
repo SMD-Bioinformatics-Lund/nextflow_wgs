@@ -17,8 +17,12 @@ workflow {
 	//       params.outdir won't work.
 	params.results_output_dir = params.outdir + '/' + params.subdir
 
-	VALIDATE_SAMPLES_CSV(params.csv)
-	validation_summary = VALIDATE_SAMPLES_CSV.out.validation_errors
+	def v = VALIDATE_SAMPLES_CSV(params.csv)
+
+    if (v.validation_errors && v.validation_errors.size() > 0) {
+		validation_summary = "something failed"
+        error "CSV validation failed:\n${v.validation_errors.join('\n')}"
+    }
 	// TODO: Pass these to processes in meta?
 	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
 	params.trio = file(params.csv).countLines() > 3 ? true : false
