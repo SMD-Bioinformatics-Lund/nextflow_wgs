@@ -5,10 +5,9 @@ process VALIDATE_CSV_PROCESS {
 
     input:
         val messages
-		file(samples_csv)
 
     output:
-        file samples_csv, emit: ok
+	val true, emit: ok
 
     script:
     // convert messages to newline-separated string for shell
@@ -24,8 +23,6 @@ process VALIDATE_CSV_PROCESS {
         echo "Errors found:"
         echo "\$messages"
         exit 1
-    else
-        touch ok
     fi
     """
 }
@@ -187,7 +184,7 @@ workflow VALIDATE_SAMPLES_CSV {
 		parentUsage[motherId] << groupId
 	}
 
-	VALIDATE_CSV_PROCESS(errorMessages, samples_csv)
+	VALIDATE_CSV_PROCESS(errorMessages)
 
 	emit:
 	validated_csv = VALIDATE_CSV_PROCESS.out.ok
