@@ -5,9 +5,10 @@ process VALIDATE_CSV_PROCESS {
 
     input:
         val messages
+		file(samples_csv)
 
     output:
-        tuple file("errorMessages"), emit: error
+        file samples_csv, emit: ok
 
     script:
     // convert messages to newline-separated string for shell
@@ -24,7 +25,7 @@ process VALIDATE_CSV_PROCESS {
         echo "\$messages"
         exit 1
     else
-        touch errorMessages
+        touch ok
     fi
     """
 }
@@ -186,20 +187,9 @@ workflow VALIDATE_SAMPLES_CSV {
 		parentUsage[motherId] << groupId
 	}
 
-//	if (errorMessages) {
-//		error """
-//			CSV validation failed with ${errorMessages.size()} error(s):
-//
-//			${errorMessages.join('\n')}
-//		"""
-//	}
-//	else {
-//		log.info "✔ CSV validation passed (${rows.size()} samples)"
-//	}
-
-	VALIDATE_CSV_PROCESS(errorMessages)
+	VALIDATE_CSV_PROCESS(errorMessages, samples_csv)
 
 	emit:
-	validation_errors = VALIDATE_CSV_PROCESS.out.error
+	validated_csv = VALIDATE_CSV_PROCESS.out.ok
 }
 

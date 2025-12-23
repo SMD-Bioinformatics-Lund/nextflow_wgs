@@ -58,11 +58,11 @@ workflow {
 	ch_versions = Channel.empty()
 
 	Channel
-		.fromPath(params.csv)
+		.fromPath(VALIDATE_SAMPLES_CSV.out.validated_csv)
 		.splitCsv(header: true)
 		.set { ch_samplesheet }
 
-	NEXTFLOW_WGS(ch_samplesheet, VALIDATE_SAMPLES_CSV.out.validation_errors)
+	NEXTFLOW_WGS(ch_samplesheet)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect{ it }
 
@@ -120,7 +120,6 @@ workflow NEXTFLOW_WGS {
 
 	take:
 	ch_samplesheet
-	ch_validated
 
 	main:
 	// Output channels:
