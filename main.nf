@@ -19,7 +19,6 @@ workflow {
 
 
 
-	VALIDATE_SAMPLES_CSV(params.csv)
 
 
     // pipeline continues only if validation passed
@@ -57,12 +56,12 @@ workflow {
 
 	ch_versions = Channel.empty()
 
-	Channel
-		.fromPath(VALIDATE_SAMPLES_CSV.out.validated_csv)
-		.splitCsv(header: true)
-		.set { ch_samplesheet }
+	VALIDATE_SAMPLES_CSV(params.csv)
 
-	NEXTFLOW_WGS(ch_samplesheet)
+	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
+	    .splitCsv(header: true)
+
+       	NEXTFLOW_WGS(ch_samplesheet)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect{ it }
 

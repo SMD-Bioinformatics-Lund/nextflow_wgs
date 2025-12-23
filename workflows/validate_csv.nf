@@ -5,9 +5,11 @@ process VALIDATE_CSV_PROCESS {
 
     input:
         val messages
+	path samples_csv
 
     output:
 	val true, emit: ok
+	path samples_csv, emit: validated_csv
 
     script:
     // convert messages to newline-separated string for shell
@@ -184,9 +186,9 @@ workflow VALIDATE_SAMPLES_CSV {
 		parentUsage[motherId] << groupId
 	}
 
-	VALIDATE_CSV_PROCESS(errorMessages)
+	VALIDATE_CSV_PROCESS(errorMessages, csv)
 
 	emit:
-	validated_csv = VALIDATE_CSV_PROCESS.out.ok
+	validated_csv = VALIDATE_CSV_PROCESS.out.validated_csv
 }
 
