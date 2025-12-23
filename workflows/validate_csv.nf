@@ -137,7 +137,7 @@ workflow VALIDATE_SAMPLES_CSV {
 		def groupId = p.group
 
 		/* single sample */
-		if ( rows.size() == 1 || (!fatherId && !motherId ))
+		if ( !fatherId && !motherId )
 			return
 
 		/* partial trio not allowed */
