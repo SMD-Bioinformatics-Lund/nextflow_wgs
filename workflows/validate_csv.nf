@@ -1,5 +1,21 @@
 nextflow.enable.dsl=2
 
+
+process VALIDATE_CSV_PROCESS {
+
+    input:
+    path samples_csv
+
+    output:
+    val errorMessages
+
+    script:
+    """
+    # no-op shell
+    true
+    """
+}
+
 workflow VALIDATE_SAMPLES_CSV {
 
 	take:
@@ -167,8 +183,11 @@ workflow VALIDATE_SAMPLES_CSV {
 	else {
 		log.info "✔ CSV validation passed (${rows.size()} samples)"
 	}
+
+	VALIDATE_CSV_PROCESS(samples_csv)
+
 	emit:
 	validated_csv = samples_csv
-	validation_errors = Channel.value(errorMessages)
+	validation_errors = VALIDATE_CSV_PROCESS.out.errorMessages
 }
 
