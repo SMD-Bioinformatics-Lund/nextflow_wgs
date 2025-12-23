@@ -19,7 +19,10 @@ workflow {
 
 
 
-	VALIDATE_SAMPLES_CSV(params.csv)
+	Channel
+        .from(params.csv)
+        .map { VALIDATE_SAMPLES_CSV(it); it }
+        .view()
 
 
     // pipeline continues only if validation passed
