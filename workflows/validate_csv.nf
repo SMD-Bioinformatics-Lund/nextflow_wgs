@@ -7,6 +7,21 @@ workflow VALIDATE_SAMPLES_CSV {
 
 	main:
 
+
+	emit:
+	validated_csv = samples_csv
+}
+
+process VALIDATE_SAMPLES_CSV {
+	
+	input:
+    	path samples_csv
+
+    output:
+    	path samples_csv, emit: data
+
+    script:
+	
 	def csv = file(samples_csv)
 	def errorMessages = []
 
@@ -156,10 +171,32 @@ workflow VALIDATE_SAMPLES_CSV {
 		parentUsage[motherId] << groupId
 	}
 
-	log.info "✔ CSV validation passed (${rows.size()} samples)"
+	
+	// if (errorMessages) {
+	// 	error """
+	// 		CSV validation failed with ${errorMessages.size()} error(s):
 
-	emit:
-	validated_csv = samples_csv
-	validation_errors = Channel.value(errorMessages)
+	// 		${errorMessages.join('\n')}
+	// 	"""
+	// }
+	// else {
+	// 	log.info "✔ CSV validation passed (${rows.size()} samples)"
+	// }
+    """
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    ERROR_MESSAGES=(
+        ${errorMessages.collect { "\"${it.replace('"','\\\"')}\"" }.join(' ')}
+    )
+
+    if [[ \${#ERROR_MESSAGES[@]} -gt 0 ]]; then
+        echo "CSV validation failed with \${#ERROR_MESSAGES[@]} error(s):" >&2
+        for msg in "\${ERROR_MESSAGES[@]}"; do
+            echo "\$msg" >&2
+        done
+        exit 1
+    fi
+
+    echo 
 }
-

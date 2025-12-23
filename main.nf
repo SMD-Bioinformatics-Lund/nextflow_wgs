@@ -17,14 +17,15 @@ workflow {
 	//       params.outdir won't work.
 	params.results_output_dir = params.outdir + '/' + params.subdir
 
-	def v = VALIDATE_SAMPLES_CSV(params.csv)
 
-	def errors = v.validation_errors.val
 
-	if (errors && errors.size() > 0) {
-		validation_summary = "test"
-		error "CSV validation failed:\n${errors.join('\n')}"
-	}
+	VALIDATE_SAMPLES_CSV(params.csv)
+
+
+    // pipeline continues only if validation passed
+
+
+
 	// TODO: Pass these to processes in meta?
 	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
 	params.trio = file(params.csv).countLines() > 3 ? true : false
@@ -78,16 +79,13 @@ workflow {
 workflow.onComplete {
 
 		def completed_at = "${workflow.complete}"
-		def success = "${workflow.success}"
-		if (validation_summary && validation_summary.size() > 0) {
-			success = false
-		}
+
 		def msg = """\
 		Pipeline execution summary
 		---------------------------
 		Completed at: ${completed_at}
 		Duration    : ${workflow.duration}
-		Success     : ${success}
+		Success     : ${workflow.success}
 		scriptFile  : ${workflow.scriptFile}
 		workDir     : ${workflow.workDir}
 		csv         : ${params.csv}
