@@ -6,10 +6,10 @@ workflow VALIDATE_SAMPLES_CSV {
 	samples_csv
 
 	main:
-
+	VALIDATE_SAMPLES_CSV(samples_csv)
 
 	emit:
-	validated_csv = samples_csv
+	validated_csv = VALIDATE_SAMPLES_CSV.out.data
 }
 
 process VALIDATE_SAMPLES_CSV {
