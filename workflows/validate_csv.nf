@@ -4,15 +4,28 @@ nextflow.enable.dsl=2
 process VALIDATE_CSV_PROCESS {
 
     input:
-    path samples_csv
+        val messages
 
     output:
-    val errorMessages
+        tuple file("errorMessages"), emit: error
 
     script:
+    // convert messages to newline-separated string for shell
+    def msgStr = messages.join("\n")
+
     """
-    # no-op shell
-    true
+    #!/bin/bash
+    set -e
+
+    messages="${msgStr}"
+
+    if [ -n "\$messages" ]; then
+        echo "Errors found:"
+        echo "\$messages"
+        exit 1
+    else
+        touch errorMessages
+    fi
     """
 }
 
@@ -22,6 +35,7 @@ workflow VALIDATE_SAMPLES_CSV {
 	samples_csv
 
 	main:
+
 
 	def csv = file(samples_csv)
 	def errorMessages = []
@@ -172,22 +186,21 @@ workflow VALIDATE_SAMPLES_CSV {
 		parentUsage[motherId] << groupId
 	}
 
-	
-	if (errorMessages) {
-		error """
-			CSV validation failed with ${errorMessages.size()} error(s):
+//	if (errorMessages) {
+//		error """
+//			CSV validation failed with ${errorMessages.size()} error(s):
+//
+//			${errorMessages.join('\n')}
+//		"""
+//	}
+//	else {
+//		log.info "✔ CSV validation passed (${rows.size()} samples)"
+//	}
 
-			${errorMessages.join('\n')}
-		"""
-	}
-	else {
-		log.info "✔ CSV validation passed (${rows.size()} samples)"
-	}
-
-	VALIDATE_CSV_PROCESS(samples_csv)
+	VALIDATE_CSV_PROCESS(errorMessages)
 
 	emit:
 	validated_csv = samples_csv
-	validation_errors = VALIDATE_CSV_PROCESS.out.errorMessages
+	validation_errors = VALIDATE_CSV_PROCESS.out.error
 }
 
