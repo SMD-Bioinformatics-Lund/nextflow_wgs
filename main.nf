@@ -632,7 +632,12 @@ workflow NEXTFLOW_WGS {
 
 			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, ch_melt_qc_vals)
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
-			ch_output_info = ch_output_info.mix(cnvkit_panel.out.cnvkit_INFO)
+			ch_cnvkit_plot = cnvkit_panel.out.cns_cnr
+				.join(split_normalize.out.intersected_vcf, by: [0, 1])
+				.join(genes_analyzed.out.genes_of_interest, by: [0, 1])
+
+			cnvkit_scatter(ch_cnvkit_plot)
+			ch_output_info = ch_output_info.mix(cnvkit_scatter.out.cnvkit_INFO)
 
 			ch_panel_merge = ch_panel_merge.mix(
 				ch_cnvkit_out,
@@ -3375,8 +3380,7 @@ process cnvkit_panel {
 	output:
 		tuple val(group), val(id), path("${id}.cnvkit_filtered.vcf"), emit: cnvkit_calls
 		tuple val(group), val(id), path("${id}.call.cns"), emit: unfiltered_cns
-		tuple val(group), val(id), path("${group}.genomic_overview.png"), emit: genomic_overview_plot
-		tuple val(group), path("${group}_oplot.INFO"), emit: cnvkit_INFO
+		tuple val(group), val(id), path("results/${id}.cns"), path("results/${id}.cnr"), emit: cns_cnr
 		path "*versions.yml", emit: versions
 
 
@@ -3386,8 +3390,6 @@ process cnvkit_panel {
 		cnvkit.py call results/*.cns -v $intersected_vcf -o ${id}.call.cns
 		filter_cnvkit.pl ${id}.call.cns $MEAN_DEPTH > ${id}.filtered
 		cnvkit.py export vcf ${id}.filtered -i "$id" > ${id}.cnvkit_filtered.vcf
-		cnvkit.py scatter -s results/*dedup.cn{s,r} -o ${group}.genomic_overview.png -v $intersected_vcf -i $id
-		echo "IMG overviewplot	${params.accessdir}/plots/${group}.genomic_overview.png" > ${group}_oplot.INFO
 
 		${cnvkit_panel_version(task)}
 		"""
@@ -3403,6 +3405,46 @@ process cnvkit_panel {
 		"""
 }
 def cnvkit_panel_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    cnvkit: \$(cnvkit.py version | sed -e 's/cnvkit v//g')
+	END_VERSIONS
+	"""
+}
+
+
+process cnvkit_scatter {
+	cpus  2
+	container  "${params.container_cnvkit}"
+	publishDir "${params.results_output_dir}/plots/", mode: 'copy', overwrite: 'true', pattern: '*.png'
+	tag "$id"
+	time '1h'
+	memory '2 GB'
+	input:
+		tuple val(group), val(id), path(cns), path(cnr), path(intersected_vcf), path(genes)
+
+	output:
+		tuple val(group), val(id), path("${group}.genomic_overview.png"), emit: genomic_overview_plot
+		tuple val(group), path("${group}_oplot.INFO"), emit: cnvkit_INFO
+		path "*versions.yml", emit: versions
+
+
+	script:
+		"""
+		cnvkit.py scatter -s *.cn{s,r} -o ${group}.genomic_overview.png -v $intersected_vcf -i $id
+		echo "IMG overviewplot	${params.accessdir}/plots/${group}.genomic_overview.png" > ${group}_oplot.INFO
+
+		${cnvkit_panel_version(task)}
+		"""
+
+	stub:
+		"""
+		touch "${group}.genomic_overview.png"
+		${cnvkit_panel_version(task)}
+		"""
+}
+def cnvkit_scatter_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
