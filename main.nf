@@ -3436,7 +3436,7 @@ process cnvkit_scatter {
 
 	script:
 		"""
-		if [ -s ${genes} ]
+		if [ -s ${genes} ]; then
 			while read -r gene; do
 				cnvkit.py scatter -s *.cn{s,r} \\
 				-g \$gene -v $intersected_vcf \\
