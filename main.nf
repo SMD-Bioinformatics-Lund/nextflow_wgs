@@ -3434,12 +3434,14 @@ process cnvkit_scatter {
 		"""
 		while read -r gene; do
 			cnvkit.py scatter -s *.cn{s,r} \\
-			-g $gene -v $intersected_vcf \\
+			-g \$gene -v $intersected_vcf \\
 			-i $id \\
-			-o ${gene}_scatter.png \\
+			-o \${gene}_scatter.png \\
 			-w 50000 \\
 			--y-min -5 \\
 			--y-max 5
+		done < ${genes}
+		magick *.png -append ${group}.genomic_overview.png
 		echo "IMG overviewplot	${params.accessdir}/plots/${group}.genomic_overview.png" > ${group}_oplot.INFO
 
 		${cnvkit_panel_version(task)}
