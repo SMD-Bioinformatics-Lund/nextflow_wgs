@@ -245,7 +245,7 @@ workflow NEXTFLOW_WGS {
 		}
 
 
-
+	genes_analyzed(ch_scout_yaml_meta)
 	rename_bam(ch_bam_start) // See process for more info about why this is needed.
 	copy_bam(rename_bam.out.bam_bai)
 	bamtoyaml(ch_bam_start)
@@ -800,7 +800,38 @@ workflow NEXTFLOW_WGS {
 	// }
 
 
+process genes_analyzed {
+	cpus 2
+	tag "$id"
+	time '1h'
+	memory '20 GB'
+	container "${params.container_cnvkit}"
 
+	input:
+		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis)
+
+	output:
+		tuple val(group), val(id), file("${id}.genes"), emit: genes_of_interest
+
+	script:
+		def panels = diagnosis
+			.split(/\+/)
+			.collect { it.trim() }
+			.findAll { it }
+		def panelsJson = JsonOutput.toJson(panels)
+		"""
+		jq --argjson panels '${panelsJson}' '
+		[
+			.[]
+			| select(.panel_name as \$p | \$panels | index(\$p))
+			| .genes[]
+			| .symbol
+		]
+		| unique
+		| join(",")
+		' ${params.all_gene_panels} > ${id}.genes
+		"""
+}
 
 process fastp {
 	cpus 10
