@@ -3380,7 +3380,7 @@ process cnvkit_panel {
 	output:
 		tuple val(group), val(id), path("${id}.cnvkit_filtered.vcf"), emit: cnvkit_calls
 		tuple val(group), val(id), path("${id}.call.cns"), emit: unfiltered_cns
-		tuple val(group), val(id), path("results/${id}.cns"), path("results/${id}.cnr"), emit: cns_cnr
+		tuple val(group), val(id), path("results/${id}*.cns"), path("results/${id}*.cnr"), emit: cns_cnr
 		path "*versions.yml", emit: versions
 
 
@@ -3432,7 +3432,14 @@ process cnvkit_scatter {
 
 	script:
 		"""
-		cnvkit.py scatter -s *.cn{s,r} -o ${group}.genomic_overview.png -v $intersected_vcf -i $id
+		while read -r gene; do
+			cnvkit.py scatter -s *.cn{s,r} \\
+			-g $gene -v $intersected_vcf \\
+			-i $id \\
+			-o ${gene}_scatter.png \\
+			-w 50000 \\
+			--y-min -5 \\
+			--y-max 5
 		echo "IMG overviewplot	${params.accessdir}/plots/${group}.genomic_overview.png" > ${group}_oplot.INFO
 
 		${cnvkit_panel_version(task)}
