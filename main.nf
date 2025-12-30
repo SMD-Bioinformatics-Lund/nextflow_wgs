@@ -818,9 +818,9 @@ process genes_analyzed {
 			.split(/\+/)
 			.collect { it.trim() }
 			.findAll { it }
-		def panelsJson = JsonOutput.toJson(panels)
+		def panelsJson = groovy.json.JsonOutput.toJson(panels)
 		"""
-		jq --argjson panels '${panelsJson}' '
+		jq -r --argjson panels '${panelsJson}' '
 		[
 			.[]
 			| select(.panel_name as \$p | \$panels | index(\$p))
@@ -828,7 +828,7 @@ process genes_analyzed {
 			| .symbol
 		]
 		| unique
-		| join(",")
+		| .[]
 		' ${params.all_gene_panels} > ${id}.genes
 		"""
 }
