@@ -816,7 +816,7 @@ process genes_analyzed {
 		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis)
 
 	output:
-		tuple val(group), val(id), file("${id}.genes"), emit: genes_of_interest
+		tuple val(group), val(id), file("${group}.genes"), emit: genes_of_interest
 
 	script:
 		def panels = diagnosis
@@ -834,7 +834,11 @@ process genes_analyzed {
 		]
 		| unique
 		| .[]
-		' ${params.all_gene_panels} > ${id}.genes
+		' ${params.all_gene_panels} > ${group}.genes || touch ${group}.genes
+		"""
+	stub:
+		"""
+		touch ${group}.genes
 		"""
 }
 
@@ -3432,16 +3436,23 @@ process cnvkit_scatter {
 
 	script:
 		"""
-		while read -r gene; do
-			cnvkit.py scatter -s *.cn{s,r} \\
-			-g \$gene -v $intersected_vcf \\
-			-i $id \\
-			-o \${gene}_scatter.png \\
-			-w 50000 \\
-			--y-min -5 \\
-			--y-max 5
-		done < ${genes}
-		magick *.png -append ${group}.genomic_overview.png
+		if [ -s ${genes} ]
+			while read -r gene; do
+				cnvkit.py scatter -s *.cn{s,r} \\
+				-g \$gene -v $intersected_vcf \\
+				-i $id \\
+				-o \${gene}_scatter.png \\
+				-w 50000 \\
+				--y-min -5 \\
+				--y-max 5
+			done < ${genes}
+			magick *.png -append ${group}.genomic_overview.png
+		else
+            cnvkit.py scatter -s *.cn{s,r} \\
+                -i $id \\
+				-v $intersected_vcf \\
+                -o ${group}.genomic_overview.png
+        fi
 		echo "IMG overviewplot	${params.accessdir}/plots/${group}.genomic_overview.png" > ${group}_oplot.INFO
 
 		${cnvkit_panel_version(task)}
