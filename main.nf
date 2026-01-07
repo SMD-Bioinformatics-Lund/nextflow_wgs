@@ -727,8 +727,9 @@ workflow NEXTFLOW_WGS {
 
 		// plot cnvkit for panels
 		ch_cnvkit_plot = cnvkit_panel.out.cns_cnr
+			.join(split_normalize.out.intersected_vcf, by: [0, 1])
 			.join(genes_analyzed.out.genes_of_interest, by: [0, 1])
-			.join(bgzip_scored_genmod.out.sv_rescore_vcf, by [0])
+			.join(bgzip_scored_genmod.out.sv_rescore_vcf, by: [0])
 
 		cnvkit_scatter(ch_cnvkit_plot)
 		ch_output_info = ch_output_info.mix(cnvkit_scatter.out.cnvkit_INFO)
@@ -3429,13 +3430,12 @@ process cnvkit_scatter {
 	time '1h'
 	memory '2 GB'
 	input:
-		tuple val(group), val(id), path(cns), path(cnr), path(genes), path(vcf)
+		tuple val(group), val(id), path(cns), path(cnr), path(intersected_vcf), path(genes), path(vcf)
 
 	output:
 		tuple val(group), val(id), path("${group}.genomic_overview.png"), emit: genomic_overview_plot
 		tuple val(group), path("${group}_oplot.INFO"), emit: cnvkit_INFO
 		path "*versions.yml", emit: versions
-
 
 	script:
 		"""
