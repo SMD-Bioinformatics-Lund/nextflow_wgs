@@ -632,12 +632,7 @@ workflow NEXTFLOW_WGS {
 
 			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, ch_melt_qc_vals)
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
-			ch_cnvkit_plot = cnvkit_panel.out.cns_cnr
-				.join(split_normalize.out.intersected_vcf, by: [0, 1])
-				.join(genes_analyzed.out.genes_of_interest, by: [0, 1])
-
-			cnvkit_scatter(ch_cnvkit_plot)
-			ch_output_info = ch_output_info.mix(cnvkit_scatter.out.cnvkit_INFO)
+			
 
 			ch_panel_merge = ch_panel_merge.mix(
 				ch_cnvkit_out,
@@ -729,6 +724,14 @@ workflow NEXTFLOW_WGS {
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
 
 		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf, ch_svvcf_to_bed_meta)
+
+		// plot cnvkit for panels
+		ch_cnvkit_plot = cnvkit_panel.out.cns_cnr
+			.join(genes_analyzed.out.genes_of_interest, by: [0, 1])
+			.join(bgzip_scored_genmod.out.sv_rescore_vcf, by [0])
+
+		cnvkit_scatter(ch_cnvkit_plot)
+		ch_output_info = ch_output_info.mix(cnvkit_scatter.out.cnvkit_INFO)
 
 		ch_compound_finder_input = bgzip_scored_genmod.out.sv_rescore  // Take final scored SV VCF
 			.join(ch_ped_trio_affected_permutations, by: [0,1])        // join with correct ped on group, type
@@ -3426,7 +3429,7 @@ process cnvkit_scatter {
 	time '1h'
 	memory '2 GB'
 	input:
-		tuple val(group), val(id), path(cns), path(cnr), path(intersected_vcf), path(genes)
+		tuple val(group), val(id), path(cns), path(cnr), path(genes), path(vcf)
 
 	output:
 		tuple val(group), val(id), path("${group}.genomic_overview.png"), emit: genomic_overview_plot
@@ -3438,13 +3441,13 @@ process cnvkit_scatter {
 		"""
 		if [ -s ${genes} ]; then
 			while read -r gene; do
-				cnvkit.py scatter -s *.cn{s,r} \\
-				-g \$gene -v $intersected_vcf \\
-				-i $id \\
+				plot_cnvkit_genes.py \\
+				-g \$gene \\
+				-v $vcf \\
 				-o \${gene}_scatter.png \\
-				-w 50000 \\
-				--y-min -5 \\
-				--y-max 5
+				--cns $cns \\
+				--cnr $cnr \\
+				--gtf $params.mane_gene_regions
 			done < ${genes}
 			magick *.png -append ${group}.genomic_overview.png
 		else
