@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.??.?
+* Better plotting for CNVkit, gene based from genepanels
+* CNVkit 0.9.6 -> 0.9.11
+
 ### 3.20.4
 * Peddy activated for constitutional
 
