@@ -3388,16 +3388,17 @@ process cnvkit_panel {
 	output:
 		tuple val(group), val(id), path("${id}.cnvkit_filtered.vcf"), emit: cnvkit_calls
 		tuple val(group), val(id), path("${id}.call.cns"), emit: unfiltered_cns
-		tuple val(group), val(id), path("results/${id}*.cns"), path("results/${id}*.cnr"), emit: cns_cnr
+		tuple val(group), val(id), path("${id}.cns"), path("${id}.cnr"), emit: cns_cnr
 		path "*versions.yml", emit: versions
 
 
 	script:
 		"""
 		cnvkit.py batch $bam -r $params.cnvkit_reference -p 5 -d results/
-		bam_base=\$(basename "\$bam" .bam)
-		cns="results/\${bam_base}.cns"
-		cnvkit.py call \$cns -v $intersected_vcf -o ${id}.call.cns
+		bam_base=\$(basename "$bam" .bam)
+		mv results/\${bam_base}.cns ${id}.cns
+		mv results/\${bam_base}.cns ${id}.cnr
+		cnvkit.py call ${id}.cns -v $intersected_vcf -o ${id}.call.cns
 		filter_cnvkit.pl ${id}.call.cns $MEAN_DEPTH > ${id}.filtered
 		cnvkit.py export vcf ${id}.filtered -i "$id" > ${id}.cnvkit_filtered.vcf
 
