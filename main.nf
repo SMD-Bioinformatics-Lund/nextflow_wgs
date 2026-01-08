@@ -3374,7 +3374,7 @@ def manta_panel_version(task) {
 
 process cnvkit_panel {
 	cpus  5
-	container  "${params.container_twist_myeloid}"
+	container  "${params.container_cnvkit}"
 	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
 	publishDir "${params.results_output_dir}/plots/", mode: 'copy', overwrite: 'true', pattern: '*.png'
 	tag "$id"
