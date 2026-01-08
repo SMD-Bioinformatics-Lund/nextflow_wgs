@@ -3397,7 +3397,7 @@ process cnvkit_panel {
 		cnvkit.py batch $bam -r $params.cnvkit_reference -p 5 -d results/
 		bam_base=\$(basename "$bam" .bam)
 		mv results/\${bam_base}.cns ${id}.cns
-		mv results/\${bam_base}.cns ${id}.cnr
+		mv results/\${bam_base}.cnr ${id}.cnr
 		cnvkit.py call ${id}.cns -v $intersected_vcf -o ${id}.call.cns
 		filter_cnvkit.pl ${id}.call.cns $MEAN_DEPTH > ${id}.filtered
 		cnvkit.py export vcf ${id}.filtered -i "$id" > ${id}.cnvkit_filtered.vcf
