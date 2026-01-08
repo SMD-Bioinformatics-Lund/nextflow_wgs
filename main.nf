@@ -3394,9 +3394,8 @@ process cnvkit_panel {
 
 	script:
 		"""
-		cnvkit.py batch $bam -r $params.cnvkit_reference -p 5 -d results/
-		cnvkit.py call results/*.cns -v $intersected_vcf -o ${id}.call.cns
-		filter_cnvkit.pl ${id}.call.cns $MEAN_DEPTH > ${id}.filtered
+		cnvkit.py batch $bam -r $params.cnvkit_reference -p 5 -d results/ -v $intersected_vcf
+		filter_cnvkit.pl results/*.call.cns $MEAN_DEPTH > ${id}.filtered
 		cnvkit.py export vcf ${id}.filtered -i "$id" > ${id}.cnvkit_filtered.vcf
 
 		${cnvkit_panel_version(task)}
