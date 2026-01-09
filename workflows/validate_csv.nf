@@ -1,41 +1,11 @@
 nextflow.enable.dsl=2
 
-
-process VALIDATE_CSV_PROCESS {
-
-    input:
-        val messages
-	path samples_csv
-
-    output:
-	val true, emit: ok
-	path samples_csv, emit: validated_csv
-
-    script:
-    // convert messages to newline-separated string for shell
-    def msgStr = messages.join("\n")
-
-    """
-    #!/bin/bash
-    set -e
-
-    messages="${msgStr}"
-
-    if [ -n "\$messages" ]; then
-        echo "Errors found:"
-        echo "\$messages"
-        exit 1
-    fi
-    """
-}
-
 workflow VALIDATE_SAMPLES_CSV {
 
 	take:
 	samples_csv
 
 	main:
-
 
 	def csv = file(samples_csv)
 	def errorMessages = []
@@ -184,11 +154,18 @@ workflow VALIDATE_SAMPLES_CSV {
 		/* track parent reuse */
 		parentUsage[fatherId] << groupId
 		parentUsage[motherId] << groupId
+
+
 	}
 
-	VALIDATE_CSV_PROCESS(errorMessages, csv)
+    // exit pipeline and trigger onError //
+    if (errorMessages) {
+        error errorMessages.join('\n')
+    }
+
+    validated_csv = Channel.from(csv)
 
 	emit:
-	validated_csv = VALIDATE_CSV_PROCESS.out.validated_csv
+	validated_csv = validated_csv
 }
 

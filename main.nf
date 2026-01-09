@@ -69,12 +69,10 @@ workflow {
 // TODO: needs to be moved into process/workflow to silence lsp error:
 workflow.onComplete {
 
-		def completed_at = "${workflow.complete}"
-
 		def msg = """\
 		Pipeline execution summary
 		---------------------------
-		Completed at: ${completed_at}
+		Completed at: ${workflow.complete}
 		Duration    : ${workflow.duration}
 		Success     : ${workflow.success}
 		scriptFile  : ${workflow.scriptFile}
@@ -106,6 +104,24 @@ workflow.onComplete {
 	}
 }
 
+workflow.onError {
+
+	def msg = """\
+	Success     : ${workflow.success}
+	scriptFile  : ${workflow.scriptFile}
+	workDir     : ${workflow.workDir}
+	csv         : ${params.csv}
+	errorMessage: ${workflow.errorMessage}
+	"""
+	def base = file(params.csv).getBaseName()
+	File logFile = new File("${params.crondir}/logs/${base}.complete")
+	if ( !logFile.exists() ) {
+		if (!logFile.getParentFile().exists()) {
+			logFile.getParentFile().mkdirs()
+		}
+		logFile.text = msg
+	}
+}
 
 workflow NEXTFLOW_WGS {
 
