@@ -47,6 +47,18 @@ workflow VALIDATE_SAMPLES_CSV {
 		errorMessages.add(msg)
 	}	
 
+	// Check for duplicate headers
+	def duplicates = header
+		.groupBy { col -> col }
+		.findAll { col, cols -> cols.size() > 1 }
+		.keySet()
+
+	if (duplicates) {
+		errorMessages.add(
+			"Duplicate header columns found: ${duplicates.join(', ')}"
+		)
+	}
+	
 	def rows = []
 	lines.drop(1).eachWithIndex { line, i ->
 		def vals = line.split(',', -1)
