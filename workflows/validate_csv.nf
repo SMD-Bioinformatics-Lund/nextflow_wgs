@@ -51,17 +51,21 @@ workflow VALIDATE_SAMPLES_CSV {
 	lines.drop(1).eachWithIndex { line, i ->
 		def vals = line.split(',', -1)
 		if (vals.size() != header.size()) {
-			def msg = "Line ${idx+2} has ${vals.size()} columns, expected ${header.size()}"
+			def msg = "Line ${i+2} has ${vals.size()} columns, expected ${header.size()}"
 			errorMessages.add(msg)
 		}
 		rows << [header, vals].transpose().collectEntries()
 	}
 
 	def probandsByGroup = rows
-	.findAll { it.type == 'proband' }
-	.groupBy { it.group }
+	.findAll { 
+		row ->
+		row.type == 'proband'
+	}
+	.groupBy { row -> row.group }
 
-	probandsByGroup.each { groupId, probands ->
+	probandsByGroup.each { 
+		groupId, probands ->
 		if (probands.size() > 1) {
 			def msg = "Group '${groupId}' has multiple probands: ${probands*.id.join(', ')}"
 			errorMessages.add(msg)
@@ -69,39 +73,49 @@ workflow VALIDATE_SAMPLES_CSV {
 	}
 
 	def ids = rows*.id
-	def dup = ids.findAll { id -> ids.count(id) > 1 }.unique()
+	def dup = ids.findAll { 
+		id -> 
+		ids.count(id) > 1 }.unique()
 	if (dup) {
 		def msg = "Duplicate sample IDs: ${dup.join(', ')}"
 		errorMessages.add(msg)
 	}
 
-	rows.each {
-		if (!(it.sex in ['M','F'])) {
-			def msg = "Invalid sex '${it.sex}' for sample ${it.id}"
+	rows.each { row ->
+		if (!(row.sex in ['M','F'])) {
+			def msg = "Invalid sex '${row.sex}' for sample ${row.id}"
 			errorMessages.add(msg)
 		}
 	}
 
-	def probands = rows.findAll { it.type == 'proband' }
+	def probands = rows.findAll { 
+		row ->
+		row.type == 'proband'
+	}
 	if (!probands) {
 		def msg = "At least one sample must have type=proband"
 		errorMessages.add(msg)
 	}
 
-	def byId = rows.collectEntries { [(it.id): it] }
-	def groupBySample = rows.collectEntries { [(it.id): it.group] }
+	def byId = rows.collectEntries { 
+		row -> 
+		[(row.id): row] 
+	}
+	def groupBySample = rows.collectEntries { row -> [(row.id): row.group] }
 
-	rows.each { r ->
+	rows.each { 
+		row ->
 		['read1','read2'].each { fq ->
-			if (!file(r[fq]).exists()) {
-				def msg = "FASTQ not found: ${r[fq]} (sample ${r.id})"
+			if (!file(row[fq]).exists()) {
+				def msg = "FASTQ not found: ${row[fq]} (sample ${row.id})"
 				errorMessages.add(msg)
 			}
 		}
 	}
 
 	def parentUsage = [:].withDefault { [] }
-	probands.each { p ->
+	probands.each { 
+		p ->
 		def fatherId = p.father
 		def motherId = p.mother
 		def groupId = p.group
