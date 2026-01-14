@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.20.5
+* Update PR template
+
 ### 3.20.4
 * Peddy activated for constitutional
 
