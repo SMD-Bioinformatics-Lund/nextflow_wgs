@@ -4,6 +4,7 @@ include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
 include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
+include { vcfHasVariants } from './workflows/util.nf'
 
 nextflow.enable.dsl=2
 
@@ -675,16 +676,7 @@ workflow NEXTFLOW_WGS {
 				def has_sv = true // to allow for stub
 
 				if (merged_vcf.exists() && merged_vcf.size() > 0) {
-					has_sv = false
-					merged_vcf.withReader { reader ->
-						String line
-						while ((line = reader.readLine()) != null) {
-							if (!line.startsWith('#')) {
-								has_sv = true
-								break
-							}
-						}
-					}
+					has_sv = vcfHasVariants(merged_vcf)
 				}
 
 				tuple(group, id, merged_vcf, has_sv)
