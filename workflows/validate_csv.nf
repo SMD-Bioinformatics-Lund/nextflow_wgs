@@ -12,7 +12,7 @@ workflow VALIDATE_SAMPLES_CSV {
 
 	if (!csv.exists()) {
 		def msg = "Samples CSV does not exist: ${csv}"
-		errorMessages.add(msg)
+		error msg
 	}
 
 	def lines = csv.readLines()
