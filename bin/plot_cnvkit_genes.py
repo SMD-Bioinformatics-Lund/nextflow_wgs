@@ -155,6 +155,17 @@ def plot_gene_cnv(
     # highlight gene
     ax.axvspan(gene_start, gene_end, color="steelblue", alpha=0.1)
 
+    for log2_val in [-2, -1, 0, 1, 2]:
+        ax.hlines(
+            log2_val,
+            region_start,
+            region_end,
+            linestyles="dashed",
+            linewidth=1,
+            alpha=0.25,
+            color="black",
+        )
+
     sv_ymin = ymin  # bottom of CNV plot
     sv_ymax = exon_y + exon_h + 0.2  # just below exons
 
@@ -166,9 +177,12 @@ def plot_gene_cnv(
 
             tracks = []
             text_base_y = sv_ymax + 0.2
-            text_step = 0.35 
+            text_step = 0.5 
 
-            for _, sv in sv_df.iterrows():
+            for var_idx, (_, sv) in enumerate(sv_df.iterrows()):
+                sv_start = sv["start"]
+                sv_end = sv["end"]
+
                 ax.axvspan(
                     sv["start"],
                     sv["end"],
@@ -178,19 +192,10 @@ def plot_gene_cnv(
                     alpha=0.3,
                 )
 
-                # try to keep track of variants overlapping, avoid text jumble
-                for track_idx, last_end in enumerate(tracks):
-                    if sv["start"] > last_end:
-                        tracks[track_idx] = sv["end"]
-                        break
-                else:
-                    track_idx = len(tracks)
-                    tracks.append(sv["end"])
-
                 ax.text(
-                    (sv["start"] + sv["end"]) / 2,
-                    text_base_y + track_idx * text_step,
-                    f'{sv["SVTYPE"]}:{sv["RankScore"]}',
+                    (sv_start + sv_end) / 2,
+                    text_base_y + var_idx * text_step,
+                    f"{sv['SVTYPE']}:{sv['RankScore']}",
                     fontsize=7,
                     ha="center",
                     va="top",
