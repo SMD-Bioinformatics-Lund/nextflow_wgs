@@ -13,7 +13,13 @@ def vcfHasVariants(Path vcf) {
 
     def found = false
 
-    vcf.withReader { reader ->
+    // Detect  gzipped files
+    def inputStream = java.nio.file.Files.newInputStream(vcf)
+    if (vcf.name.endsWith('.gz')) {
+        inputStream = new java.util.zip.GZIPInputStream(inputStream)
+    }
+
+    inputStream.withReader { reader ->
         reader.eachLine { line ->
             def s = line.trim()
             if (s && !s.startsWith('#')) {
