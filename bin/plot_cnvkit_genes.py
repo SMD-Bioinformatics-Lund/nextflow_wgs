@@ -161,6 +161,12 @@ def plot_gene_cnv(
     if vcf_file:
         sv_df = parse_vcf(vcf_file, chrom, region_start, region_end)
 
+        sv_df = sv_df.sort_values("start")
+
+        tracks = []
+        text_base_y = sv_ymax + 0.2
+        text_step = 0.35 
+
         for _, sv in sv_df.iterrows():
             ax.axvspan(
                 sv["start"],
@@ -171,10 +177,18 @@ def plot_gene_cnv(
                 alpha=0.3,
             )
 
-            # vertical text
+            # try to keep track of variants overlapping, avoid text jumble
+            for track_idx, last_end in enumerate(tracks):
+                if sv["start"] > last_end:
+                    tracks[track_idx] = sv["end"]
+                    break
+            else:
+                track_idx = len(tracks)
+                tracks.append(sv["end"])
+
             ax.text(
                 (sv["start"] + sv["end"]) / 2,
-                sv_ymax + 0.2,
+                text_base_y + track_idx * text_step,
                 f'{sv["SVTYPE"]}:{sv["RankScore"]}',
                 fontsize=7,
                 ha="center",
@@ -213,8 +227,6 @@ def parse_vcf(vcf_file, chrom, region_start, region_end):
             if str(v_chrom) != str(chrom):
                 continue
             pos = int(pos)
-            if not (region_start <= pos <= region_end):
-                continue
 
             # parse INFO field
             info_dict = dict(item.split("=") for item in info.split(";") if "=" in item)
@@ -223,6 +235,9 @@ def parse_vcf(vcf_file, chrom, region_start, region_end):
 
             # end is not VCF standard but we use it, fallback
             end = int(info_dict.get("END", pos))
+            
+            if not (pos <= region_end and end >= region_start):
+                continue
 
             svs.append(
                 {"start": pos, "end": end, "SVTYPE": svtype, "RankScore": rankscore}
