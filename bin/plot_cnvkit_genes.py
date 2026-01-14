@@ -171,13 +171,12 @@ def plot_gene_cnv(
 
     if vcf_file:
         sv_df = parse_vcf(vcf_file, chrom, region_start, region_end)
-        
+
         if not sv_df.empty:
             sv_df = sv_df.sort_values("start")
 
-            tracks = []
             text_base_y = sv_ymax + 0.2
-            text_step = 0.5 
+            text_step = 0.5
 
             for var_idx, (_, sv) in enumerate(sv_df.iterrows()):
                 sv_start = sv["start"]
@@ -241,7 +240,7 @@ def parse_vcf(vcf_file, chrom, region_start, region_end):
 
             # end is not VCF standard but we use it, fallback
             end = int(info_dict.get("END", pos))
-            
+
             if not (pos <= region_end and end >= region_start):
                 continue
 
