@@ -1,8 +1,14 @@
 # CHANGELOG
 
-### 3.??.?
+### 3.20.8
 * Better plotting for CNVkit, gene based from genepanels
 * CNVkit 0.9.6 -> 0.9.11
+
+### 3.20.6
+* Input CSV validation workflow
+
+### 3.20.5
+* Update PR template
 
 ### 3.20.4
 * Peddy activated for constitutional
