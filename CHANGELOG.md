@@ -1,7 +1,10 @@
 # CHANGELOG
 
-### 3.21.5
+### 3.20.6
 * Input CSV validation workflow
+
+### 3.20.5
+* Update PR template
 
 ### 3.20.4
 * Peddy activated for constitutional
