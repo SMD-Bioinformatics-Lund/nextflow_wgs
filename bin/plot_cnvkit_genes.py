@@ -160,40 +160,41 @@ def plot_gene_cnv(
 
     if vcf_file:
         sv_df = parse_vcf(vcf_file, chrom, region_start, region_end)
+        
+        if not sv_df.empty:
+            sv_df = sv_df.sort_values("start")
 
-        sv_df = sv_df.sort_values("start")
+            tracks = []
+            text_base_y = sv_ymax + 0.2
+            text_step = 0.35 
 
-        tracks = []
-        text_base_y = sv_ymax + 0.2
-        text_step = 0.35 
+            for _, sv in sv_df.iterrows():
+                ax.axvspan(
+                    sv["start"],
+                    sv["end"],
+                    ymin=(sv_ymin - ymin) / (ymax - ymin),
+                    ymax=(sv_ymax - ymin) / (ymax - ymin),
+                    color="orange",
+                    alpha=0.3,
+                )
 
-        for _, sv in sv_df.iterrows():
-            ax.axvspan(
-                sv["start"],
-                sv["end"],
-                ymin=(sv_ymin - ymin) / (ymax - ymin),
-                ymax=(sv_ymax - ymin) / (ymax - ymin),
-                color="orange",
-                alpha=0.3,
-            )
+                # try to keep track of variants overlapping, avoid text jumble
+                for track_idx, last_end in enumerate(tracks):
+                    if sv["start"] > last_end:
+                        tracks[track_idx] = sv["end"]
+                        break
+                else:
+                    track_idx = len(tracks)
+                    tracks.append(sv["end"])
 
-            # try to keep track of variants overlapping, avoid text jumble
-            for track_idx, last_end in enumerate(tracks):
-                if sv["start"] > last_end:
-                    tracks[track_idx] = sv["end"]
-                    break
-            else:
-                track_idx = len(tracks)
-                tracks.append(sv["end"])
-
-            ax.text(
-                (sv["start"] + sv["end"]) / 2,
-                text_base_y + track_idx * text_step,
-                f'{sv["SVTYPE"]}:{sv["RankScore"]}',
-                fontsize=7,
-                ha="center",
-                va="top",
-            )
+                ax.text(
+                    (sv["start"] + sv["end"]) / 2,
+                    text_base_y + track_idx * text_step,
+                    f'{sv["SVTYPE"]}:{sv["RankScore"]}',
+                    fontsize=7,
+                    ha="center",
+                    va="top",
+                )
 
     ax.set_xlim(region_start, region_end)
     ax.set_ylim(ymin, ymax)
