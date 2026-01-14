@@ -24,7 +24,7 @@ workflow {
 	// Check whether genome assembly is indexed //
 	// TODO: Move to some pre-processing workflow:
 	if(params.genome_file) {
-		_bwaId = Channel
+		_bwaId = channel
 			.fromPath("${params.genome_file}.bwt")
 			.ifEmpty { exit 1, "BWA index not found: ${params.genome_file}.bwt" }
 	}
@@ -46,7 +46,7 @@ workflow {
 	// Print active container
 	log.info("container: " + file(params.container).toRealPath())
 
-	ch_versions = Channel.empty()
+	ch_versions = channel.empty()
 
 	VALIDATE_SAMPLES_CSV(params.csv)
 
@@ -130,9 +130,9 @@ workflow NEXTFLOW_WGS {
 
 	main:
 	// Output channels:
-	ch_versions    = Channel.empty() // Gather software versions
-	ch_output_info = Channel.empty() // Gather data for .INFO
-	ch_qc_json     = Channel.empty() // Gather and merge QC JSONs per sample
+	ch_versions    = channel.empty() // Gather software versions
+	ch_output_info = channel.empty() // Gather data for .INFO
+	ch_qc_json     = channel.empty() // Gather and merge QC JSONs per sample
 
 	// CHANNEL PREP //
 	// TODO: Better solution for this. Assume shomehow that everything non-bam/non-vcf is fq.
@@ -161,7 +161,7 @@ workflow NEXTFLOW_WGS {
 		}
 
 	// GATK Ref:
-	ch_gatk_ref = Channel
+	ch_gatk_ref = channel
 		.fromPath(params.gatkreffolders)
 		.splitCsv(header:true)
 		.map{ row-> tuple(row.i, row.refpart) }
@@ -268,13 +268,13 @@ workflow NEXTFLOW_WGS {
 	bamtoyaml(ch_bam_start)
 	ch_output_info = ch_output_info.mix(bamtoyaml.out.bamchoice_INFO)
 
-	ch_bam_start_dedup_dummy = Channel.empty()
+	ch_bam_start_dedup_dummy = channel.empty()
 	if(params.run_melt) {
 		dedupdummy(ch_bam_start)
 		ch_bam_start_dedup_dummy = dedupdummy.out.dedup_dummy
 	}
 
-	ch_bam_bai = Channel.empty()
+	ch_bam_bai = channel.empty()
 	ch_bam_bai = ch_bam_bai.mix(copy_bam.out.bam_bai)
 
 	// PED //
@@ -292,10 +292,10 @@ workflow NEXTFLOW_WGS {
 
 	create_ped(ch_ped_input)
 	ch_ped_base = create_ped.out.ped_base
-	ch_ped_father_affected = Channel.empty()
-	ch_ped_mother_affected = Channel.empty()
+	ch_ped_father_affected = channel.empty()
+	ch_ped_mother_affected = channel.empty()
 
-	ch_ped_trio_affected_permutations = Channel.empty()  // Channel for base ped + father and mother set as affected peds
+	ch_ped_trio_affected_permutations = channel.empty()  // channel for base ped + father and mother set as affected peds
 	ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations.mix(ch_ped_base)
 	if(params.mode == "family" && params.assay == "wgs") {
 
@@ -319,7 +319,7 @@ workflow NEXTFLOW_WGS {
 
 	// ALIGN //
 	//TODO: why do we have a params.align conditional anyway?
-	ch_dedup_stats = Channel.empty()
+	ch_dedup_stats = channel.empty()
 	if (params.align) {
 		bwa_align(ch_fastq)
 		markdup(bwa_align.out.bam_bai)
@@ -377,7 +377,7 @@ workflow NEXTFLOW_WGS {
 	ch_versions = ch_versions.mix(gvcf_combine.out.versions.first())
 
 	ch_split_normalize = gvcf_combine.out.combined_vcf
-	ch_split_normalize_concat_vcf = Channel.empty()
+	ch_split_normalize_concat_vcf = channel.empty()
 
 	// TODO: move antypes and similar to constants?
 	if (params.antype == "panel") {
@@ -503,13 +503,13 @@ workflow NEXTFLOW_WGS {
 		}
 	}
 
-	ch_loqusdb_sv = Channel.empty()
+	ch_loqusdb_sv = channel.empty()
 
 	if (params.sv) {
-		ch_smn_tsv = Channel.empty()
-		ch_panel_svs_present = Channel.empty()
-		ch_panel_svs_absent = Channel.empty()
-		ch_postprocessed_merged_sv_vcf = Channel.empty()
+		ch_smn_tsv = channel.empty()
+		ch_panel_svs_present = channel.empty()
+		ch_panel_svs_absent = channel.empty()
+		ch_postprocessed_merged_sv_vcf = channel.empty()
 		if(params.antype  == "wgs") {
 			// SMN CALLING //
 			SMNCopyNumberCaller(ch_bam_bai)
@@ -568,7 +568,7 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(postprocessgatk.out.versions.first())
 
 
-		ch_manta_out = Channel.empty()
+		ch_manta_out = channel.empty()
 		if (params.antype == "wgs") {
 			manta(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta.out.vcf)
@@ -642,7 +642,7 @@ workflow NEXTFLOW_WGS {
 		}
 
 		if (params.antype == "panel") {
-			ch_panel_merge = Channel.empty()
+			ch_panel_merge = channel.empty()
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
 
@@ -806,7 +806,7 @@ workflow NEXTFLOW_WGS {
 	// TODO: re-implement annotation-only runs and sort out remainder of this block:
 	// Input channels for alignment, variant calling and annotation //
 
-	// annotate_only = Channel.create()
+	// annotate_only = channel.create()
 
 	// If input-files has bam files bypass alignment, otherwise go for fastq-channels => three options for fastq, sharded bwa, normal bwa or umi trimming
 	// input_files.view().choice(bam_choice, fastq, fastq_sharded, fastq_umi, annotate_only ) { it[2] =~ /\.bam/ ? 0 : ( it[2] =~ /\.vcf.gz/ ? 4 : (params.shardbwa ? 2 : (params.umi ? 3 : 1) )) }

@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.20.7
+* Rename all instances of `Channel` to `channel`
+
 ### 3.20.6
 * Input CSV validation workflow
 
