@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.20.6
+* Input CSV validation workflow
+
 ### 3.20.5
 * Update PR template
 

@@ -3,6 +3,7 @@
 include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
+include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
 
 nextflow.enable.dsl=2
 
@@ -47,10 +48,10 @@ workflow {
 
 	ch_versions = Channel.empty()
 
-	Channel
-		.fromPath(params.csv)
+	VALIDATE_SAMPLES_CSV(params.csv)
+
+	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
-		.set { ch_samplesheet }
 
 	NEXTFLOW_WGS(ch_samplesheet)
 
@@ -68,12 +69,10 @@ workflow {
 // TODO: needs to be moved into process/workflow to silence lsp error:
 workflow.onComplete {
 
-		def completed_at = "${workflow.complete}"
-
 		def msg = """\
 		Pipeline execution summary
 		---------------------------
-		Completed at: ${completed_at}
+		Completed at: ${workflow.complete}
 		Duration    : ${workflow.duration}
 		Success     : ${workflow.success}
 		scriptFile  : ${workflow.scriptFile}
@@ -105,6 +104,24 @@ workflow.onComplete {
 	}
 }
 
+workflow.onError {
+
+	def msg = """\
+	Success     : ${workflow.success}
+	scriptFile  : ${workflow.scriptFile}
+	workDir     : ${workflow.workDir}
+	csv         : ${params.csv}
+	errorMessage: ${workflow.errorMessage}
+	"""
+	def base = file(params.csv).getBaseName()
+	File logFile = new File("${params.crondir}/logs/${base}.complete")
+	if ( !logFile.exists() ) {
+		if (!logFile.getParentFile().exists()) {
+			logFile.getParentFile().mkdirs()
+		}
+		logFile.text = msg
+	}
+}
 
 workflow NEXTFLOW_WGS {
 
