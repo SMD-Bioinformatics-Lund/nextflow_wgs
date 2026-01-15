@@ -39,10 +39,10 @@ workflow {
 	log.info("CRON output dir: " + params.crondir)
 
 	// Print commit-version of active deployment
-	// TODO: stuff this one into versions too, for good measure.
+	// TODO: also add to versions
 	file(params.git)
 		.readLines()
-		.each { println "git commit-hash: " + it }
+		.each { it -> println "git commit-hash: " + it }
 
 	// Print active container
 	log.info("container: " + file(params.container).toRealPath())
@@ -56,7 +56,7 @@ workflow {
 
 	NEXTFLOW_WGS(ch_samplesheet)
 
-	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect{ it }
+	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect{ version_yaml -> version_yaml }
 
 	combine_versions(
 		ch_samplesheet
@@ -684,12 +684,12 @@ workflow NEXTFLOW_WGS {
 
 			// Split into two channels: one with SVs, one without
 			ch_panel_svs_present = ch_panel_svs_check
-				.filter { group, id, merged_vcf, has_sv -> has_sv }
-				.map { group, id, merged_vcf, has_sv -> tuple(group, id, merged_vcf) }
+				.filter { _group, _id, _merged_vcf, has_sv -> has_sv }
+				.map { group, id, merged_vcf, _has_sv -> tuple(group, id, merged_vcf) }
 
 			ch_panel_svs_absent = ch_panel_svs_check
-				.filter { group, id, merged_vcf, has_sv -> !has_sv }
-				.map { group, id, merged_vcf, has_sv -> tuple(group, "proband", merged_vcf) } //this assumes no trio on panel ever. 
+				.filter { _group, _id, _merged_vcf, has_sv -> !has_sv }
+				.map { group, _id, merged_vcf, _has_sv -> tuple(group, "proband", merged_vcf) } //this assumes no trio on panel ever. 
 
 			ch_versions = ch_versions.mix(manta_panel.out.versions.first())
 			ch_versions = ch_versions.mix(cnvkit_panel.out.versions.first())
@@ -1820,7 +1820,7 @@ process gvcf_combine {
 		path "*versions.yml", emit: versions
 
 	script:
-		all_gvcfs = gvcfs.collect { it.toString() }.sort().join(' -v ')
+		all_gvcfs = gvcfs.collect { gvcf -> gvcf.toString() }.sort().join(' -v ')
 		"""
 		sentieon driver \\
 			-t ${task.cpus} \\
@@ -1832,7 +1832,7 @@ process gvcf_combine {
 		"""
 
 	stub:
-		all_gvcfs = gvcfs.collect { it.toString() }.sort().join(' -v ')
+		all_gvcfs = gvcfs.collect { gvcf -> gvcf.toString() }.sort().join(' -v ')
 		"""
 		touch "${group}.combined.vcf.gz"
 		touch "${group}.combined.vcf.gz.tbi"
@@ -2519,7 +2519,7 @@ process qc_to_cdm {
 
 	script:
 		parts = r1.split('/')
-		idx =  parts.findIndexOf {it ==~ /......_......_...._........../}
+		idx =  parts.findIndexOf {run_path_part -> run_path_part  ==~ /......_......_...._........../}
 		rundir = parts[0..idx].join("/")
 		"""
 	    echo "--run-folder ${rundir} --sample-id ${id} --subassay ${diagnosis} --assay ${params.cdm_assay} --qc ${params.results_output_dir}/qc/${id}.QC" > ${id}.cdm
@@ -3410,14 +3410,14 @@ process svdb_merge_panel {
 		if (vcfs.size() > 1) {
 			// for each sv-caller add idx, find vcf and find priority, add in priority order! //
 			// index of vcfs added
-			manta_idx = vcfs.findIndexOf{ it =~ 'manta' }
-			cnvkit_idx = vcfs.findIndexOf{ it =~ 'cnvkit' }
-			gatk_idx = vcfs.findIndexOf{ it =~ 'gatk' }
+			manta_idx = vcfs.findIndexOf{ vcf -> vcf =~ 'manta' }
+			cnvkit_idx = vcfs.findIndexOf{ vcf -> vcf =~ 'cnvkit' }
+			gatk_idx = vcfs.findIndexOf { vcf -> vcf =~ 'gatk' }
 
 			// find vcfs //
-			manta = manta_idx >= 0 ? vcfs[manta_idx].collect {it + ':manta ' } : null
-			cnvkit = cnvkit_idx >= 0 ? vcfs[cnvkit_idx].collect {it + ':cnvkit ' } : null
-			gatk = gatk_idx >= 0 ? vcfs[gatk_idx].collect {it + ':gatk ' } : null
+			manta = manta_idx >= 0 ? vcfs[manta_idx].collect { vcf -> vcf + ':manta ' } : null
+			cnvkit = cnvkit_idx >= 0 ? vcfs[cnvkit_idx].collect { vcf -> vcf + ':cnvkit ' } : null
+			gatk = gatk_idx >= 0 ? vcfs[gatk_idx].collect { vcf -> vcf + ':gatk ' } : null
 			tmp = manta + gatk + cnvkit
 			tmp = tmp - null
 			vcfs_svdb = tmp.join(' ')
@@ -3607,9 +3607,9 @@ process svdb_merge {
 			 this would ensure the same merge-order regardless of sample-id
 			 */
 
-			mantaV = mantaV.collect { it.toString() }.sort()
-			gatkV = gatkV.collect { it.toString() }.sort()
-			tidditV = tidditV.collect { it.toString() }.sort()
+			mantaV  = mantaV.collect  { vcf -> vcf.toString() }.sort()
+			gatkV   = gatkV.collect   { vcf -> vcf.toString() }.sort()
+			tidditV = tidditV.collect { vcf -> vcf.toString() }.sort()
 
 
 			def vcf_idx = 1
@@ -3649,7 +3649,7 @@ process svdb_merge {
 		}
 
 		else {
-			tmp = mantaV.collect {it + ':manta ' } + tidditV.collect {it + ':tiddit ' } + gatkV.collect {it + ':gatk ' }
+			tmp = mantaV.collect { vcf -> vcf + ':manta ' } + tidditV.collect { vcf -> vcf + ':tiddit ' } + gatkV.collect { vcf -> vcf + ':gatk ' }
 			vcfs = tmp.join(' ')
 			"""
 			svdb \\
