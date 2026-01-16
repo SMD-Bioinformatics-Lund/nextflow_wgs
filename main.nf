@@ -56,7 +56,7 @@ workflow {
 
 	NEXTFLOW_WGS(ch_samplesheet)
 
-	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect{ version_yaml -> version_yaml }
+	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
 	combine_versions(
 		ch_samplesheet
