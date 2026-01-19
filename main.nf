@@ -3460,7 +3460,17 @@ process cnvkit_scatter {
 	script:
 		"""
 		if [ -s ${genes} ]; then
+			gene_count=0
+
 			while read -r gene; do
+				[ -z "\$gene" ] && continue
+
+				gene_count=\$((gene_count + 1))
+				if [ "\$gene_count" -gt $params.max_genes_to_plot ]; then
+					echo "INFO: Reached maximum number of genes, stopping further CNVKit gene plotting."
+					break
+				fi
+
 				plot_cnvkit_genes.py \\
 				-g \$gene \\
 				-v $vcf \\
