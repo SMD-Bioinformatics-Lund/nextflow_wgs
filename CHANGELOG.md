@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.20.9
+* Changes related to update of Nextflow to 25.10.0
+
 ### 3.20.8
 * Fix LSP parsing error introduced in #353
 * Update `constitutional` vcf record checking code with valid nxf syntax and move to own function
