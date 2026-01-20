@@ -3459,27 +3459,17 @@ process cnvkit_scatter {
 
 	script:
 		"""
-		if [ -s ${genes} ]; then
-			gene_count=0
+        if [ -s ${genes} ]; then
+			head -n $params.max_genes_to_plot ${genes} | grep -v '^\\s*\$' > genes.txt
 
-			while read -r gene; do
-				[ -z "\$gene" ] && continue
-
-				gene_count=\$((gene_count + 1))
-				if [ "\$gene_count" -gt $params.max_genes_to_plot ]; then
-					echo "INFO: Reached maximum number of genes, stopping further CNVKit gene plotting."
-					break
-				fi
-
-				plot_cnvkit_genes.py \\
-				-g \$gene \\
-				-v $vcf \\
-				-o \${gene}_scatter.png \\
-				--cns $cns \\
-				--cnr $cnr \\
-				--gtf $params.mane_gene_regions
-			done < ${genes}
-			magick *.png -append ${group}.genomic_overview.png
+			plot_cnvkit_genes.py \\
+				--genes \$(cat genes.txt) \\
+				--sample_id ${id} \\
+				--cns ${cns} \\
+				--cnr ${cnr} \\
+				--gtf ${params.mane_gene_regions} \\
+				--scored_vcf ${vcf} \\
+				--output ${group}.genomic_overview.png
 		else
             cnvkit.py scatter -s *.cn{s,r} \\
                 -i $id \\

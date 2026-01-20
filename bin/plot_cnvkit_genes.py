@@ -64,7 +64,8 @@ def plot_gene_cnv(
     gene_gtf = gtf[(gtf["gene_name"] == gene)]
 
     if gene_gtf.empty:
-        raise ValueError(f"Gene '{gene}' not found in GTF")
+        print(f"WARNING: Gene '{gene}' not found in GTF — skipping", flush=True)
+        return False
 
     chrom = gene_gtf.iloc[0]["chrom"]
 
@@ -216,6 +217,8 @@ def plot_gene_cnv(
         else:
             plt.show()
 
+    return True
+
 
 def plot_gene_cnv_collage(
     genes,
@@ -246,7 +249,7 @@ def plot_gene_cnv_collage(
         ax.axis("off")
 
     for i, gene in enumerate(genes):
-        plot_gene_cnv(
+        ok = plot_gene_cnv(
             gene=gene,
             gtf_file=gtf_file,
             cnr_file=cnr_file,
@@ -257,6 +260,9 @@ def plot_gene_cnv_collage(
             vcf_file=vcf_file,
             ax=axes[i],
         )
+
+        if not ok:
+            axes[i].axis("off")
 
     # Sample ID header
     fig.suptitle(
