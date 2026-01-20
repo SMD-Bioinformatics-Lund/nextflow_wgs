@@ -4,29 +4,25 @@ import pandas as pd
 import gzip
 import matplotlib.pyplot as plt
 import argparse
+import math
 
 
 def main(args):
-    gene = args.gene
 
     gtf_file = args.gtf
     cns_file = args.cns
     cnr_file = args.cnr
 
-    out_file = f"{args.gene}.png"
-    if args.output:
-        out_file = args.output
+    out_file = args.output or f"{args.sample_id}_cnv_collage.png"
 
-    plot_gene_cnv(
-        gene,
-        gtf_file,
-        cnr_file,
-        cns_file,
-        flank=50_000,
-        ymin=-5,
-        ymax=5,
-        out_png=out_file,
+    plot_gene_cnv_collage(
+        genes=args.genes,
+        sample_id=args.sample_id,
+        gtf_file=gtf_file,
+        cnr_file=cnr_file,
+        cns_file=cns_file,
         vcf_file=args.scored_vcf,
+        out_png=out_file,
     )
 
 
@@ -40,6 +36,7 @@ def plot_gene_cnv(
     ymax=5,
     out_png=None,
     vcf_file=None,
+    ax=None,
 ):
     # Load GTF
     gtf = pd.read_csv(
@@ -112,7 +109,10 @@ def plot_gene_cnv(
     ]
 
     # Plot segments, probes and exons
-    fig, ax = plt.subplots(figsize=(10, 4))
+    created_fig = False
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 4))
+        created_fig = True
 
     # CNV probes/bins
     ax.scatter(
@@ -208,11 +208,67 @@ def plot_gene_cnv(
 
     plt.tight_layout()
 
-    if out_png:
-        plt.savefig(out_png, dpi=200)
-        plt.close(fig)
-    else:
-        plt.show()
+    if created_fig:
+        plt.tight_layout()
+        if out_png:
+            plt.savefig(out_png, dpi=200)
+            plt.close(fig)
+        else:
+            plt.show()
+
+
+def plot_gene_cnv_collage(
+    genes,
+    sample_id,
+    gtf_file,
+    cnr_file,
+    cns_file,
+    vcf_file=None,
+    flank=50_000,
+    ymin=-5,
+    ymax=5,
+    ncols=2,
+    out_png="collage.png",
+):
+    n_genes = len(genes)
+    nrows = math.ceil(n_genes / ncols)
+
+    fig, axes = plt.subplots(
+        nrows=nrows,
+        ncols=ncols,
+        figsize=(12, 3.5 * nrows),
+        sharey=True,
+    )
+
+    axes = axes.flatten()
+
+    for ax in axes[n_genes:]:
+        ax.axis("off")
+
+    for i, gene in enumerate(genes):
+        plot_gene_cnv(
+            gene=gene,
+            gtf_file=gtf_file,
+            cnr_file=cnr_file,
+            cns_file=cns_file,
+            flank=flank,
+            ymin=ymin,
+            ymax=ymax,
+            vcf_file=vcf_file,
+            ax=axes[i],
+        )
+
+    # Sample ID header
+    fig.suptitle(
+        f"Sample: {sample_id}",
+        fontsize=16,
+        fontweight="bold",
+        y=0.995,
+    )
+
+    plt.tight_layout(rect=[0, 0, 1, 0.97])
+    plt.savefig(out_png, dpi=200)
+    plt.close(fig)
 
 
 def parse_vcf(vcf_file, chrom, region_start, region_end):
@@ -284,13 +340,23 @@ def parse_arguments():
         help="name of output png, if not provided output will be gene_name.png",
     )
     parser.add_argument(
-        "--gene", "-g", type=str, required=True, help="HGNC symbol name"
+        "--genes",
+        "-g",
+        nargs="+",
+        required=True,
+        help="One or more HGNC gene symbols",
     )
     parser.add_argument(
         "--scored_vcf",
         "-v",
         type=str,
         help="Optionally add scored vcf to highlight calls",
+    )
+    parser.add_argument(
+        "--sample_id",
+        "-i",
+        required=True,
+        help="Sample identifier",
     )
     args = parser.parse_args()
 
