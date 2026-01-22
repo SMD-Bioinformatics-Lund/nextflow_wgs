@@ -2589,7 +2589,7 @@ process fastgnomad {
 		tuple val(group), path(vcf)
 
 	output:
-		tuple val(group), path("${group}.SNPs.vcf"), emit: vcf
+		tuple val(group), path("${group}.SNPs.vcf.gz"), emit: vcf
 
 	when:
 		params.antype == "wgs"
@@ -2597,7 +2597,7 @@ process fastgnomad {
 	script:
 		"""
 		gzip -c $vcf > ${vcf}.gz
-		annotate -g $params.FASTGNOMAD_REF -i ${vcf}.gz > ${group}.SNPs.vcf
+		/opt/conda/envs/CMD-WGS/bin/annotate -g $params.FASTGNOMAD_REF -i ${vcf} | bgzip -c > ${group}.SNPs.vcf.gz
 		"""
 
 	stub:
