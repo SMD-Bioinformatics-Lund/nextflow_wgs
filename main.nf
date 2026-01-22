@@ -2449,7 +2449,7 @@ process split_normalize {
 		id = ids[0]
 		"""
 		echo ${id} > id.val
-		touch "${group}.norm.uniq.DPAF.vcf"
+		touch "${group}.norm.uniq.DPAF.vcf.gz"
 		touch "${group}.intersected.vcf"
 		touch "${group}.multibreak.vcf"
 
