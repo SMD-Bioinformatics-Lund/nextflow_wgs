@@ -2601,8 +2601,8 @@ process fastgnomad {
 
 	stub:
 		"""
-		touch "${group}.SNPs.vcf"
-	"""
+		touch "${group}.SNPs.vcf.gz"
+	    """
 }
 
 
