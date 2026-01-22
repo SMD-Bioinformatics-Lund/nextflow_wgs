@@ -581,7 +581,11 @@ workflow NEXTFLOW_WGS {
 			)
 			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(svdb_merge.out.merged_bndless_vcf)
 			ch_panel_svs_present = ch_postprocessed_merged_sv_vcf
-			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge.out.merged_vcf)
+
+			ch_loqusdb_sv = ch_loqusdb_sv.mix(
+                svdb_merge.out.merged_vcf.map {
+                    group, _id, sv_vcf -> [ group, sv_vcf ]
+                })
 
 			ch_versions = ch_versions.mix(manta.out.versions.first())
 			ch_versions = ch_versions.mix(tiddit.out.versions.first())
@@ -757,28 +761,38 @@ workflow NEXTFLOW_WGS {
 			)
 		}
 
-	} else {
-		// TODO: move the entire else-block to top w/ if-not at the beginning
-
-		// add_to_loqusb won't run if no svvcf is generated
-		// the code below creates dummy svvcf for no-SV runs
-		def dummy_file = file("NA")
-		ch_loqusdb_no_sv_dummy = ch_samplesheet
-			.map { row ->
-				def group = row.group
-				def sv_vcf_dummy = dummy_file
-				tuple(group, sv_vcf_dummy)
-			}
-			.first()
-
-		ch_loqusdb_sv = ch_loqusdb_sv.mix(ch_loqusdb_no_sv_dummy)
-
 	}
-
+    
+    ch_ped_base
+        .join(
+            SNV_ANNOTATE.out.annotated_snv_vcf.map {
+                group, type, vcf, _tbi -> [ group, type, vcf ]
+            }, by: [0,1])
+        .join({
+                if(params.sv) {
+                    ch_loqusdb_sv
+                        .map {
+                            group, sv_vcf ->
+                            if(! sv_vcf.size() > 0) {
+                                [ group, [] ]
+                            } else {
+                                [ group, sv_vcf ]
+                            }
+                        }
+                } else {
+                    ch_samplesheet
+                        .map {
+                            row ->
+                            def group = row.group
+                            [ group, [] ]
+                        }
+                }
+            }, by: 0)
+        .set { ch_add_to_loqusdb_in }
+    
 	// LOQUSDB //
 	add_to_loqusdb(
-		ch_ped_base.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1]),
-		ch_loqusdb_sv
+        ch_add_to_loqusdb_in
 	)
 
 	// MERGE QC JSONs AND OUTPUT TO CDM //
@@ -3693,8 +3707,7 @@ process add_to_loqusdb {
 	memory '100 MB'
 	time '25m'
 	input:
-		tuple val(group), val(type), path(ped), path(vcf), path(tbi)
-		tuple val(group2), path(svvcf)
+	    tuple val(group), path(ped), path(vcf),  path(svvcf)
 
 	output:
 		path("${group}*.loqus"), emit: loqusdb_done
@@ -3707,7 +3720,7 @@ process add_to_loqusdb {
 		def sv_variants_arg=""
 
 		// Handle missing svvcf:
-		if(svvcf.baseName != "NA") {
+		if(svvcf) {
 			sv_variants_arg="--sv-variants ${params.accessdir}/sv_vcf/merged/${svvcf}"
 		}
 
