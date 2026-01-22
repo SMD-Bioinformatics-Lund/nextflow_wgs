@@ -2399,7 +2399,7 @@ process split_normalize {
 		tuple val(group2), path(vcfconcat)
 
 	output:
-		tuple val(group), path("${group}.norm.uniq.DPAF.vcf"), emit: norm_uniq_dpaf_vcf
+		tuple val(group), path("${group}.norm.uniq.DPAF.vcf.gz"), emit: norm_uniq_dpaf_vcf
 		tuple val(group), val(id), path("${group}.intersected.vcf"), emit: intersected_vcf
 		tuple val(group), path("${group}.multibreak.vcf"), emit: multibreak_vcf
 		path "*versions.yml", emit: versions
@@ -2418,9 +2418,9 @@ process split_normalize {
 		vcfbreakmulti ${id}.concat.freebayes.vcf > ${group}.multibreak.vcf
 		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
 		bcftools sort ${group}.norm.vcf | vcfuniq > ${group}.norm.uniq.vcf
-		wgs_DPAF_filter.pl ${group}.norm.uniq.vcf > ${group}.norm.uniq.DPAF.vcf
+		wgs_DPAF_filter.pl ${group}.norm.uniq.vcf | bgzip -c > ${group}.norm.uniq.DPAF.vcf.gz
 		bedtools intersect \\
-			-a ${group}.norm.uniq.DPAF.vcf \\
+			-a ${group}.norm.uniq.DPAF.vcf.gz \\
 			-b ${params.intersect_bed} \\
 			-u -header > ${group}.intersected.vcf
 
@@ -2596,7 +2596,6 @@ process fastgnomad {
 
 	script:
 		"""
-		gzip -c $vcf > ${vcf}.gz
 		/opt/conda/envs/CMD-WGS/bin/annotate -g $params.FASTGNOMAD_REF -i ${vcf} | bgzip -c > ${group}.SNPs.vcf.gz
 		"""
 
