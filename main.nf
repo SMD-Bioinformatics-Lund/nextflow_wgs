@@ -2596,7 +2596,7 @@ process fastgnomad {
 
 	script:
 		"""
-		/opt/conda/envs/CMD-WGS/bin/annotate -g $params.FASTGNOMAD_REF -i ${vcf} | bgzip -c > ${group}.SNPs.vcf.gz
+		fastgnomad -g $params.FASTGNOMAD_REF -i ${vcf} | bgzip -c > ${group}.SNPs.vcf.gz
 		"""
 
 	stub:
