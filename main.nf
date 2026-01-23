@@ -640,7 +640,8 @@ workflow NEXTFLOW_WGS {
 			ch_versions = ch_versions.mix(melt.out.versions.first())
 			ch_versions = ch_versions.mix(intersect_melt.out.versions.first())
 		}
-
+		
+		ch_cnvkit_cns_cnr = Channel.empty()
 		if (params.antype == "panel") {
 			ch_panel_merge = Channel.empty()
 			manta_panel(ch_bam_bai)
@@ -649,7 +650,7 @@ workflow NEXTFLOW_WGS {
 
 			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, ch_melt_qc_vals)
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
-			
+			ch_cnvkit_cns_cnr = ch_cnvkit_cns_cnr.mix(cnvkit_panel.out.cns_cnr)
 
 			ch_panel_merge = ch_panel_merge.mix(
 				ch_cnvkit_out,
@@ -743,7 +744,7 @@ workflow NEXTFLOW_WGS {
 		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf, ch_svvcf_to_bed_meta)
 
 		// plot cnvkit for panels
-		ch_cnvkit_plot = cnvkit_panel.out.cns_cnr
+		ch_cnvkit_plot = ch_cnvkit_cns_cnr
 			.join(split_normalize.out.intersected_vcf, by: [0, 1])
 			.join(genes_analyzed.out.genes_of_interest, by: [0, 1])
 			.join(bgzip_scored_genmod.out.sv_rescore_vcf, by: [0])
