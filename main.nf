@@ -2431,9 +2431,9 @@ process split_normalize {
 		vcfbreakmulti ${vcf} > ${group}.multibreak.vcf
 		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
 		bcftools sort ${group}.norm.vcf | vcfuniq > ${group}.norm.uniq.vcf
-		wgs_DPAF_filter.pl ${group}.norm.uniq.vcf > ${group}.norm.uniq.DPAF.vcf
+		wgs_DPAF_filter.pl ${group}.norm.uniq.vcf | bgzip -c > ${group}.norm.uniq.DPAF.vcf.gz
 		bedtools intersect \\
-			-a ${group}.norm.uniq.DPAF.vcf \\
+			-a ${group}.norm.uniq.DPAF.vcf.gz \\
 			-b ${params.intersect_bed} \\
 			-u -header > ${group}.intersected_diploid.vcf
 		java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \\
