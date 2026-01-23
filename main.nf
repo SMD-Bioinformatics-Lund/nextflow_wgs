@@ -2390,7 +2390,7 @@ def run_eklipse_version(task) {
 // Splitting & normalizing variants, merging with Freebayes/Mutect2, intersecting against exome/clinvar introns
 process split_normalize {
 	cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '{*.vcf,*.vcf.gz}'
 	tag "$group"
 	memory '50 GB'
 	time '1h'
@@ -2582,7 +2582,7 @@ process fastgnomad {
 	cpus 2
 	memory '40 GB'
 	tag "$group"
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
 	time '2h'
 
 	input:
