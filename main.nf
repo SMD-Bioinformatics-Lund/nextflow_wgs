@@ -4,6 +4,7 @@ include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
 include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
+include { vcfHasVariants } from './workflows/util.nf'
 
 nextflow.enable.dsl=2
 
@@ -24,7 +25,7 @@ workflow {
 	// Check whether genome assembly is indexed //
 	// TODO: Move to some pre-processing workflow:
 	if(params.genome_file) {
-		_bwaId = Channel
+		_bwaId = channel
 			.fromPath("${params.genome_file}.bwt")
 			.ifEmpty { exit 1, "BWA index not found: ${params.genome_file}.bwt" }
 	}
@@ -38,15 +39,15 @@ workflow {
 	log.info("CRON output dir: " + params.crondir)
 
 	// Print commit-version of active deployment
-	// TODO: stuff this one into versions too, for good measure.
+	// TODO: also add to versions
 	file(params.git)
 		.readLines()
-		.each { println "git commit-hash: " + it }
+		.each { it -> println "git commit-hash: " + it }
 
 	// Print active container
 	log.info("container: " + file(params.container).toRealPath())
 
-	ch_versions = Channel.empty()
+	ch_versions = channel.empty()
 
 	VALIDATE_SAMPLES_CSV(params.csv)
 
@@ -55,7 +56,7 @@ workflow {
 
 	NEXTFLOW_WGS(ch_samplesheet)
 
-	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect{ it }
+	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
 	combine_versions(
 		ch_samplesheet
@@ -130,9 +131,9 @@ workflow NEXTFLOW_WGS {
 
 	main:
 	// Output channels:
-	ch_versions    = Channel.empty() // Gather software versions
-	ch_output_info = Channel.empty() // Gather data for .INFO
-	ch_qc_json     = Channel.empty() // Gather and merge QC JSONs per sample
+	ch_versions    = channel.empty() // Gather software versions
+	ch_output_info = channel.empty() // Gather data for .INFO
+	ch_qc_json     = channel.empty() // Gather and merge QC JSONs per sample
 
 	// CHANNEL PREP //
 	// TODO: Better solution for this. Assume shomehow that everything non-bam/non-vcf is fq.
@@ -161,7 +162,7 @@ workflow NEXTFLOW_WGS {
 		}
 
 	// GATK Ref:
-	ch_gatk_ref = Channel
+	ch_gatk_ref = channel
 		.fromPath(params.gatkreffolders)
 		.splitCsv(header:true)
 		.map{ row-> tuple(row.i, row.refpart) }
@@ -268,13 +269,13 @@ workflow NEXTFLOW_WGS {
 	bamtoyaml(ch_bam_start)
 	ch_output_info = ch_output_info.mix(bamtoyaml.out.bamchoice_INFO)
 
-	ch_bam_start_dedup_dummy = Channel.empty()
+	ch_bam_start_dedup_dummy = channel.empty()
 	if(params.run_melt) {
 		dedupdummy(ch_bam_start)
 		ch_bam_start_dedup_dummy = dedupdummy.out.dedup_dummy
 	}
 
-	ch_bam_bai = Channel.empty()
+	ch_bam_bai = channel.empty()
 	ch_bam_bai = ch_bam_bai.mix(copy_bam.out.bam_bai)
 
 	// PED //
@@ -292,10 +293,10 @@ workflow NEXTFLOW_WGS {
 
 	create_ped(ch_ped_input)
 	ch_ped_base = create_ped.out.ped_base
-	ch_ped_father_affected = Channel.empty()
-	ch_ped_mother_affected = Channel.empty()
+	ch_ped_father_affected = channel.empty()
+	ch_ped_mother_affected = channel.empty()
 
-	ch_ped_trio_affected_permutations = Channel.empty()  // Channel for base ped + father and mother set as affected peds
+	ch_ped_trio_affected_permutations = channel.empty()  // channel for base ped + father and mother set as affected peds
 	ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations.mix(ch_ped_base)
 	if(params.mode == "family" && params.assay == "wgs") {
 
@@ -319,7 +320,7 @@ workflow NEXTFLOW_WGS {
 
 	// ALIGN //
 	//TODO: why do we have a params.align conditional anyway?
-	ch_dedup_stats = Channel.empty()
+	ch_dedup_stats = channel.empty()
 	if (params.align) {
 		bwa_align(ch_fastq)
 		markdup(bwa_align.out.bam_bai)
@@ -377,7 +378,7 @@ workflow NEXTFLOW_WGS {
 	ch_versions = ch_versions.mix(gvcf_combine.out.versions.first())
 
 	ch_split_normalize = gvcf_combine.out.combined_vcf
-	ch_split_normalize_concat_vcf = Channel.empty()
+	ch_split_normalize_concat_vcf = channel.empty()
 
 	// TODO: move antypes and similar to constants?
 	if (params.antype == "panel") {
@@ -503,13 +504,13 @@ workflow NEXTFLOW_WGS {
 		}
 	}
 
-	ch_loqusdb_sv = Channel.empty()
+	ch_loqusdb_sv = channel.empty()
 
 	if (params.sv) {
-		ch_smn_tsv = Channel.empty()
-		ch_panel_svs_present = Channel.empty()
-		ch_panel_svs_absent = Channel.empty()
-		ch_postprocessed_merged_sv_vcf = Channel.empty()
+		ch_smn_tsv = channel.empty()
+		ch_panel_svs_present = channel.empty()
+		ch_panel_svs_absent = channel.empty()
+		ch_postprocessed_merged_sv_vcf = channel.empty()
 		if(params.antype  == "wgs") {
 			// SMN CALLING //
 			SMNCopyNumberCaller(ch_bam_bai)
@@ -568,7 +569,7 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(postprocessgatk.out.versions.first())
 
 
-		ch_manta_out = Channel.empty()
+		ch_manta_out = channel.empty()
 		if (params.antype == "wgs") {
 			manta(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta.out.vcf)
@@ -643,7 +644,7 @@ workflow NEXTFLOW_WGS {
 		
 		ch_cnvkit_cns_cnr = Channel.empty()
 		if (params.antype == "panel") {
-			ch_panel_merge = Channel.empty()
+			ch_panel_merge = channel.empty()
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
 
@@ -676,16 +677,7 @@ workflow NEXTFLOW_WGS {
 				def has_sv = true // to allow for stub
 
 				if (merged_vcf.exists() && merged_vcf.size() > 0) {
-					has_sv = false
-					merged_vcf.withReader { reader ->
-						String line
-						while ((line = reader.readLine()) != null) {
-							if (!line.startsWith('#')) {
-								has_sv = true
-								break
-							}
-						}
-					}
+					has_sv = vcfHasVariants(merged_vcf)
 				}
 
 				tuple(group, id, merged_vcf, has_sv)
@@ -693,12 +685,12 @@ workflow NEXTFLOW_WGS {
 
 			// Split into two channels: one with SVs, one without
 			ch_panel_svs_present = ch_panel_svs_check
-				.filter { group, id, merged_vcf, has_sv -> has_sv }
-				.map { group, id, merged_vcf, has_sv -> tuple(group, id, merged_vcf) }
+				.filter { _group, _id, _merged_vcf, has_sv -> has_sv }
+				.map { group, id, merged_vcf, _has_sv -> tuple(group, id, merged_vcf) }
 
 			ch_panel_svs_absent = ch_panel_svs_check
-				.filter { group, id, merged_vcf, has_sv -> !has_sv }
-				.map { group, id, merged_vcf, has_sv -> tuple(group, "proband", merged_vcf) } //this assumes no trio on panel ever. 
+				.filter { _group, _id, _merged_vcf, has_sv -> !has_sv }
+				.map { group, _id, merged_vcf, _has_sv -> tuple(group, "proband", merged_vcf) } //this assumes no trio on panel ever. 
 
 			ch_versions = ch_versions.mix(manta_panel.out.versions.first())
 			ch_versions = ch_versions.mix(cnvkit_panel.out.versions.first())
@@ -816,7 +808,7 @@ workflow NEXTFLOW_WGS {
 	// TODO: re-implement annotation-only runs and sort out remainder of this block:
 	// Input channels for alignment, variant calling and annotation //
 
-	// annotate_only = Channel.create()
+	// annotate_only = channel.create()
 
 	// If input-files has bam files bypass alignment, otherwise go for fastq-channels => three options for fastq, sharded bwa, normal bwa or umi trimming
 	// input_files.view().choice(bam_choice, fastq, fastq_sharded, fastq_umi, annotate_only ) { it[2] =~ /\.bam/ ? 0 : ( it[2] =~ /\.vcf.gz/ ? 4 : (params.shardbwa ? 2 : (params.umi ? 3 : 1) )) }
@@ -1873,7 +1865,7 @@ process gvcf_combine {
 		path "*versions.yml", emit: versions
 
 	script:
-		all_gvcfs = gvcfs.collect { it.toString() }.sort().join(' -v ')
+		all_gvcfs = gvcfs.collect { gvcf -> gvcf.toString() }.sort().join(' -v ')
 		"""
 		sentieon driver \\
 			-t ${task.cpus} \\
@@ -1885,7 +1877,7 @@ process gvcf_combine {
 		"""
 
 	stub:
-		all_gvcfs = gvcfs.collect { it.toString() }.sort().join(' -v ')
+		all_gvcfs = gvcfs.collect { gvcf -> gvcf.toString() }.sort().join(' -v ')
 		"""
 		touch "${group}.combined.vcf.gz"
 		touch "${group}.combined.vcf.gz.tbi"
@@ -2572,7 +2564,7 @@ process qc_to_cdm {
 
 	script:
 		parts = r1.split('/')
-		idx =  parts.findIndexOf {it ==~ /......_......_...._........../}
+		idx =  parts.findIndexOf {run_path_part -> run_path_part  ==~ /......_......_...._........../}
 		rundir = parts[0..idx].join("/")
 		"""
 	    echo "--run-folder ${rundir} --sample-id ${id} --subassay ${diagnosis} --assay ${params.cdm_assay} --qc ${params.results_output_dir}/qc/${id}.QC" > ${id}.cdm
@@ -3518,14 +3510,14 @@ process svdb_merge_panel {
 		if (vcfs.size() > 1) {
 			// for each sv-caller add idx, find vcf and find priority, add in priority order! //
 			// index of vcfs added
-			manta_idx = vcfs.findIndexOf{ it =~ 'manta' }
-			cnvkit_idx = vcfs.findIndexOf{ it =~ 'cnvkit' }
-			gatk_idx = vcfs.findIndexOf{ it =~ 'gatk' }
+			manta_idx = vcfs.findIndexOf{ vcf -> vcf =~ 'manta' }
+			cnvkit_idx = vcfs.findIndexOf{ vcf -> vcf =~ 'cnvkit' }
+			gatk_idx = vcfs.findIndexOf { vcf -> vcf =~ 'gatk' }
 
 			// find vcfs //
-			manta = manta_idx >= 0 ? vcfs[manta_idx].collect {it + ':manta ' } : null
-			cnvkit = cnvkit_idx >= 0 ? vcfs[cnvkit_idx].collect {it + ':cnvkit ' } : null
-			gatk = gatk_idx >= 0 ? vcfs[gatk_idx].collect {it + ':gatk ' } : null
+			manta = manta_idx >= 0 ? vcfs[manta_idx].collect { vcf -> vcf + ':manta ' } : null
+			cnvkit = cnvkit_idx >= 0 ? vcfs[cnvkit_idx].collect { vcf -> vcf + ':cnvkit ' } : null
+			gatk = gatk_idx >= 0 ? vcfs[gatk_idx].collect { vcf -> vcf + ':gatk ' } : null
 			tmp = manta + gatk + cnvkit
 			tmp = tmp - null
 			vcfs_svdb = tmp.join(' ')
@@ -3715,9 +3707,9 @@ process svdb_merge {
 			 this would ensure the same merge-order regardless of sample-id
 			 */
 
-			mantaV = mantaV.collect { it.toString() }.sort()
-			gatkV = gatkV.collect { it.toString() }.sort()
-			tidditV = tidditV.collect { it.toString() }.sort()
+			mantaV  = mantaV.collect  { vcf -> vcf.toString() }.sort()
+			gatkV   = gatkV.collect   { vcf -> vcf.toString() }.sort()
+			tidditV = tidditV.collect { vcf -> vcf.toString() }.sort()
 
 
 			def vcf_idx = 1
@@ -3757,7 +3749,7 @@ process svdb_merge {
 		}
 
 		else {
-			tmp = mantaV.collect {it + ':manta ' } + tidditV.collect {it + ':tiddit ' } + gatkV.collect {it + ':gatk ' }
+			tmp = mantaV.collect { vcf -> vcf + ':manta ' } + tidditV.collect { vcf -> vcf + ':tiddit ' } + gatkV.collect { vcf -> vcf + ':gatk ' }
 			vcfs = tmp.join(' ')
 			"""
 			svdb \\

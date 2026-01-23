@@ -50,7 +50,7 @@ workflow VALIDATE_SAMPLES_CSV {
 	// Check for duplicate headers
 	def duplicates = header
 		.groupBy { col -> col }
-		.findAll { col, cols -> cols.size() > 1 }
+		.findAll { _col, cols -> cols.size() > 1 }
 		.keySet()
 
 	if (duplicates) {
@@ -189,7 +189,7 @@ workflow VALIDATE_SAMPLES_CSV {
         error errorMessages.join('\n')
     }
 
-    validated_csv = Channel.from(csv)
+    validated_csv = channel.from(csv)
 
 	emit:
 	validated_csv = validated_csv

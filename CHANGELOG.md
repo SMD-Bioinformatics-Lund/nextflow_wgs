@@ -1,8 +1,17 @@
 # CHANGELOG
 
-### 3.20.8
+### 3.20.9
 * Better plotting for CNVkit, gene based from genepanels
-* CNVkit 0.9.6 -> 0.9.11
+* CNVkit 0.9.6 -> 0.9.12 (no changes to calling)
+* Process to keep track of analyzed genes if valid gene list is chosen
+
+### 3.20.8
+* Fix LSP parsing error introduced in #353
+* Update `constitutional` vcf record checking code with valid nxf syntax and move to own function
+* Fix easy LSP warnings
+
+### 3.20.7
+* Rename all instances of `Channel` to `channel`
 
 ### 3.20.6
 * Input CSV validation workflow
