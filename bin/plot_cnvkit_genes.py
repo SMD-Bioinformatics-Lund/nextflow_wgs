@@ -13,31 +13,35 @@ def main(args):
     cns_file = args.cns
     cnr_file = args.cnr
 
+    cns_df,cnr_df = load_cnvkit_data(cns_file,cnr_file)
+    gtf_df = load_gtf(gtf_file)
+
     out_file = args.output or f"{args.sample_id}_cnv_collage.png"
+
 
     plot_gene_cnv_collage(
         genes=args.genes,
         sample_id=args.sample_id,
-        gtf_file=gtf_file,
-        cnr_file=cnr_file,
-        cns_file=cns_file,
+        gtf_df=gtf_df,
+        cnr_df=cnr_df,
+        cns_df=cns_df,
         vcf_file=args.scored_vcf,
         out_png=out_file,
     )
 
+def load_cnvkit_data(cns_file, cnr_file):
 
-def plot_gene_cnv(
-    gene,
-    gtf_file,
-    cnr_file,
-    cns_file,
-    flank=50_000,
-    ymin=-5,
-    ymax=5,
-    out_png=None,
-    vcf_file=None,
-    ax=None,
-):
+    # Load CNVkit data
+    cnr = pd.read_csv(cnr_file, sep="\t", low_memory=False)
+    cns = pd.read_csv(cns_file, sep="\t", low_memory=False)
+
+    # make sure it is string
+    cnr["chromosome"] = cnr["chromosome"].astype(str)
+    cns["chromosome"] = cns["chromosome"].astype(str)
+
+    return cns,cnr
+
+def load_gtf(gtf_file):
     # Load GTF
     gtf = pd.read_csv(
         gtf_file,
@@ -57,11 +61,26 @@ def plot_gene_cnv(
         ],
         low_memory=False,
     )
+    return gtf
+
+def plot_gene_cnv(
+    gene,
+    gtf_df,
+    cnr_df,
+    cns_df,
+    flank=50_000,
+    ymin=-5,
+    ymax=5,
+    out_png=None,
+    vcf_file=None,
+    ax=None,
+):
+
 
     # Only get data for supplied gene
-    gtf["gene_name"] = gtf["attr"].str.extract(r'gene_name "([^"]+)"')
+    gtf_df["gene_name"] = gtf_df["attr"].str.extract(r'gene_name "([^"]+)"')
 
-    gene_gtf = gtf[(gtf["gene_name"] == gene)]
+    gene_gtf = gtf_df[(gtf_df["gene_name"] == gene)]
 
     if gene_gtf.empty:
         print(f"WARNING: Gene '{gene}' not found in GTF — skipping", flush=True)
@@ -81,32 +100,24 @@ def plot_gene_cnv(
 
     exons = gene_gtf[gene_gtf["feature"] == "exon"]
 
-    # Load CNVkit data
-    cnr = pd.read_csv(cnr_file, sep="\t", low_memory=False)
-    cns = pd.read_csv(cns_file, sep="\t", low_memory=False)
-
-    # make sure it is string
-    cnr["chromosome"] = cnr["chromosome"].astype(str)
-    cns["chromosome"] = cns["chromosome"].astype(str)
-
     # Normalize chr prefix based on CNVkit files
-    cnv_has_chr = cnr["chromosome"].str.startswith("chr").any()
+    cnv_has_chr = cnr_df["chromosome"].str.startswith("chr").any()
 
     if cnv_has_chr and not chrom.startswith("chr"):
         chrom = "chr" + chrom
     elif not cnv_has_chr and chrom.startswith("chr"):
         chrom = chrom.replace("chr", "")
 
-    cnr_r = cnr[
-        (cnr["chromosome"] == chrom)
-        & (cnr["start"] < region_end)
-        & (cnr["end"] > region_start)
+    cnr_r = cnr_df[
+        (cnr_df["chromosome"] == chrom)
+        & (cnr_df["start"] < region_end)
+        & (cnr_df["end"] > region_start)
     ]
 
-    cns_r = cns[
-        (cns["chromosome"] == chrom)
-        & (cns["start"] < region_end)
-        & (cns["end"] > region_start)
+    cns_r = cns_df[
+        (cns_df["chromosome"] == chrom)
+        & (cns_df["start"] < region_end)
+        & (cns_df["end"] > region_start)
     ]
 
     # Plot segments, probes and exons
@@ -223,9 +234,9 @@ def plot_gene_cnv(
 def plot_gene_cnv_collage(
     genes,
     sample_id,
-    gtf_file,
-    cnr_file,
-    cns_file,
+    gtf_df,
+    cnr_df,
+    cns_df,
     vcf_file=None,
     flank=50_000,
     ymin=-5,
@@ -251,9 +262,9 @@ def plot_gene_cnv_collage(
     for i, gene in enumerate(genes):
         ok = plot_gene_cnv(
             gene=gene,
-            gtf_file=gtf_file,
-            cnr_file=cnr_file,
-            cns_file=cns_file,
+            gtf_df=gtf_df,
+            cnr_df=cnr_df,
+            cns_df=cns_df,
             flank=flank,
             ymin=ymin,
             ymax=ymax,
