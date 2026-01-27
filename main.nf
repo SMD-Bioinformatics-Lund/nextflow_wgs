@@ -1,5 +1,6 @@
 #!/usr/bin/env nextflow
 
+include { MELT } from './workflows/melt.nf'
 include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
@@ -591,55 +592,8 @@ workflow NEXTFLOW_WGS {
 		// MELT //
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
 		if (params.run_melt) {
-
-		    ch_melt_qc_vals = sentieon_qc_postprocess.out.qc_json.map { item ->
-				def group = item[0]
-				def id = item[1]
-				def qc_json = item[2]
-
-				println "qc_json from tuple: ${qc_json}"
-
-				def ins_dev = "NA"   // Default value for stub runs
-				def coverage = "NA"
-				def ins_size = "NA"
-
-				def INS_SIZE
-				def MEAN_DEPTH
-				def COV_DEV
-
-				if (qc_json.exists() && qc_json.size() > 0) {
-					println "Reading qc_json file: ${qc_json}"
-
-					qc_json.readLines().each { line ->
-						if (line =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
-							ins_dev = (line =~ /\"(ins_size_dev)\" : \"(\S+)\"/)[0][2]  // Extract matched value
-						}
-						if (line =~ /\"(mean_coverage)\" : \"(\S+)\"/) {
-							coverage = (line =~ /\"(mean_coverage)\" : \"(\S+)\"/)[0][2]
-						}
-						if (line =~ /\"(ins_size)\" : \"(\S+)\"/) {
-							ins_size = (line =~ /\"(ins_size)\" : \"(\S+)\"/)[0][2]
-						}
-					}
-
-					INS_SIZE = ins_size ?: "NA"  // Default to "NA" if not present
-					MEAN_DEPTH = coverage ?: "NA"
-					COV_DEV = ins_dev ?: "NA"
-
-				} else {
-					println "Warning: Empty or missing qc_json file for ${id}. Using default stub values."
-					INS_SIZE = "NA"
-					MEAN_DEPTH = "NA"
-					COV_DEV = "NA"
-				}
-				tuple(group, id, INS_SIZE, MEAN_DEPTH, COV_DEV)
-			}
-
-			melt(ch_bam_bai, ch_melt_qc_vals)
-			intersect_melt(melt.out.melt_vcf_nonfiltered)
-
-			ch_versions = ch_versions.mix(melt.out.versions.first())
-			ch_versions = ch_versions.mix(intersect_melt.out.versions.first())
+            MELT(ch_bam_bai, sentieon_qc_postprocess.out.qc_json)
+			ch_versions = ch_versions.mix(MELT.out.versions)
 		}
 
 		if (params.antype == "panel") {
@@ -1678,105 +1632,6 @@ def vcfbreakmulti_expansionhunter_version(task) {
 	    vcflib: 1.0.9
 	    rename-sample-in-vcf: \$(echo \$(java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf --version 2>&1) | sed 's/-SNAPSHOT//')
 	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
-	END_VERSIONS
-	"""
-}
-
-//////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////
-
-
-// MELT always give VCFs for each type of element defined in mei_list
-// If none found -> 0 byte vcf. merge_melt.pl merges the three, if all empty
-// it creates a vcf with only header
-// merge_melt.pl gives output ${id}.melt.merged.vcf
-process melt {
-	cpus 3
-	errorStrategy 'retry'
-	container  "${params.container_melt}"
-	tag "$id"
-	// memory seems to scale with less number of reads?
-	memory '70 GB'
-	time '3h'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf'
-
-	input:
-		tuple val(group), val(id), path(bam), path(bai)
-		tuple val(group1), val(id1), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV)
-
-	output:
-		tuple val(group), val(id), path("${id}.melt.merged.vcf"), emit: melt_vcf_nonfiltered
-		path "*versions.yml", emit: versions
-
-	script:
-		"""
-		java -jar /opt/MELTv2.2.2/MELT.jar Single \\
-			-bamfile $bam \\
-			-r 150 \\
-			-h ${params.genome_file} \\
-			-n /opt/MELTv2.2.2/add_bed_files/Hg38/Hg38.genes.bed \\
-			-z 500000 \\
-			-d 50 \\
-			-t $params.mei_list \\
-			-w . \\
-			-c $MEAN_DEPTH \\
-			-e $INS_SIZE \\
-			-exome
-		merge_melt.pl $params.meltheader $id
-
-		${melt_version(task)}
-		"""
-
-	stub:
-		"""
-		touch "${id}.melt.merged.vcf"
-		${melt_version(task)}
-		"""
-}
-def melt_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    melt: \$(echo \$(java -jar /opt/MELTv2.2.2/MELT.jar -h | grep "^MELTv" | cut -f1 -d" " | sed "s/MELTv//" ) )
-	END_VERSIONS
-	"""
-}
-
-process intersect_melt {
-	cpus 2
-	tag "$id"
-	memory '2 GB'
-	time '1h'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf'
-
-	input:
-		tuple val(group), val(id), path(vcf)
-
-	output:
-		tuple val(group), val(id), path("${id}.melt.merged.intersected.vcf"), emit: merged_intersected_vcf
-		path "*versions.yml", emit: versions
-
-	when:
-		params.run_melt
-
-	script:
-		"""
-		bedtools intersect -a $vcf -b $params.intersect_bed -header > ${id}.melt.merged.intersected.vcf
-		${intersect_melt_version(task)}
-		"""
-
-	stub:
-		"""
-		touch "${id}.melt.merged.intersected.vcf"
-		${intersect_melt_version(task)}
-		"""
-}
-def intersect_melt_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    bedtools: \$(echo \$(bedtools --version 2>&1) | sed -e "s/^.*bedtools v//" )
 	END_VERSIONS
 	"""
 }
