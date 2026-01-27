@@ -31,7 +31,7 @@ workflow MELT {
     
     
     ch_bam_bai
-        .join(ch_melt_qc_values)
+        .join(ch_melt_qc_values, by: [0,1])
         .set{ ch_melt_in }
 
     melt(ch_melt_in)
