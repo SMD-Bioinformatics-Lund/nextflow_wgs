@@ -2254,7 +2254,7 @@ def run_eklipse_version(task) {
 // Splitting & normalizing variants, merging with Freebayes/Mutect2, intersecting against exome/clinvar introns
 process split_normalize {
 	cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '{*.vcf,*.vcf.gz}'
 	tag "$group"
 	memory '50 GB'
 	time '1h'
@@ -2263,7 +2263,7 @@ process split_normalize {
 		tuple val(group2), path(vcfconcat)
 
 	output:
-		tuple val(group), path("${group}.norm.uniq.DPAF.vcf"), emit: norm_uniq_dpaf_vcf
+		tuple val(group), path("${group}.norm.uniq.DPAF.vcf.gz"), emit: norm_uniq_dpaf_vcf
 		tuple val(group), val(id), path("${group}.intersected.vcf"), emit: intersected_vcf
 		tuple val(group), path("${group}.multibreak.vcf"), emit: multibreak_vcf
 		path "*versions.yml", emit: versions
@@ -2282,9 +2282,9 @@ process split_normalize {
 		vcfbreakmulti ${id}.concat.freebayes.vcf > ${group}.multibreak.vcf
 		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
 		bcftools sort ${group}.norm.vcf | vcfuniq > ${group}.norm.uniq.vcf
-		wgs_DPAF_filter.pl ${group}.norm.uniq.vcf > ${group}.norm.uniq.DPAF.vcf
+		wgs_DPAF_filter.pl ${group}.norm.uniq.vcf | bgzip -c > ${group}.norm.uniq.DPAF.vcf.gz
 		bedtools intersect \\
-			-a ${group}.norm.uniq.DPAF.vcf \\
+			-a ${group}.norm.uniq.DPAF.vcf.gz \\
 			-b ${params.intersect_bed} \\
 			-u -header > ${group}.intersected.vcf
 
@@ -2295,9 +2295,9 @@ process split_normalize {
 		vcfbreakmulti ${vcf} > ${group}.multibreak.vcf
 		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
 		bcftools sort ${group}.norm.vcf | vcfuniq > ${group}.norm.uniq.vcf
-		wgs_DPAF_filter.pl ${group}.norm.uniq.vcf > ${group}.norm.uniq.DPAF.vcf
+		wgs_DPAF_filter.pl ${group}.norm.uniq.vcf | bgzip -c > ${group}.norm.uniq.DPAF.vcf.gz
 		bedtools intersect \\
-			-a ${group}.norm.uniq.DPAF.vcf \\
+			-a ${group}.norm.uniq.DPAF.vcf.gz \\
 			-b ${params.intersect_bed} \\
 			-u -header > ${group}.intersected_diploid.vcf
 		java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \\
@@ -2313,7 +2313,7 @@ process split_normalize {
 		id = ids[0]
 		"""
 		echo ${id} > id.val
-		touch "${group}.norm.uniq.DPAF.vcf"
+		touch "${group}.norm.uniq.DPAF.vcf.gz"
 		touch "${group}.intersected.vcf"
 		touch "${group}.multibreak.vcf"
 
@@ -2446,28 +2446,27 @@ process fastgnomad {
 	cpus 2
 	memory '40 GB'
 	tag "$group"
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	time '2h'
 
 	input:
 		tuple val(group), path(vcf)
 
 	output:
-		tuple val(group), path("${group}.SNPs.vcf"), emit: vcf
+		tuple val(group), path("${group}.SNPs.vcf.gz"), emit: vcf
 
 	when:
 		params.antype == "wgs"
 
 	script:
 		"""
-		gzip -c $vcf > ${vcf}.gz
-		annotate -g $params.FASTGNOMAD_REF -i ${vcf}.gz > ${group}.SNPs.vcf
+		fastgnomad -g $params.FASTGNOMAD_REF -i ${vcf} | bgzip -c > ${group}.SNPs.vcf.gz
 		"""
 
 	stub:
 		"""
-		touch "${group}.SNPs.vcf"
-	"""
+		touch "${group}.SNPs.vcf.gz"
+	    """
 }
 
 
