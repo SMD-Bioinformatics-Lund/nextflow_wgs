@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.21.0
+* Changes related to update of Nextflow to 25.10.0
+* Move melt calling to `MELT` workflow 
+
 ### 3.20.9
 * Rename fastgnomad binary from annotate to fastgnomad 
 * Compress fastgnomad input and output VCF
