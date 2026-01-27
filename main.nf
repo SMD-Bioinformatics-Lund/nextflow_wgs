@@ -616,7 +616,12 @@ workflow NEXTFLOW_WGS {
 
 			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge_panel.out.loqusdb_vcf)
 
-			postprocess_merged_panel_sv_vcf(svdb_merge_panel.out.merged_vcf, intersect_melt.out.merged_intersected_vcf)
+            svdb_merge_panel.out.merged_vcf
+                .join(MELT.out.melt_intersect_vcf, by: [0,1])
+                .set { ch_postprocess_merged_panel_sv_vcf_in }
+
+            postprocess_merged_panel_sv_vcf(ch_postprocess_merged_panel_sv_vcf_in)
+            
 			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(
 				postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf
 			)
@@ -3341,8 +3346,7 @@ process postprocess_merged_panel_sv_vcf {
 
 
 	input:
-		tuple val(group), val(id), path(merged_vcf)
-		tuple val(group2), val(id2), path(melt_vcf)
+	    tuple val(group), val(id), path(merged_vcf), path(melt_vcf)
 
 	output:
 		tuple val(group), val(id), path("${group}.merged.bndless.genotypefix.melt.vcf"), emit: merged_postprocessed_vcf
