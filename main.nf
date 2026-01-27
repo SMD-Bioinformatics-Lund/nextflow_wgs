@@ -601,8 +601,12 @@ workflow NEXTFLOW_WGS {
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
 
+            ch_bam_bai
+                .join(split_normalize.out.intersected_vcf, by: [0,1])
+                .join(MELT.out.melt_qc_values, by: [0,1])
+                .set { ch_cnvkit_panel_in }
 
-			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, ch_melt_qc_vals)
+			cnvkit_panel(ch_cnvkit_panel_in)
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
 			ch_output_info = ch_output_info.mix(cnvkit_panel.out.cnvkit_INFO)
 
@@ -3206,9 +3210,7 @@ process cnvkit_panel {
 	time '1h'
 	memory '20 GB'
 	input:
-		tuple val(group), val(id), path(bam), path(bai)
-		tuple val(group2), val(id2), path(intersected_vcf)
-		tuple val(group3), val(id3), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV)
+	    tuple val(group), val(id), path(bam), path(bai), path(intersected_vcf), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV)
 
 	output:
 		tuple val(group), val(id), path("${id}.cnvkit_filtered.vcf"), emit: cnvkit_calls
