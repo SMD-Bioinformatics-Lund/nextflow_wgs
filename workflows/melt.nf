@@ -17,13 +17,11 @@ workflow MELT {
             
             if(qc_json.exists() && qc_json.size() > 0) {
                 def jsonSlurper = new groovy.json.JsonSlurper()
-                def QcDataFile = new File(qc_json)
-                String QcJSON = QcDataFile.text
-                def Qc = jsonSlurper.parseText(QcJSON)
+                def json = jsonSlurper.parseText(qc_json.text)
                 
-                ins_size   = Qc.ins_size      ?: 'NA'
-                mean_depth = Qc.mean_coverage ?: 'NA'
-                cov_dev    = Qc.ins_size_dev  ?: 'NA'
+                ins_size   = json.ins_size      ?: 'NA'
+                mean_depth = json.mean_coverage ?: 'NA'
+                cov_dev    = json.ins_size_dev  ?: 'NA'
             }
     
             [ group, id, ins_size, mean_depth, cov_dev ]
