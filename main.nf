@@ -4269,6 +4269,7 @@ process create_yaml {
 	tag "$group"
 	time '5m'
 	memory '1 GB'
+    container "${params.container_perl_json}"
 
 	input:
 		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis)
