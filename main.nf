@@ -1218,6 +1218,7 @@ process sentieon_qc_postprocess {
 	memory '1 GB'
 	tag "$id"
 	time '2h'
+    container "${params.container_perl_json}"
 
 	input:
 		tuple(
