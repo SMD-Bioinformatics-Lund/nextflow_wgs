@@ -614,7 +614,7 @@ workflow NEXTFLOW_WGS {
 				ch_cnvkit_out,
 				ch_manta_out,
 				ch_filtered_merged_gatk_calls
-			).groupTuple()
+			).groupTuple(by: [0,1])
 
 			svdb_merge_panel(ch_panel_merge)
 
