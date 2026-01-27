@@ -21,7 +21,7 @@ workflow MELT {
                 String QcJSON = QcDataFile.text
                 def Qc = jsonSlurper.parseText(QcJSON)
                 
-                ins_size   = Qc.ins_size_dev  ?: 'NA'
+                ins_size   = Qc.ins_size      ?: 'NA'
                 mean_depth = Qc.mean_coverage ?: 'NA'
                 cov_dev    = Qc.ins_size_dev  ?: 'NA'
             }
