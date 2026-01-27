@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.20.9
+* Rename fastgnomad binary from annotate to fastgnomad 
+* Compress fastgnomad input and output VCF
+
 ### 3.20.8
 * Fix LSP parsing error introduced in #353
 * Update `constitutional` vcf record checking code with valid nxf syntax and move to own function
