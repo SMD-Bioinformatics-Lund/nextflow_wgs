@@ -263,7 +263,7 @@ workflow NEXTFLOW_WGS {
 		}
 
 
-
+	genes_analyzed(ch_scout_yaml_meta)
 	rename_bam(ch_bam_start) // See process for more info about why this is needed.
 	copy_bam(rename_bam.out.bam_bai)
 	bamtoyaml(ch_bam_start)
@@ -641,7 +641,8 @@ workflow NEXTFLOW_WGS {
 			ch_versions = ch_versions.mix(melt.out.versions.first())
 			ch_versions = ch_versions.mix(intersect_melt.out.versions.first())
 		}
-
+		
+		ch_cnvkit_cns_cnr = Channel.empty()
 		if (params.antype == "panel") {
 			ch_panel_merge = channel.empty()
 			manta_panel(ch_bam_bai)
@@ -650,7 +651,7 @@ workflow NEXTFLOW_WGS {
 
 			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, ch_melt_qc_vals)
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
-			ch_output_info = ch_output_info.mix(cnvkit_panel.out.cnvkit_INFO)
+			ch_cnvkit_cns_cnr = ch_cnvkit_cns_cnr.mix(cnvkit_panel.out.cns_cnr)
 
 			ch_panel_merge = ch_panel_merge.mix(
 				ch_cnvkit_out,
@@ -734,6 +735,15 @@ workflow NEXTFLOW_WGS {
 
 		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf, ch_svvcf_to_bed_meta)
 
+		// plot cnvkit for panels
+		ch_cnvkit_plot = ch_cnvkit_cns_cnr
+			.join(split_normalize.out.intersected_vcf, by: [0, 1])
+			.join(genes_analyzed.out.genes_of_interest, by: [0, 1])
+			.join(bgzip_scored_genmod.out.sv_rescore_vcf, by: [0])
+
+		cnvkit_scatter(ch_cnvkit_plot)
+		ch_output_info = ch_output_info.mix(cnvkit_scatter.out.cnvkit_INFO)
+
 		ch_compound_finder_input = bgzip_scored_genmod.out.sv_rescore  // Take final scored SV VCF
 			.join(ch_ped_trio_affected_permutations, by: [0,1])        // join with correct ped on group, type
 			.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1])               // join with final SNV VCF + index on group, type
@@ -809,7 +819,42 @@ workflow NEXTFLOW_WGS {
 	// }
 
 
+process genes_analyzed {
+	cpus 2
+	tag "$id"
+	time '1h'
+	memory '20 GB'
+	container "${params.container_cnvkit}"
 
+	input:
+		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis)
+
+	output:
+		tuple val(group), val(id), file("${group}.genes"), emit: genes_of_interest
+
+	script:
+		def panels = diagnosis
+			.split(/\+/)
+			.collect { it.trim() }
+			.findAll { it }
+		def panelsJson = groovy.json.JsonOutput.toJson(panels)
+		"""
+		jq -r --argjson panels '${panelsJson}' '
+		[
+			.[]
+			| select(.panel_name as \$p | \$panels | index(\$p))
+			| .genes[]
+			| .symbol
+		]
+		| unique
+		| .[]
+		' ${params.all_gene_panels} > ${group}.genes || touch ${group}.genes
+		"""
+	stub:
+		"""
+		touch ${group}.genes
+		"""
+}
 
 process fastp {
 	cpus 10
@@ -3338,7 +3383,7 @@ def manta_panel_version(task) {
 
 process cnvkit_panel {
 	cpus  5
-	container  "${params.container_twist_myeloid}"
+	container  "${params.container_cnvkit}"
 	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
 	publishDir "${params.results_output_dir}/plots/", mode: 'copy', overwrite: 'true', pattern: '*.png'
 	tag "$id"
@@ -3352,19 +3397,19 @@ process cnvkit_panel {
 	output:
 		tuple val(group), val(id), path("${id}.cnvkit_filtered.vcf"), emit: cnvkit_calls
 		tuple val(group), val(id), path("${id}.call.cns"), emit: unfiltered_cns
-		tuple val(group), val(id), path("${group}.genomic_overview.png"), emit: genomic_overview_plot
-		tuple val(group), path("${group}_oplot.INFO"), emit: cnvkit_INFO
+		tuple val(group), val(id), path("${id}.cns"), path("${id}.cnr"), emit: cns_cnr
 		path "*versions.yml", emit: versions
 
 
 	script:
 		"""
 		cnvkit.py batch $bam -r $params.cnvkit_reference -p 5 -d results/
-		cnvkit.py call results/*.cns -v $intersected_vcf -o ${id}.call.cns
+		bam_base=\$(basename "$bam" .bam)
+		mv results/\${bam_base}.cns ${id}.cns
+		mv results/\${bam_base}.cnr ${id}.cnr
+		cnvkit.py call ${id}.cns -v $intersected_vcf -o ${id}.call.cns
 		filter_cnvkit.pl ${id}.call.cns $MEAN_DEPTH > ${id}.filtered
 		cnvkit.py export vcf ${id}.filtered -i "$id" > ${id}.cnvkit_filtered.vcf
-		cnvkit.py scatter -s results/*dedup.cn{s,r} -o ${group}.genomic_overview.png -v $intersected_vcf -i $id
-		echo "IMG overviewplot	${params.accessdir}/plots/${group}.genomic_overview.png" > ${group}_oplot.INFO
 
 		${cnvkit_panel_version(task)}
 		"""
@@ -3380,6 +3425,61 @@ process cnvkit_panel {
 		"""
 }
 def cnvkit_panel_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    cnvkit: \$(cnvkit.py version | sed -e 's/cnvkit v//g')
+	END_VERSIONS
+	"""
+}
+
+
+process cnvkit_scatter {
+	cpus  2
+	container  "${params.container_cnvkit}"
+	publishDir "${params.results_output_dir}/plots/", mode: 'copy', overwrite: 'true', pattern: '*.png'
+	tag "$id"
+	time '1h'
+	memory '2 GB'
+	input:
+		tuple val(group), val(id), path(cns), path(cnr), path(intersected_vcf), path(genes), path(vcf)
+
+	output:
+		tuple val(group), val(id), path("${group}.genomic_overview.png"), emit: genomic_overview_plot
+		tuple val(group), path("${group}_oplot.INFO"), emit: cnvkit_INFO
+		path "*versions.yml", emit: versions
+
+	script:
+		"""
+        if [ -s ${genes} ]; then
+			head -n $params.max_genes_to_plot ${genes} | grep -v '^\\s*\$' > genes.txt
+
+			plot_cnvkit_genes.py \\
+				--genes \$(cat genes.txt) \\
+				--sample_id ${id} \\
+				--cns ${cns} \\
+				--cnr ${cnr} \\
+				--gtf ${params.mane_gene_regions} \\
+				--scored_vcf ${vcf} \\
+				--output ${group}.genomic_overview.png
+		else
+            cnvkit.py scatter -s *.cn{s,r} \\
+                -i $id \\
+				-v $intersected_vcf \\
+                -o ${group}.genomic_overview.png
+        fi
+		echo "IMG overviewplot	${params.accessdir}/plots/${group}.genomic_overview.png" > ${group}_oplot.INFO
+
+		${cnvkit_panel_version(task)}
+		"""
+
+	stub:
+		"""
+		touch "${group}.genomic_overview.png"
+		${cnvkit_panel_version(task)}
+		"""
+}
+def cnvkit_scatter_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
