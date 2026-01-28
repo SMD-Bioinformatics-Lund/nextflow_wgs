@@ -1,9 +1,13 @@
 # CHANGELOG
 
-### 3.20.9
+### 3.20.10
 * Better plotting for CNVkit, gene based from genepanels
 * CNVkit 0.9.6 -> 0.9.12 (no changes to calling)
 * Process to keep track of analyzed genes if valid gene list is chosen
+
+### 3.20.9
+* Rename fastgnomad binary from annotate to fastgnomad 
+* Compress fastgnomad input and output VCF
 
 ### 3.20.8
 * Fix LSP parsing error introduced in #353
