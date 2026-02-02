@@ -3280,6 +3280,7 @@ process cnvkit_panel {
 	stub:
 		"""
 		touch "${id}.cnvkit_filtered.vcf"
+        touch "${id}.cns"
 		touch "${id}.call.cns"
 		touch "${group}.genomic_overview.png"
 		touch "${group}_oplot.INFO"
