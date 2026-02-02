@@ -3281,6 +3281,7 @@ process cnvkit_panel {
 		"""
 		touch "${id}.cnvkit_filtered.vcf"
         touch "${id}.cns"
+        touch "${id}.cnr"
 		touch "${id}.call.cns"
 		touch "${group}.genomic_overview.png"
 		touch "${group}_oplot.INFO"
