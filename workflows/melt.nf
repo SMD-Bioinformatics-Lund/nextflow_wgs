@@ -9,7 +9,10 @@ workflow MELT {
     ch_versions = channel.empty()
 
     params.results_output_dir = params.outdir + '/' + params.subdir
-    
+
+    // TODO: Move the QC code below to some future QC-workflow
+    //       The extracted QC vals are also used downstream
+    //       by cnvkit_panel.
     ch_parsed_sentieon_qc_json
         .map { group, id, qc_json ->
 
