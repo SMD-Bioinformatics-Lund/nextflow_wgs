@@ -796,11 +796,11 @@ process genes_analyzed {
 		tuple val(group), val(id), file("${group}.genes"), emit: genes_of_interest
 
 	script:
-		def panels = diagnosis
-		    .split(/\+/)
+        def panels = diagnosis
+            .split(/\+/)
             .collect { it -> it.trim() }
             .findAll { it -> it }
-		def panelsJson = groovy.json.JsonOutput.toJson(panels)
+        def panelsJson = groovy.json.JsonOutput.toJson(panels)
 		"""
 		jq -r --argjson panels '${panelsJson}' '
 		[
