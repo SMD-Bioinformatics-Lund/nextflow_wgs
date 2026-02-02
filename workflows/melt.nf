@@ -8,6 +8,8 @@ workflow MELT {
     main:
     ch_versions = channel.empty()
 
+    params.results_output_dir = params.outdir + '/' + params.subdir
+    
     ch_parsed_sentieon_qc_json
         .map { group, id, qc_json ->
 
