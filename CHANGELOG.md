@@ -1,8 +1,13 @@
 # CHANGELOG
 
-### 3.21.0
+### 3.20.11
 * Changes related to update of Nextflow to 25.10.0
 * Move melt calling to `MELT` workflow 
+
+### 3.20.10
+* Better plotting for CNVkit, gene based from genepanels
+* CNVkit 0.9.6 -> 0.9.12 (no changes to calling)
+* Process to keep track of analyzed genes if valid gene list is chosen
 
 ### 3.20.9
 * Rename fastgnomad binary from annotate to fastgnomad 
