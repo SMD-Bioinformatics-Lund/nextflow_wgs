@@ -3341,6 +3341,7 @@ process cnvkit_scatter {
 	stub:
 		"""
 		touch "${group}.genomic_overview.png"
+		touch "${group}_oplot.INFO"
 		${cnvkit_panel_version(task)}
 		"""
 }
