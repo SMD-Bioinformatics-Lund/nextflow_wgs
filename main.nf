@@ -798,8 +798,8 @@ process genes_analyzed {
 	script:
         def panels = diagnosis
             .split(/\+/)
-            .collect { it -> it.trim() }
-            .findAll { it -> it }
+            .collect { it.trim() }
+            .findAll { it }
         def panelsJson = groovy.json.JsonOutput.toJson(panels)
 		"""
 		jq -r --argjson panels '${panelsJson}' '
