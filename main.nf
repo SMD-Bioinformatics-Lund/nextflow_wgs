@@ -596,7 +596,7 @@ workflow NEXTFLOW_WGS {
 			ch_versions = ch_versions.mix(MELT.out.versions)
 		}
 		
-		ch_cnvkit_cns_cnr = Channel.empty()
+		ch_cnvkit_cns_cnr = channel.empty()
 		if (params.antype == "panel") {
 			ch_panel_merge = channel.empty()
 			manta_panel(ch_bam_bai)
@@ -798,8 +798,8 @@ process genes_analyzed {
 	script:
 		def panels = diagnosis
 			.split(/\+/)
-			.collect { it.trim() }
-			.findAll { it }
+			.collect { it -> it.trim() }
+			.findAll { it -> it }
 		def panelsJson = groovy.json.JsonOutput.toJson(panels)
 		"""
 		jq -r --argjson panels '${panelsJson}' '
@@ -3248,7 +3248,7 @@ def manta_panel_version(task) {
 
 process cnvkit_panel {
 	cpus  5
-	container  "${params.container_twist_myeloid}"
+    container  "${params.container_twist_myeloid}"
 	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf'
 	publishDir "${params.results_output_dir}/plots/", mode: 'copy', overwrite: true, pattern: '*.png'
 	tag "$id"
