@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.20.11
+* Fix missing CNVkit process stub outputs
+
 ### 3.20.10
 * Better plotting for CNVkit, gene based from genepanels
 * CNVkit 0.9.6 -> 0.9.12 (no changes to calling)
