@@ -749,10 +749,12 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// LOQUSDB //
-	add_to_loqusdb(
-		ch_ped_base.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1]),
-		ch_loqusdb_sv
-	)
+    if(!params.skip_loqusdb) {
+	    add_to_loqusdb(
+		    ch_ped_base.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1]),
+		    ch_loqusdb_sv
+	    )
+    }
 
 	// MERGE QC JSONs AND OUTPUT TO CDM //
 	merge_qc_json(ch_qc_json.groupTuple(by: [0,1]))
@@ -3283,6 +3285,8 @@ process cnvkit_panel {
         touch "${id}.cns"
         touch "${id}.cnr"
 		touch "${id}.call.cns"
+		touch "${id}.cns"
+		touch "${id}.cnr"
 		touch "${group}.genomic_overview.png"
 		touch "${group}_oplot.INFO"
 

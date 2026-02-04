@@ -1,8 +1,14 @@
 # CHANGELOG
 
+### 3.20.13
+* Various fixes in preparation of updating to more recent version of nextflow
+* Move melt calling to `MELT` workflow
+
+### 3.20.12
+* Add flag `params.skip_loqusdb` to skip loqusdb CRON
+
 ### 3.20.11
-* Changes related to update of Nextflow to 25.10.0
-* Move melt calling to `MELT` workflow 
+* Fix missing CNVkit process stub outputs
 
 ### 3.20.10
 * Better plotting for CNVkit, gene based from genepanels
