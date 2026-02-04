@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.20.12
+* Add flag `params.skip_loqusdb` to skip loqusdb CRON
+
 ### 3.20.11
 * Fix missing CNVkit process stub outputs
 
