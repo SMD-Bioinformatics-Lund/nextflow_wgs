@@ -528,7 +528,7 @@ def genmodscore_version(task) {
 // Bgzipping and indexing VCF:
 process vcf_completion {
 	cpus 16
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz*'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
 	tag "$group"
 	time '1h'
 	memory '5 GB'

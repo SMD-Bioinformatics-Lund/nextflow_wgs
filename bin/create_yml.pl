@@ -1,5 +1,5 @@
-#! /usr/bin/perl -w
-#use MongoDB;
+#!/usr/bin/env perl
+
 use strict;
 use warnings;
 use Data::Dumper;

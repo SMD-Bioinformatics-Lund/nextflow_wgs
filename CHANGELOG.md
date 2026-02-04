@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.20.13
+* Various fixes in preparation of updating to more recent version of nextflow
+* Move melt calling to `MELT` workflow
+
 ### 3.20.12
 * Add flag `params.skip_loqusdb` to skip loqusdb CRON
 
