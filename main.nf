@@ -376,8 +376,6 @@ workflow NEXTFLOW_WGS {
 	gvcf_combine(dnascope.out.gvcf_tbi.groupTuple())
 	ch_versions = ch_versions.mix(gvcf_combine.out.versions.first())
 
-	ch_split_normalize_concat_vcf = channel.empty()
-
     ch_split_normalize_in = channel.empty()
     
 	// TODO: move antypes and similar to constants?
