@@ -294,15 +294,10 @@ workflow NEXTFLOW_WGS {
 
 	create_ped(ch_ped_input)
 	ch_ped_base = create_ped.out.ped_base
-	ch_ped_father_affected = channel.empty()
-	ch_ped_mother_affected = channel.empty()
 
 	ch_ped_trio_affected_permutations = channel.empty()  // channel for base ped + father and mother set as affected peds
 	ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations.mix(ch_ped_base)
 	if(params.mode == "family" && params.assay == "wgs") {
-
-		ch_ped_father_affected = create_ped.out.ped_fa
-		ch_ped_mother_affected = create_ped.out.ped_ma
 
 		ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations
             .mix(create_ped.out.ped_fa)
