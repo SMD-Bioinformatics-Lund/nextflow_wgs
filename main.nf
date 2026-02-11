@@ -709,8 +709,9 @@ workflow NEXTFLOW_WGS {
 			ch_versions = ch_versions.mix(intersect_melt.out.versions.first())
 		}
 		
-		ch_cnvkit_cns_cnr = Channel.empty()
-		if (params.antype == "panel") {
+		ch_cnvkit_cns_cnr = channel.empty()
+
+        if (params.antype == "panel") {
 			ch_panel_merge = channel.empty()
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
@@ -724,11 +725,13 @@ workflow NEXTFLOW_WGS {
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
 			ch_cnvkit_cns_cnr = ch_cnvkit_cns_cnr.mix(cnvkit_panel.out.cns_cnr)
 
-			ch_panel_merge = ch_panel_merge.mix(
-				ch_cnvkit_out,
-				ch_manta_out,
-				ch_filtered_merged_gatk_calls
-			).groupTuple()
+			ch_panel_merge = ch_panel_merge
+                .mix(
+				    ch_cnvkit_out,
+				    ch_manta_out,
+				    ch_filtered_merged_gatk_calls
+			    )
+                .groupTuple()
 
 			svdb_merge_panel(ch_panel_merge)
 
@@ -2564,7 +2567,6 @@ def run_eklipse_version(task) {
 	"""
 }
 
-//eklipseM_INFO.collectPath(name: "eklipse.INFO").set{ eklipse_INFO }
 process rename_mito_contigs {
     cpus 2
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
@@ -2808,7 +2810,7 @@ process fastgnomad {
 	time '2h'
 
 	input:
-		tuple val(group), path(vcf)
+	    tuple val(group), path(vcf)
 
 	output:
 		tuple val(group), path("${group}.SNPs.vcf.gz"), emit: vcf
