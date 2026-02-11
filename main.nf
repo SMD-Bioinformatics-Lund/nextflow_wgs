@@ -304,7 +304,10 @@ workflow NEXTFLOW_WGS {
 		ch_ped_father_affected = create_ped.out.ped_fa
 		ch_ped_mother_affected = create_ped.out.ped_ma
 
-		ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations.mix(ch_ped_father_affected).mix(ch_ped_mother_affected)
+		ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations
+            .mix(create_ped.out.ped_fa)
+            .mix(create_ped.out.ped_ma)
+        
 		madeline(ch_ped_trio_affected_permutations)
 
 		ch_versions = ch_versions.mix(madeline.out.versions.first())
