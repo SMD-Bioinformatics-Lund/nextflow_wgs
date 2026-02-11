@@ -913,6 +913,11 @@ process picard_mergevcfs {
     java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \
         -I ${snv_vcf} -I ${mito_snv_vcf}  O=${group}.merged.vcf
     """
+
+    stub:
+    """
+    touch ${group}.merged.vcf
+    """
 }
 
 process genes_analyzed {
