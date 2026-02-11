@@ -463,8 +463,8 @@ workflow NEXTFLOW_WGS {
             .map { group, snv_vcf, _tbi, mito_vcf -> [ group, snv_vcf, mito_vcf ] }
             .set { ch_picard_mergevcfs_in }
 
-        ch_rename_mito_contigs_in = picard_mergevcfs.out.merged_vcf // channel: [ group, vcf ]       
         picard_mergevcfs(ch_picard_mergevcfs_in)
+        ch_rename_mito_contigs_in = picard_mergevcfs.out.merged_vcf // channel: [ group, vcf ]       
 
 		run_haplogrep(run_mutect2.out.vcf)
 		ch_output_info = ch_output_info.mix(run_haplogrep.out.haplogrep_INFO)
