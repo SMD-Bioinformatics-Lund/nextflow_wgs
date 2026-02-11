@@ -228,7 +228,7 @@ process bgzip_tabix {
 	memory '50 GB'
 	time '1h'
 
-    container "${params.container_htslib}"
+    container "${params.container_perl}"
     
 	input:
 		tuple val(group), path(vcf) // is ids supposed to be tuple?
