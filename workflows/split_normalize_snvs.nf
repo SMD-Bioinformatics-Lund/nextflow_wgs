@@ -7,6 +7,8 @@ workflow SPLIT_NORMALIZE_SNVS {
     main:
     ch_versions = channel.empty()
 
+	params.results_output_dir = params.outdir + '/' + params.subdir
+    
     vcflib_vcfbreakmulti(ch_family_snv_vcf_idx)
     bcftools_norm_sort(vcflib_vcfbreakmulti.out.vcf_tbi)
     vcflib_vcfuniq(bcftools_norm_sort.out.vcf_tbi)
