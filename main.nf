@@ -3570,7 +3570,7 @@ process cnvkit_panel {
 	memory '20 GB'
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
-		tuple val(group2), val(id2), path(intersected_vcf)
+		tuple val(group2), path(intersected_vcf)
 		tuple val(group3), val(id3), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV)
 
 	output:
