@@ -397,7 +397,7 @@ workflow NEXTFLOW_WGS {
                 [ group, has_variants, gvcf, gvcf_tbi, freebayes_vcf ]
             }
             .branch {
-                group, has_freebayes_variants, gvcf, gvcf_tbi, freebayes_vcf ->
+                _group, has_freebayes_variants, _freebayes_vcf, _id, _gvcf, _gvcf_tbi ->
                 with_fb_variants: has_freebayes_variants
                 no_fb_variants: !has_freebayes_variants
             }
