@@ -2590,7 +2590,7 @@ process rename_mito_contigs {
     script:
     """
     zcat ${vcf} |\
-	    sed 's/^M\t/MT/' |\
+	    sed 's/^M\t/MT\t/' |\
 		sed 's/ID=M,length/ID=MT,length/' |\
         bgzip -c > "${group}.mt_rename.vcf.gz"
 
