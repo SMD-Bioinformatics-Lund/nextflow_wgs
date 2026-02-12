@@ -464,7 +464,7 @@ workflow NEXTFLOW_WGS {
             .set { ch_picard_mergevcfs_in }
 
         picard_mergevcfs(ch_picard_mergevcfs_in)
-        ch_rename_mito_contigs_in = picard_mergevcfs.out.merged_vcf // channel: [ group, vcf ]       
+        ch_rename_mito_contigs_in = picard_mergevcfs.out.merged_vcf
 
 		run_haplogrep(run_mutect2.out.vcf)
 		ch_output_info = ch_output_info.mix(run_haplogrep.out.haplogrep_INFO)
@@ -483,7 +483,6 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(run_haplogrep.out.versions.first())
 	} else {
         SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
-            .map { group, vcf, _tbi -> [ group, vcf ]}
             .set { ch_rename_mito_contigs_in }                            
     }
 
@@ -905,13 +904,16 @@ process picard_mergevcfs {
     tuple val(group), path(snv_vcf), path(mito_snv_vcf) 
 
     output:
-    tuple val(group), path("${group}.merged.vcf"), emit: merged_vcf
+    tuple val(group), path("${group}.merged.vcf.gz"), path("${group}.merged.vcf.gz.tbi"), emit: merged_vcf
 
     script:
 
     """
     java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \
         I=${snv_vcf} I=${mito_snv_vcf}  O=${group}.merged.vcf
+
+    bgzip ${group}.merged.vcf
+    tabix -p vcf ${group}.merged.vcf.gz
     """
 
     stub:
@@ -2580,7 +2582,7 @@ process rename_mito_contigs {
     container "${params.container_bcftools}"
     
     input:
-		tuple val(group), path(vcf)
+	tuple val(group), path(vcf), path(tbi)
     output:
     	tuple val(group), path("${group}.mt_rename.vcf.gz"), path("${group}.mt_rename.vcf.gz.tbi"), emit: vcf_tbi
     	path "*versions.yml", emit: versions
