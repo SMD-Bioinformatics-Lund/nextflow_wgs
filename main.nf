@@ -2579,7 +2579,7 @@ process rename_mito_contigs {
 	memory '50 GB'
 	time '1h'
 
-    container "${params.container_bcftools}"
+    container "${params.container_perl}"
     
     input:
 	tuple val(group), path(vcf), path(tbi)
@@ -2589,11 +2589,12 @@ process rename_mito_contigs {
     
     script:
     """
-    bcftools view ${vcf} |\
+    zcat ${vcf} |\
 	    sed 's/^M\t/MT/' |\
 		sed 's/ID=M,length/ID=MT,length/' |\
-        bcftools view -O z -o "${group}.mt_rename.vcf.gz" --write-index=tbi
+        bgzip -c > "${group}.mt_rename.vcf.gz"
 
+    tabix -p vcf "${group}.mt_rename.vcf.gz"
     
     ${rename_mito_contigs_version(task)}
     """
