@@ -21,6 +21,9 @@ workflow VALIDATE_PARAMETERS {
             error "ERROR: Parameter '${key}' is not a string path."
         }
 
+        if (!value.startsWith('/'))
+            return
+        
         def f = file(value)
 
         if (!f.exists()) {
