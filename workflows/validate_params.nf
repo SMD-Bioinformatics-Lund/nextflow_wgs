@@ -18,7 +18,7 @@ workflow VALIDATE_PARAMETERS {
 		def value = params[key]
 		
 		if (!(value instanceof String)) {
-			error "ERROR: Parameter '${key}' is not a string path."
+			error "ERROR: Parameter '${key}' : '${value}' is not a string path."
 		}
 		
 		def f = file(value)
