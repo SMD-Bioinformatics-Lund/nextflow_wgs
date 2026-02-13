@@ -1,7 +1,7 @@
 # CHANGELOG
 
-### 3.20.13
-* Check all params for file existence and non-emptines and directory existence
+### 3.22.0
+* Check defined params for file existence and non-emptines and directory existence
 
 ### 3.20.12
 * Add flag `params.skip_loqusdb` to skip loqusdb CRON
