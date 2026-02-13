@@ -11,6 +11,7 @@ nextflow.enable.dsl=2
 
 
 workflow {
+	// Validate all configured parameters
 	VALIDATE_PARAMETERS(params.parameters_to_validate)
 	// Print startup and conf output dirs and modes.
 
