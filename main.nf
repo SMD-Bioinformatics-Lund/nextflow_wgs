@@ -437,7 +437,8 @@ workflow NEXTFLOW_WGS {
 
     ch_rename_mito_contigs_in = channel.empty() 
     
-	// MITO SIDE-QUEST
+	// MITO SNVS and SVs
+    // TODO: Break up into workflow(s)
 	if (!params.skip_mito) { 
 
 		fetch_MTseqs(ch_bam_bai)
