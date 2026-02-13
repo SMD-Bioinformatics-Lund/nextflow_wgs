@@ -383,7 +383,9 @@ workflow NEXTFLOW_WGS {
 		freebayes(ch_bam_bai)
 		ch_versions = ch_versions.mix(freebayes.out.versions.first())
 
-        // Handle Freebayes producing empty VCFs:
+        // The Freebayes output might generate an empty file
+        // In that case skip concatenation and pass the DNAScope
+        // calls directly to SPLIT_NORMALIZE_SNVS
         freebayes.out.freebayes_variants
             .map { group, vcf ->
                 def has_variants = vcfHasVariants(vcf)
