@@ -424,6 +424,8 @@ workflow NEXTFLOW_WGS {
         concat_gvcf_freebayes.out.vcf_tbi
             .mix( ch_without_freebayes )
             .set { ch_split_normalize_in }
+
+        ch_versions = ch_versions.mix(concat_gvcf_freebayes.out.versions.first())
         
 	} else {
         gvcf_combine.out.combined_vcf
@@ -497,6 +499,8 @@ workflow NEXTFLOW_WGS {
     rename_mito_contigs.out.vcf_tbi
         .map { group, vcf, _tbi -> [ group, vcf ] }
         .set { ch_snv_annotate_in }
+
+    ch_versions = ch_versions.mix(rename_mito_contigs.out.versions.first())
         
 	// SNV ANNOTATION
 	if (params.annotate) {
