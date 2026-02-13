@@ -379,52 +379,22 @@ workflow NEXTFLOW_WGS {
     ch_split_normalize_in = channel.empty()
     
 	// TODO: move antypes and similar to constants?
-	if (params.antype == "panel") {
+	if (params.onco) {
 		freebayes(ch_bam_bai)
 		ch_versions = ch_versions.mix(freebayes.out.versions.first())
-
-        // The Freebayes output might generate an empty file
-        // In that case skip concatenation and pass the DNAScope
-        // calls directly to SPLIT_NORMALIZE_SNVS
+        
         freebayes.out.freebayes_variants
-            .map { group, vcf ->
-                def has_variants = vcfHasVariants(vcf)
-                [ group, has_variants, vcf ]
-            }
             .join(
                 gvcf_combine.out.combined_vcf
             )
             .map {
-                group, has_variants, freebayes_vcf, _id, gvcf, gvcf_tbi ->
-                [ group, has_variants, gvcf, gvcf_tbi, freebayes_vcf ]
-            }
-            .branch {
-                _group, has_freebayes_variants, _gvcf, _gvcf_tbi, _freebayes_vcf ->
-                with_fb_variants: has_freebayes_variants
-                no_fb_variants: !has_freebayes_variants
-            }
-            .set { ch_panel_variants_branched  }
-
-        ch_panel_variants_branched.with_fb_variants
-            .map {
-                group, _has_variants, gvcf, _gvcf_tbi, freebayes_vcf ->
+                group, freebayes_vcf, _id, gvcf, _gvcf_tbi ->
                 [ group, gvcf, freebayes_vcf ]
             }
-            .set { ch_with_freebayes }
+            .set { ch_concat_gvcf_freebayes_in  }
 
-        ch_panel_variants_branched.no_fb_variants
-            .map {
-                group, _has_variants, gvcf, gvcf_tbi, _freebayes_vcf ->
-                [ group, gvcf, gvcf_tbi ]
-            }
-            .set { ch_without_freebayes }
-        
-        concat_gvcf_freebayes(ch_with_freebayes)
-
-        concat_gvcf_freebayes.out.vcf_tbi
-            .mix( ch_without_freebayes )
-            .set { ch_split_normalize_in }
-
+        concat_gvcf_freebayes(ch_concat_gvcf_freebayes_in)
+        ch_split_normalize_in = concat_gvcf_freebayes.out.vcf_tbi
         ch_versions = ch_versions.mix(concat_gvcf_freebayes.out.versions.first())
         
 	} else {
@@ -2128,34 +2098,19 @@ process freebayes {
 		tuple val(group), path("${id}.pathfreebayes.vcf_no_header.tsv.gz"), emit: freebayes_variants
 		path "*versions.yml", emit: versions
 
-
-	when:
-		params.antype == "panel"
-
-
 	script:
-		if (params.onco) {
-			"""
-			freebayes -f ${params.genome_file} --pooled-continuous --pooled-discrete -t $params.intersect_bed --min-repeat-entropy 1 -F 0.03 $bam > ${id}.freebayes.vcf
-			vcfbreakmulti ${id}.freebayes.vcf > ${id}.freebayes.multibreak.vcf
-			bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${id}.freebayes.multibreak.norm.vcf ${id}.freebayes.multibreak.vcf
-			vcfanno_linux64 -lua $params.VCFANNO_LUA $params.vcfanno ${id}.freebayes.multibreak.norm.vcf > ${id}.freebayes.multibreak.norm.anno.vcf
-			grep ^# ${id}.freebayes.multibreak.norm.anno.vcf > ${id}.freebayes.multibreak.norm.anno.path.vcf
-			grep -v ^# ${id}.freebayes.multibreak.norm.anno.vcf | grep -i pathogenic > ${id}.freebayes.multibreak.norm.anno.path.vcf2
-			cat ${id}.freebayes.multibreak.norm.anno.path.vcf ${id}.freebayes.multibreak.norm.anno.path.vcf2 > ${id}.freebayes.multibreak.norm.anno.path.vcf3
-			filter_freebayes.pl ${id}.freebayes.multibreak.norm.anno.path.vcf3 | bgzip -c > "${id}.pathfreebayes.vcf_no_header.tsv.gz"
+		"""
+		freebayes -f ${params.genome_file} --pooled-continuous --pooled-discrete -t $params.intersect_bed --min-repeat-entropy 1 -F 0.03 $bam > ${id}.freebayes.vcf
+		vcfbreakmulti ${id}.freebayes.vcf > ${id}.freebayes.multibreak.vcf
+		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${id}.freebayes.multibreak.norm.vcf ${id}.freebayes.multibreak.vcf
+		vcfanno_linux64 -lua $params.VCFANNO_LUA $params.vcfanno ${id}.freebayes.multibreak.norm.vcf > ${id}.freebayes.multibreak.norm.anno.vcf
+		grep ^# ${id}.freebayes.multibreak.norm.anno.vcf > ${id}.freebayes.multibreak.norm.anno.path.vcf
+		grep -v ^# ${id}.freebayes.multibreak.norm.anno.vcf | grep -i pathogenic > ${id}.freebayes.multibreak.norm.anno.path.vcf2
+		cat ${id}.freebayes.multibreak.norm.anno.path.vcf ${id}.freebayes.multibreak.norm.anno.path.vcf2 > ${id}.freebayes.multibreak.norm.anno.path.vcf3
+		filter_freebayes.pl ${id}.freebayes.multibreak.norm.anno.path.vcf3 | bgzip -c > "${id}.pathfreebayes.vcf_no_header.tsv.gz"
 
-			${freebayes_version(task)}
-			"""
-		}
-		else {
-			"""
-			touch "${id}.pathfreebayes.vcf_no_header.tsv.gz"
-
-			${freebayes_version(task)}
-			"""
-		}
-
+		${freebayes_version(task)}
+		"""
 	stub:
 		"""
 		touch "${id}.pathfreebayes.vcf_no_header.tsv.gz"
