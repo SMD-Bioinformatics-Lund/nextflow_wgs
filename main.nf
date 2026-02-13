@@ -427,7 +427,7 @@ workflow NEXTFLOW_WGS {
         
 	} else {
         gvcf_combine.out.combined_vcf
-            .map { group, _id, vcf, tbi -> [group, vcf, tbi ] }
+            .map { group, _id, vcf, tbi -> [ group, vcf, tbi ] }
             .set { ch_split_normalize_in }
     }
 
