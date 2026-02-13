@@ -4,46 +4,14 @@ include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
 include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
+include { VALIDATE_PARAMETERS } from './workflows/validate_params.nf'
 include { vcfHasVariants } from './workflows/util.nf'
 
 nextflow.enable.dsl=2
 
 
 workflow {
-	log.info "Validating file and directory parameters..."
-
-	params.each { key, value ->
-
-		if (!(value instanceof String))
-			return
-
-		// only consider absolute paths (skip booleans, flags)
-		if (!value.startsWith('/'))
-			return
-
-		// paths and files to ignore
-		if (value.startsWith('/access')) {
-			return
-		}
-
-		if (key == 'verifybamid2_svdprefix') {
-			return
-		}
-
-		def f = file(value)
-
-		if (!f.exists()) {
-			error "ERROR: Param '${key}' points to missing path: ${value}"
-		}
-
-		if (f.isFile()) {
-			if (f.size() == 0) {
-				error "ERROR: Param '${key}' points to empty file: ${value}"
-			}
-		}
-
-	}
-
+	VALIDATE_PARAMETERS(params.params_to_validate)
 	// Print startup and conf output dirs and modes.
 
 	// TODO: Params assignment inside workflow block is a temp solution:
