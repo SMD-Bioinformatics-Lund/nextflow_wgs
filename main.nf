@@ -916,6 +916,7 @@ process picard_mergevcfs {
 
     output:
     tuple val(group), path("${group}.merged.vcf.gz"), path("${group}.merged.vcf.gz.tbi"), emit: merged_vcf
+    path("*versions.yml"), emit: versions
 
     script:
 
