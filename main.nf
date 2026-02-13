@@ -392,7 +392,7 @@ workflow NEXTFLOW_WGS {
                 [ group, has_variants, vcf ]
             }
             .join(
-                gvcf_combine.out.combined_vcf, by: 0
+                gvcf_combine.out.combined_vcf
             )
             .map {
                 group, has_variants, freebayes_vcf, _id, gvcf, gvcf_tbi ->
