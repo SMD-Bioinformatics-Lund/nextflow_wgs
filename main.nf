@@ -822,7 +822,7 @@ workflow NEXTFLOW_WGS {
         
 		// plot cnvkit for panels
 		ch_cnvkit_plot = ch_cnvkit_cns_cnr
-			.join(ch_cnvkit_plot_snvs, by: [0]) 
+			.join(ch_cnvkit_plot_snvs) 
 			.join(genes_analyzed.out.genes_of_interest, by: [0, 1])
 			.join(bgzip_scored_genmod.out.sv_rescore_vcf, by: [0])
 
