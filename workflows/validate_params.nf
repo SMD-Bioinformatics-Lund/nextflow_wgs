@@ -31,7 +31,6 @@ workflow VALIDATE_PARAMETERS {
             error "ERROR: Param '${key}' points to empty file: ${value}"
         }
 
-        log.info "✓ ${key} OK"
     }
 
     log.info "All configured parameter paths validated ✓"
