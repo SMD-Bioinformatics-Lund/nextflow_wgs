@@ -9,14 +9,10 @@ workflow VALIDATE_PARAMETERS {
 
 	log.info "Validating file and directory parameters..."
 
-    params.each { key ->
-        if (!key in global_parameters)
-            return
-        if (!params.containsKey(key)) {
-            error "ERROR: Parameter '${key}' is listed as a paramater to validate but is not defined as an actual parameter."
-        }
+    params.each { key, value ->
 
-        def value = params[key]
+        if (!global_parameters.contains(key))
+            return
 
         if (!(value instanceof String)) {
             error "ERROR: Parameter '${key}' is not a string path."
@@ -35,12 +31,12 @@ workflow VALIDATE_PARAMETERS {
         }
 
         if (f.isFile() && f.size() == 0) {
-            error "ERROR: Param '${key}' points to empty file: ${value}"
-        }
+		error "ERROR: Param '${key}' points to empty file: ${value}"
+	}
 
-    }
+	}
 
-    log.info "All configured parameter paths validated ✓"
+	log.info "All configured parameter paths validated ✓"
 
 	emit:
 	global_parameters = global_parameters
