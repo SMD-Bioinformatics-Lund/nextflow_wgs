@@ -75,7 +75,7 @@ process annotate_vep {
 	time '5h'
 
 	input:
-	    tuple val(group), path(vcf)
+		tuple val(group), path(vcf)
 
 	output:
 		tuple val(group), path("${group}.vep.vcf"), emit: vcf
