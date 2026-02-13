@@ -421,8 +421,9 @@ workflow NEXTFLOW_WGS {
         
         concat_gvcf_freebayes(ch_with_freebayes)
 
-        ch_split_normalize_in = concat_gvcf_freebayes.out.vcf_tbi
+        concat_gvcf_freebayes.out.vcf_tbi
             .mix( ch_without_freebayes )
+            .set { ch_split_normalize_in }
         
 	} else {
         gvcf_combine.out.combined_vcf
