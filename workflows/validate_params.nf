@@ -9,8 +9,9 @@ workflow VALIDATE_PARAMETERS {
 
 	log.info "Validating file and directory parameters..."
 
-    global_parameters.each { key ->
-
+    params.each { key ->
+        if (!key in global_parameters)
+            return
         if (!params.containsKey(key)) {
             error "ERROR: Parameter '${key}' is listed as a paramater to validate but is not defined as an actual parameter."
         }
@@ -26,7 +27,7 @@ workflow VALIDATE_PARAMETERS {
 
         if (value == null)
             return 
-            
+
         def f = file(value)
 
         if (!f.exists()) {
