@@ -904,7 +904,8 @@ workflow NEXTFLOW_WGS {
 
 process picard_mergevcfs {
     cpus 2
-
+    container "${params.container_picard}"
+    
     input:
     tuple val(group), path(snv_vcf), path(mito_snv_vcf) 
 
@@ -914,17 +915,30 @@ process picard_mergevcfs {
     script:
 
     """
-    java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \
-        I=${snv_vcf} I=${mito_snv_vcf}  O=${group}.merged.vcf
+    picard MergeVcfs \
+        --CREATE_INDEX \
+        -I ${snv_vcf} \
+        -I ${mito_snv_vcf} \
+        -O ${group}.merged.vcf.gz
 
-    bgzip ${group}.merged.vcf
-    tabix -p vcf ${group}.merged.vcf.gz
+    ${picard_mergevcfs_version(task)}
     """
 
     stub:
     """
-    touch ${group}.merged.vcf
+    touch ${group}.merged.vcf.gz
+    touch ${group}.merged.vcf.gz.tbi
+
+    ${picard_mergevcfs_version(task)}
     """
+}
+def picard_mergevcfs_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    MergeVcfs: \$(echo \$(--version 2>&1) |cut -f 2 -d:))
+	END_VERSIONS
+	"""
 }
 
 process genes_analyzed {
