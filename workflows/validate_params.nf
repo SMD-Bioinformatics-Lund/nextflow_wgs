@@ -9,7 +9,7 @@ workflow VALIDATE_PARAMETERS {
 
 	log.info "Validating file and directory parameters..."
 
-	params_to_validate.each { key, value ->
+	params_to_validate.each { key ->
 		
 		if (!params.containsKey(key)) {
 			log.info "Parameter '${key}' is listed in params_to_validate but is not defined in params."
@@ -19,6 +19,8 @@ workflow VALIDATE_PARAMETERS {
 			error "ERROR: Parameter '${key}' is not a string path."
 		}
 
+		def value = params[key]
+		
 		def f = file(value)
 
 		if (!f.exists()) {
