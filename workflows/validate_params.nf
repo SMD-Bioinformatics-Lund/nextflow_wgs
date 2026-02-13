@@ -26,7 +26,7 @@ workflow VALIDATE_PARAMETERS {
 		}
 
 		// some params are set to 'PH' in some profiles while being a file path in others
-		if (!value.startsWith('/'))
+		if (!value.startsWith('PH'))
 			return
 
 		def f = file(value)
@@ -36,7 +36,7 @@ workflow VALIDATE_PARAMETERS {
 		}
 
 		if (f.isFile() && f.size() == 0) {
-		error "ERROR: Param '${key}' points to empty file: ${value}"
+			error "ERROR: Param '${key}' points to empty file: ${value}"
 	}
 
 	}
