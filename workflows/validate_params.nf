@@ -23,7 +23,10 @@ workflow VALIDATE_PARAMETERS {
 
         if (!value.startsWith('/'))
             return
-        
+
+        if (value == null)
+            return 
+            
         def f = file(value)
 
         if (!f.exists()) {
