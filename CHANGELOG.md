@@ -1,5 +1,29 @@
 # CHANGELOG
 
+### Unreleased
+
+* Add container for perl scripts with perl-GD, perl-List-MoreUtils, perl-JSON, bgzip/tabix
+* Set container to perl container for all straight-forward perl-script based processes:
+ 
+ **main.nf**
+  - `sentieon_qc_postprocess` (`qc_sentieon.pl`) — `main.nf`
+  - `depth_onco` (`panel_depth.pl`, `overlapping_genes.pl`) — `main.nf`
+  - `create_ped` (`create_ped.pl`) — `main.nf`
+  - `upd_table` (`upd_table.pl`) — `main.nf`
+  - `overview_plot` (`genome_plotter.pl`) — `main.nf`
+  - `generate_gens_data` (`generate_gens_data.pl`) — `main.nf`
+  - `filter_merge_gatk` (`filter_gatk.pl`, `mergeGATK.pl`) — `main.nf`
+  - `postprocess_merged_panel_sv_vcf` (`modify_cnv_genotypes_for_loqusdb.pl`) — `main.nf`
+  - `compound_finder` (`compound_finder.pl`) — `main.nf`
+  - `svvcf_to_bed` (`cnv2bed.pl`) — `main.nf`
+  - `plot_pod` (`parental_origin_of_duplication.pl`) — `main.nf`
+  - `create_yaml` (`create_yml.pl`) — `main.nf`
+
+  **workflows/annotate_snvs.nf**
+  - `modify_vcf` (`modify_vcf_scout.pl`) — `workflows/annotate_snvs.nf`
+  - `mark_splice` (`mark_spliceindels.pl`) — `workflows/annotate_snvs.nf`
+
+
 ### 3.20.12
 * Add flag `params.skip_loqusdb` to skip loqusdb CRON
 
