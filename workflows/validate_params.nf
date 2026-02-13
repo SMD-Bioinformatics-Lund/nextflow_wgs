@@ -15,11 +15,11 @@ workflow VALIDATE_PARAMETERS {
 			log.info "Parameter '${key}' is listed in params_to_validate but is not defined in params."
 		}
 
+		def value = params[key]
+		
 		if (!(value instanceof String)) {
 			error "ERROR: Parameter '${key}' is not a string path."
 		}
-
-		def value = params[key]
 		
 		def f = file(value)
 
