@@ -484,8 +484,9 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(run_mutect2.out.versions.first())
 		ch_versions = ch_versions.mix(sentieon_mitochondrial_qc.out.versions.first())
 		ch_versions = ch_versions.mix(fetch_MTseqs.out.versions.first())
-		ch_versions = ch_versions.mix(run_eklipse.out.versions.first())
+        ch_versions = ch_versions.mix(picard_mergevcfs.out.versions.first())
 		ch_versions = ch_versions.mix(run_haplogrep.out.versions.first())
+		ch_versions = ch_versions.mix(run_eklipse.out.versions.first())
 	} else {
         SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
             .set { ch_rename_mito_contigs_in }                            
