@@ -433,6 +433,7 @@ workflow NEXTFLOW_WGS {
 
     
     SPLIT_NORMALIZE_SNVS(ch_split_normalize_in, params.intersect_bed)
+    ch_versions = ch_versions.mix(SPLIT_NORMALIZE_SNVS.out.versions)
 
     ch_rename_mito_contigs_in = channel.empty() 
     
