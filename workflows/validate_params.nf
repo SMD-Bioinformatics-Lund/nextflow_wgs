@@ -26,7 +26,7 @@ workflow VALIDATE_PARAMETERS {
 		}
 
 		// some params are set to 'PH' in some profiles while being a file path in others
-		if (!value.startsWith('PH'))
+		if (value.startsWith('PH'))
 			return
 
 		def f = file(value)
