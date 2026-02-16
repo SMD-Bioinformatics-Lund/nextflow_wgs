@@ -32,7 +32,7 @@ workflow SPLIT_NORMALIZE_SNVS {
 process vcflib_vcfbreakmulti {
     cpus 2
 	tag "$group"
-	memory '50 GB'
+	memory '10 GB'
 	time '1h'
 
     container "${params.container_vcflib}"
