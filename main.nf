@@ -2134,7 +2134,6 @@ def freebayes_version(task) {
 
 process concat_gvcf_freebayes {
     cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
 	tag "$group"
 	memory '50 GB'
 	time '1h'
