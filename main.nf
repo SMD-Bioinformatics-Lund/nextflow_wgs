@@ -507,6 +507,14 @@ workflow NEXTFLOW_WGS {
 					)
 				}
 				.groupTuple(by: [0])
+				.join(
+					ch_ped_base
+						.map { group, _type, ped -> tuple(group, ped) },
+					by: [0]
+				)
+				.map { group, ids, types, sexes, track_rohs, track_upds, meta_tsvs, chrom_meta_tsvs, ped ->
+					tuple(group, ids, types, sexes, track_rohs, track_upds, meta_tsvs, chrom_meta_tsvs, ped)
+				}
 
 			gens_v4_cron(ch_cron_meta)
 
@@ -2974,7 +2982,7 @@ process gens_v4_cron {
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(ids), val(types), val(sexes), val(track_rohs), val(track_upds), val(meta_tsvs), val(chrom_meta_tsvs)
+		tuple val(group), val(ids), val(types), val(sexes), val(track_rohs), val(track_upds), val(meta_tsvs), val(chrom_meta_tsvs), path(ped)
 	
 	output:
 		path("${group}.gens_const.yaml"), emit: gens_v4_middleman
@@ -3003,6 +3011,7 @@ process gens_v4_cron {
 		  --upd-track ${updTrackArgs} \\
 		  --meta-file ${metaArgs} \\
 		  --chrom-meta-file ${chromMetaArgs} \\
+		  --ped "${ped}" \\
 		  --output "${group}.gens_const.yaml"
 		"""
 	
