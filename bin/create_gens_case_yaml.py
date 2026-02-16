@@ -16,17 +16,13 @@ EMPTY_VALUES = {"", "none", "null", "."}
 
 
 def normalize(value: str | None) -> str | None:
+    """Remove whitespaces and return None for empty string values"""
     if value is None:
         return None
     stripped = value.strip()
     if stripped.lower() in EMPTY_VALUES:
         return None
     return stripped
-
-
-def quote_yaml(value: str) -> str:
-    # Single-quote all strings to avoid YAML coercion surprises.
-    return "'" + value.replace("'", "''") + "'"
 
 
 def load_samples(sample_table: Path) -> list[dict[str, str | None]]:
@@ -85,6 +81,7 @@ def load_samples_from_cli_args(
     meta_files: list[str] | None,
     chrom_meta_files: list[str] | None,
 ) -> list[dict[str, str | None]]:
+    """Generate a per-sample dict"""
     fields = {
         "sample_id": sample_ids,
         "sample_type": sample_types,
@@ -102,7 +99,7 @@ def load_samples_from_cli_args(
             + ", ".join([f"{key}={value}" for key, value in sorted(lengths.items())])
         )
 
-    sample_count = unique_lengths.pop() if unique_lengths else 0
+    sample_count = unique_lengths.pop()
     if sample_count == 0:
         raise ValueError("At least one sample must be provided")
 
@@ -142,6 +139,7 @@ def load_samples_from_cli_args(
     return samples
 
 
+# FIXME: Investigate - for trio, is it relatives or mother/father?
 def select_samples(samples: list[dict[str, str | None]], trio: bool) -> list[dict[str, str | None]]:
     if trio:
         by_type: dict[str, dict[str, str | None]] = {}
@@ -171,7 +169,7 @@ def build_yaml_lines(
     trio: bool,
 ) -> list[str]:
     lines: list[str] = [
-        f"case_id: {quote_yaml(case_id)}",
+        f"case_id: '{case_id}'",
         "genome_build: 38",
         "samples:",
     ]
@@ -180,18 +178,18 @@ def build_yaml_lines(
         sample_id = sample["sample_id"]
         if sample_id is None:
             continue
-        lines.append(f"  - sample_id: {quote_yaml(sample_id)}")
+        lines.append(f"  - sample_id: '{sample_id}'")
         lines.append(
-            f"    baf: {quote_yaml(path_in_accessdir(gens_accessdir, f'{sample_id}.baf.bed.gz'))}"
+            f"    baf: '{path_in_accessdir(gens_accessdir, f'{sample_id}.baf.bed.gz')}'"
         )
         lines.append(
-            f"    coverage: {quote_yaml(path_in_accessdir(gens_accessdir, f'{sample_id}.cov.bed.gz'))}"
+            f"    coverage: '{path_in_accessdir(gens_accessdir, f'{sample_id}.cov.bed.gz')}'"
         )
 
         if sample["sample_type"] is not None:
-            lines.append(f"    sample_type: {quote_yaml(sample['sample_type'])}")
+            lines.append(f"    sample_type: '{sample['sample_type']}'")
         if sample["sex"] is not None:
-            lines.append(f"    sex: {quote_yaml(sample['sex'])}")
+            lines.append(f"    sex: '{sample['sex']}'")
 
         if sample["sample_type"] == "proband":
             meta_paths = [
@@ -202,7 +200,7 @@ def build_yaml_lines(
             if meta_paths:
                 lines.append("    meta_files:")
                 for path in meta_paths:
-                    lines.append(f"      - {quote_yaml(path)}")
+                    lines.append(f"      - '{path}'")
 
             annotation_rows: list[dict[str, Any]] = []
             if sample["roh_track"] is not None:
@@ -216,8 +214,8 @@ def build_yaml_lines(
             if annotation_rows:
                 lines.append("    sample_annotations:")
                 for annotation in annotation_rows:
-                    lines.append(f"      - file: {quote_yaml(annotation['file'])}")
-                    lines.append(f"        name: {quote_yaml(annotation['name'])}")
+                    lines.append(f"      - file: '{annotation['file']}'")
+                    lines.append(f"        name: '{annotation['name']}'")
 
     return lines
 
@@ -226,50 +224,36 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--case-id", required=True)
     parser.add_argument("--gens-accessdir", required=True)
-    parser.add_argument("--sample-table", type=Path)
-    parser.add_argument("--sample-id", nargs="+", action="append", dest="sample_ids")
-    parser.add_argument("--sample-type", nargs="+", action="append", dest="sample_types")
-    parser.add_argument("--sex", nargs="+", action="append", dest="sexes")
-    parser.add_argument("--roh-track", nargs="+", action="append", dest="roh_tracks")
-    parser.add_argument("--upd-track", nargs="+", action="append", dest="upd_tracks")
-    parser.add_argument("--meta-file", nargs="+", action="append", dest="meta_files")
+    parser.add_argument("--sample-id", nargs="+", dest="sample_ids", required=True)
+    parser.add_argument("--sample-type", nargs="+", dest="sample_types")
+    parser.add_argument("--sex", nargs="+", dest="sexes")
+    parser.add_argument("--roh-track", nargs="+", dest="roh_tracks")
+    parser.add_argument("--upd-track", nargs="+", dest="upd_tracks")
+    parser.add_argument("--meta-file", nargs="+", dest="meta_files")
     parser.add_argument(
-        "--chrom-meta-file", nargs="+", action="append", dest="chrom_meta_files"
+        "--chrom-meta-file", nargs="+", dest="chrom_meta_files"
     )
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--trio", action="store_true")
     args = parser.parse_args()
 
-    has_sample_table = args.sample_table is not None
-    has_repeated_args = args.sample_ids is not None
-    if has_sample_table == has_repeated_args:
-        raise ValueError(
-            "Provide either --sample-table or repeated sample options (e.g. --sample-id ...), but not both"
-        )
+    sample_ids = args.sample_ids
+    sample_types = args.sample_types or []
+    sexes = args.sexes or []
+    roh_tracks = args.roh_tracks or []
+    upd_tracks = args.upd_tracks or []
+    meta_files = args.meta_files or []
+    chrom_meta_files = args.chrom_meta_files or []
 
-    if has_sample_table:
-        assert args.sample_table is not None
-        samples = load_samples(args.sample_table)
-    else:
-        sample_ids = [item for chunk in (args.sample_ids or []) for item in chunk]
-        sample_types = [item for chunk in (args.sample_types or []) for item in chunk]
-        sexes = [item for chunk in (args.sexes or []) for item in chunk]
-        roh_tracks = [item for chunk in (args.roh_tracks or []) for item in chunk]
-        upd_tracks = [item for chunk in (args.upd_tracks or []) for item in chunk]
-        meta_files = [item for chunk in (args.meta_files or []) for item in chunk]
-        chrom_meta_files = [
-            item for chunk in (args.chrom_meta_files or []) for item in chunk
-        ]
-
-        samples = load_samples_from_cli_args(
-            sample_ids=sample_ids,
-            sample_types=sample_types,
-            sexes=sexes,
-            roh_tracks=roh_tracks,
-            upd_tracks=upd_tracks,
-            meta_files=meta_files,
-            chrom_meta_files=chrom_meta_files,
-        )
+    samples = load_samples_from_cli_args(
+        sample_ids=sample_ids,
+        sample_types=sample_types,
+        sexes=sexes,
+        roh_tracks=roh_tracks,
+        upd_tracks=upd_tracks,
+        meta_files=meta_files,
+        chrom_meta_files=chrom_meta_files,
+    )
 
     selected = select_samples(samples, args.trio)
     yaml_lines = build_yaml_lines(
