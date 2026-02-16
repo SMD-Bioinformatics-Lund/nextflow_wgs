@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import math
 from pathlib import Path
 from typing import Any
@@ -24,7 +25,44 @@ def normalize(value: str | None) -> str | None:
     return stripped
 
 
-def sort_samples(samples: list[dict[str, str | None]]) -> list[dict[str, str | None]]:
+def load_samples(sample_table: Path) -> list[dict[str, str | None]]:
+    samples: list[dict[str, str | None]] = []
+    with sample_table.open(encoding="utf-8") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        required = {
+            "sample_id",
+            "sample_type",
+            "sex",
+            "roh_track",
+            "upd_track",
+            "meta_file",
+            "chrom_meta_file",
+        }
+        if reader.fieldnames is None or not required.issubset(set(reader.fieldnames)):
+            missing = sorted(required - set(reader.fieldnames or []))
+            raise ValueError(
+                f"Sample table is missing required column(s): {', '.join(missing)}"
+            )
+
+        for row in reader:
+            sample_id = normalize(row.get("sample_id"))
+            if sample_id is None:
+                continue
+            samples.append(
+                {
+                    "sample_id": sample_id,
+                    "sample_type": normalize(row.get("sample_type")),
+                    "sex": normalize(row.get("sex")),
+                    "roh_track": normalize(row.get("roh_track")),
+                    "upd_track": normalize(row.get("upd_track")),
+                    "meta_file": normalize(row.get("meta_file")),
+                    "chrom_meta_file": normalize(row.get("chrom_meta_file")),
+                }
+            )
+
+    if not samples:
+        raise ValueError("No sample rows found in sample table")
+
     samples.sort(
         key=lambda sample: (
             TYPE_ORDER.get(sample["sample_type"] or "", PLACE_LAST),
@@ -32,73 +70,6 @@ def sort_samples(samples: list[dict[str, str | None]]) -> list[dict[str, str | N
         )
     )
     return samples
-
-
-def load_ped_roles(ped: Path) -> dict[str, str]:
-    rows: list[tuple[str, str, str, str]] = []
-    with ped.open(encoding="utf-8") as handle:
-        for raw_line in handle:
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                continue
-            fields = line.split()
-            if len(fields) < 6:
-                continue
-            sample_id = normalize(fields[1])
-            father = normalize(fields[2]) or "0"
-            mother = normalize(fields[3]) or "0"
-            phenotype = normalize(fields[5]) or "0"
-            if sample_id is None:
-                continue
-            rows.append((sample_id, father, mother, phenotype))
-
-    if not rows:
-        return {}
-
-    role_by_id: dict[str, str] = {}
-    father_ids = {father for _, father, _, _ in rows if father not in EMPTY_VALUES and father != "0"}
-    mother_ids = {mother for _, _, mother, _ in rows if mother not in EMPTY_VALUES and mother != "0"}
-    for sample_id in father_ids:
-        role_by_id[sample_id] = "father"
-    for sample_id in mother_ids:
-        role_by_id[sample_id] = "mother"
-
-    # Prefer an affected sample with known parents. Fall back to any affected sample.
-    proband_id: str | None = None
-    for sample_id, father, mother, phenotype in rows:
-        if phenotype == "2" and (father != "0" or mother != "0"):
-            proband_id = sample_id
-            break
-    if proband_id is None:
-        for sample_id, _father, _mother, phenotype in rows:
-            if phenotype == "2":
-                proband_id = sample_id
-                break
-    if proband_id is None and len(rows) == 1:
-        proband_id = rows[0][0]
-    if proband_id is not None:
-        role_by_id[proband_id] = "proband"
-
-    return role_by_id
-
-
-def apply_ped_roles(
-    samples: list[dict[str, str | None]], ped_roles: dict[str, str] | None
-) -> list[dict[str, str | None]]:
-    if not ped_roles:
-        return sort_samples(samples)
-
-    updated_samples: list[dict[str, str | None]] = []
-    for sample in samples:
-        sample_id = sample["sample_id"]
-        if sample_id is None or sample_id not in ped_roles:
-            updated_samples.append(sample)
-            continue
-        updated = dict(sample)
-        updated["sample_type"] = ped_roles[sample_id]
-        updated_samples.append(updated)
-
-    return sort_samples(updated_samples)
 
 
 def load_samples_from_cli_args(
@@ -159,9 +130,16 @@ def load_samples_from_cli_args(
     if not samples:
         raise ValueError("No sample rows found in CLI sample options")
 
-    return sort_samples(samples)
+    samples.sort(
+        key=lambda sample: (
+            TYPE_ORDER.get(sample["sample_type"] or "", 99),
+            sample["sample_id"] or "",
+        )
+    )
+    return samples
 
 
+# FIXME: Investigate - for trio, is it relatives or mother/father?
 def select_samples(samples: list[dict[str, str | None]], trio: bool) -> list[dict[str, str | None]]:
     if trio:
         by_type: dict[str, dict[str, str | None]] = {}
@@ -256,7 +234,6 @@ def main() -> None:
         "--chrom-meta-file", nargs="+", dest="chrom_meta_files"
     )
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--ped", type=Path)
     parser.add_argument("--trio", action="store_true")
     args = parser.parse_args()
 
@@ -278,10 +255,7 @@ def main() -> None:
         chrom_meta_files=chrom_meta_files,
     )
 
-    ped_roles = load_ped_roles(args.ped) if args.ped is not None else None
-    samples_with_ped_roles = apply_ped_roles(samples, ped_roles)
-
-    selected = select_samples(samples_with_ped_roles, args.trio)
+    selected = select_samples(samples, args.trio)
     yaml_lines = build_yaml_lines(
         case_id=args.case_id,
         gens_accessdir=args.gens_accessdir,
