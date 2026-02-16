@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### TBD
+* Update Gens v4 output to write a case yaml instead of the command files.
+
 ### 3.20.12
 * Add flag `params.skip_loqusdb` to skip loqusdb CRON
 
