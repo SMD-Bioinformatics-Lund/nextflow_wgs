@@ -494,6 +494,19 @@ workflow NEXTFLOW_WGS {
 
 			ch_cron_meta = generate_gens_v4_meta.out.meta
 				.join(generate_gens_data.out.is_done, by: [0,1])
+				.map { group, id, type, sex, track_roh, track_upd, meta_tsv, chrom_meta_tsv, _gens_input_data_is_done ->
+					tuple(
+						group,
+						id,
+						type,
+						sex,
+						track_roh.getName(),
+						track_upd.getName(),
+						meta_tsv.getName(),
+						chrom_meta_tsv.getName()
+					)
+				}
+				.groupTuple(by: [0])
 
 			gens_v4_cron(ch_cron_meta)
 
@@ -2954,59 +2967,48 @@ process generate_gens_v4_meta {
 }
 
 process gens_v4_cron {
-	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: 'true', pattern: "*.gens_v4_const"
-	tag "$id"
+	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: 'true', pattern: "*.gens_const.yaml"
+	tag "$group"
 	cpus 1
 	time '10m'
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(id), val(type), val(sex), path(track_roh), path(track_upd), path(meta_tsv), path(chrom_meta_tsv), val(_gens_input_data_is_done)
+		tuple val(group), val(ids), val(types), val(sexes), val(track_rohs), val(track_upds), val(meta_tsvs), val(chrom_meta_tsvs)
 	
 	output:
-		path("${id}.gens_v4_const"), emit: gens_v4_middleman
+		path("${group}.gens_const.yaml"), emit: gens_v4_middleman
 	
 	when:
 		params.prepare_gens_data
 
 	script:
-		def meta_opts = type == "proband" ? 
-			"--meta ${params.gens_accessdir}/${meta_tsv.getName()} --meta ${params.gens_accessdir}/${chrom_meta_tsv.getName()}":
-			""
+		def sampleIdArgs = ids.join(' ')
+		def sampleTypeArgs = types.collect { sampleType -> sampleType ?: '.' }.join(' ')
+		def sexArgs = sexes.collect { sex -> sex ?: '.' }.join(' ')
+		def rohTrackArgs = track_rohs.join(' ')
+		def updTrackArgs = track_upds.join(' ')
+		def metaArgs = meta_tsvs.join(' ')
+		def chromMetaArgs = chrom_meta_tsvs.join(' ')
+		def trioFlag = params.trio ? "--trio" : ""
 		"""
-		echo "gens load sample \\
-			--sample-id $id \\
-			--case-id $group \\
-			--genome-build 38 \\
-			--sex $sex \\
-			--sample-type $type \\
-			--baf ${params.gens_accessdir}/${id}.baf.bed.gz \\
-			--coverage ${params.gens_accessdir}/${id}.cov.bed.gz \\
-			${meta_opts}" > ${id}.gens_v4_const
-
-		if [[ "$type" == "proband" ]]; then
-			echo "gens load sample-annotation \\
-				--sample-id $id \\
-				--case-id $group \\
-				--genome-build 38 \\
-				--file ${params.gens_accessdir}/${track_roh.getName()} \\
-				--name \\\"LOH\\\"" >> ${id}.gens_v4_const
-
-			# Only load UPD track for proband with family
-			if [[ "${params.mode}" == "family" ]]; then
-				echo "gens load sample-annotation \\
-					--sample-id $id \\
-					--case-id $group \\
-					--genome-build 38 \\
-					--file ${params.gens_accessdir}/${track_upd.getName()} \\
-					--name \\\"UPS\\\"" >> ${id}.gens_v4_const
-			fi
-		fi
+		create_gens_case_yaml.py \\
+		  --case-id "${group}" \\
+		  --gens-accessdir "${params.gens_accessdir}" \\
+		  ${trioFlag} \\
+		  --sample-id ${sampleIdArgs} \\
+		  --sample-type ${sampleTypeArgs} \\
+		  --sex ${sexArgs} \\
+		  --roh-track ${rohTrackArgs} \\
+		  --upd-track ${updTrackArgs} \\
+		  --meta-file ${metaArgs} \\
+		  --chrom-meta-file ${chromMetaArgs} \\
+		  --output "${group}.gens_const.yaml"
 		"""
 	
 	stub:
 		"""
-		touch "${id}.gens_v4_const"
+		touch "${group}.gens_const.yaml"
 		"""
 }
 
