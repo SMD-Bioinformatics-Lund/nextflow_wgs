@@ -878,8 +878,11 @@ workflow NEXTFLOW_WGS {
 
 
 process picard_mergevcfs {
+
+    tag "$group"
     cpus 2
     container "${params.container_picard}"
+    time "1h"
     
     input:
     tuple val(group), path(snv_vcf), path(mito_snv_vcf) 
