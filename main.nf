@@ -892,7 +892,6 @@ process picard_mergevcfs {
     path("*versions.yml"), emit: versions
 
     script:
-
     """
     picard MergeVcfs \
         --CREATE_INDEX \
@@ -915,7 +914,7 @@ def picard_mergevcfs_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    MergeVcfs: \$(echo \$(picard MergeVcfs --version 2>&1) | cut -f 2 -d : )
+	    MergeVcfs: \$(echo \$(picard MergeVcfs --version 2>&1 ) | cut -f 2 -d : )
 	END_VERSIONS
 	"""
 }
@@ -2166,7 +2165,7 @@ def concat_gvcf_freebayes_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-        bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
+	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
 	END_VERSIONS
 	"""
 }
@@ -2593,7 +2592,7 @@ def rename_mito_contigs_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-		bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
+	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
 	END_VERSIONS
 	"""
 }
