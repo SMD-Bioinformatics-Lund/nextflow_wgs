@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 usage="$(basename "$0") [-o <outfile>] [-g <genomebuild>] [-a] <infile>  -- CADD version 1.4
 
@@ -34,17 +35,27 @@ while getopts ':ho:g:a' option; do
 done
 shift $((OPTIND-1))
 
+if [ "$#" -ne 1 ]
+then
+    echo "$usage" >&2
+    exit 1
+fi
+
 INFILE=$1
 
 echo "CADD-v1.4 (c) University of Washington, Hudson-Alpha Institute for Biotechnology and Berlin Institute of Health 2013-2018. All rights reserved."
 
-set -ueo pipefail
-
 ### Configuring all the paths
 
-FILENAME=$(basename $INFILE)
+if [ ! -r "$INFILE" ]
+then
+    echo "Input file not found or not readable: $INFILE" >&2
+    exit 1
+fi
+
+FILENAME=$(basename "$INFILE")
 NAME=${FILENAME%\.vcf*}
-FILEDIR=$(dirname $INFILE)
+FILEDIR=$(dirname "$INFILE")
 FILEFORMAT=${FILENAME#$NAME\.}
 
 SCRIPT=$(readlink -f "$0")
@@ -56,9 +67,9 @@ then
     exit 1
 fi
 
-if [ "$OUTFILE" == "" ]
+if [ -z "$OUTFILE" ]
 then
-    OUTFILE=$FILEDIR/$NAME.tsv.gz
+    OUTFILE="$FILEDIR/$NAME.tsv.gz"
 fi
 
 if [ "$GENOMEBUILD" != "GRCh38" ] && [ "$GENOMEBUILD" != "GRCh37" ]
@@ -88,6 +99,15 @@ TMP_VCF=$TMP_FOLDER/$NAME.vcf
 TMP_ANNO=$TMP_FOLDER/$NAME.anno.tsv.gz
 TMP_IMP=$TMP_FOLDER/$NAME.csv.gz
 TMP_NOV=$TMP_FOLDER/$NAME.nov.tsv.gz
+
+for required_file in "$REFERENCE_CONFIG" "$IMPUTE_CONFIG" "$MODEL" "$CONVERSION_TABLE"
+do
+    if [ ! -r "$required_file" ]
+    then
+        echo "Missing required file: $required_file" >&2
+        exit 1
+    fi
+done
 
 mkdir -p $TMP_FOLDER
 
