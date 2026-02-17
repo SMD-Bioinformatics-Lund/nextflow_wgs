@@ -2557,7 +2557,7 @@ process rename_mito_contigs {
     cpus 2
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
 	tag "$group"
-	memory '1 GB'
+	memory '5 GB'
 	time '1h'
 
     container "${params.container_perl}"
