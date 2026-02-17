@@ -243,16 +243,16 @@ process bgzip_tabix {
 
     script:
     """
-    bgzip -c ${vcf} > "${group}.bgzip.vcf.gz"
-    tabix -p vcf ${group}.bgzip.vcf.gz
+    bgzip -c ${vcf} > "${group}.intersected.vcf.gz"
+    tabix -p vcf ${group}.intersected.vcf.gz
 
     ${bgzip_tabix_version(task)}
     """
 
     stub:
     """
-    touch "${group}.bgzip.vcf.gz"
-    touch "${group}.bgzip.vcf.gz.tbi"
+    touch "${group}.intersected.vcf.gz"
+    touch "${group}.intersected.vcf.gz.tbi"
     ${bgzip_tabix_version(task)}
     """
 }
