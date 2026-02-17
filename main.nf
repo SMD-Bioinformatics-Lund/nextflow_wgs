@@ -211,10 +211,11 @@ workflow NEXTFLOW_WGS {
 		.map { row ->
 			def group = row.group
 			def id = row.id
+			def lims_id = row.clarity_sample_id
 			def diagnosis = row.diagnosis
 			def sequencing_run = row.sequencing_run
 			def n_reads = row.n_reads
-			tuple(group, id, diagnosis, sequencing_run, n_reads)		
+			tuple(group, id, lims_id, diagnosis, sequencing_run, n_reads)		
 		}
 	// meta sent to stranger
 	ch_stranger_meta = ch_samplesheet
@@ -2601,10 +2602,10 @@ process qc_to_cdm {
 	time '1h'
 
 	input:
-		tuple val(group), val(id), path(qc_json), val(diagnosis), val(sequencing_run), val(n_reads)
+		tuple val(group), val(id), path(qc_json), val(lims_id), val(diagnosis), val(sequencing_run), val(n_reads)
 
 	output:
-		path("${id}.cdm"), emit: cdm_done
+		path("${id}.cdmpy"), emit: cdm_done
 
 
 	when:
@@ -2613,7 +2614,7 @@ process qc_to_cdm {
 
 	script:
 		"""
-	    echo "--run-folder ${rundir} --sample-id ${id} --subassay ${diagnosis} --assay ${params.cdm_assay} --qc ${params.results_output_dir}/qc/${id}.QC" > ${id}.cdm
+		echo "--sequencing-run ${sequencing_run} --sample-id ${id} --assay $params.cdm --subassay ${diagnosis} --qc ${params.results_output_dir}/qc/${id}.QC --lims-id ${lims_id}" > ${id}.cdmpy
 		"""
 }
 
