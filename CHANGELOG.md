@@ -3,6 +3,7 @@
 ### [Unreleased]
 * Upgrade VEP from 113.0 to 115.2 
 * Switch from old Phylop/Phastcons bigwig files to dbNSFP
+* `modify_vcf_scout.pl` now fails if it encounters unknown VEP consequence
 
 ### 3.20.13
 * Split SNV split/normalize steps into new `SPLIT_NORMALIZE_SNVS` workflow

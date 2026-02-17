@@ -231,6 +231,9 @@ while( <VEP>) {
         my $most_severe = ".";
         if (@$m_s_c) {
             $_ = lc for @$m_s_c;
+            for my $csq (@$m_s_c) {
+                die "Unknown VEP consequence '$csq'\n" unless exists $rank{$csq};
+            }
 		    $most_severe = (sort { $rank{$a} <=> $rank{$b} } @$m_s_c)[0];
         }
         push @add_info_field, "most_severe_consequence=".$most_severe;
