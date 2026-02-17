@@ -914,7 +914,7 @@ def picard_mergevcfs_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    MergeVcfs: \$(echo \$(picard MergeVcfs --version 2>&1 ) | cut -f 2 -d : )
+	    MergeVcfs: \$(echo \$(picard MergeVcfs --version 2>&1 ) | cut -f 2 -d : | tail -1)
 	END_VERSIONS
 	"""
 }
@@ -2591,7 +2591,7 @@ def rename_mito_contigs_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
+	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
 	END_VERSIONS
 	"""
 }
