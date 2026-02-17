@@ -2563,7 +2563,7 @@ process rename_mito_contigs {
     container "${params.container_perl}"
     
     input:
-	tuple val(group), path(vcf), path(tbi)
+	    tuple val(group), path(vcf), path(tbi)
     output:
     	tuple val(group), path("${group}.mt_rename.vcf.gz"), path("${group}.mt_rename.vcf.gz.tbi"), emit: vcf_tbi
     	path "*versions.yml", emit: versions
