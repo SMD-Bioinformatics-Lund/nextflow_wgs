@@ -1566,7 +1566,14 @@ process panel_contamination {
 
 	script:
 		"""
-		find_contaminant.pl --vcf $vcf --case-id $id --detect-level 0.01 --ADfield-name AD --high 0.3 --binsize-cutoff 80 --normal > ${id}.contamination.value
+		find_contaminant.pl \\
+			--vcf $vcf \\
+			--case-id $id \\
+			--detect-level ${params.panel_contamination.detect_level} \\
+			--ADfield-name ${params.panel_contamination.alt_allele_field_name} \\
+			--high ${params.panel_contamination.max_af} \\
+			--binsize-cutoff ${params.panel_contamination.binsize_cutoff} \\
+			--normal > ${id}.contamination.value
 		value=\$(cat ${id}.contamination.value)
 		echo "{ \\"contamination\\": \\"\$value\\" }" > ${id}.contamination.json
 		"""
