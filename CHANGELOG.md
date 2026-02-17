@@ -1,5 +1,13 @@
 # CHANGELOG
 
+### 3.20.13
+* Split SNV split/normalize steps into new `SPLIT_NORMALIZE_SNVS` workflow
+* Move panel-only Freebayes merge to run before split/normalize (handles empty Freebayes VCFs)
+* Move mito SNV merge to run after split/normalize on intersected WGS output.
+* Add `skip_mito` workflow flag
+* Add `skip_mito` defaults per profile
+* Add containers for vcflib, bedtools, and perl/htslib utilities 
+
 ### 3.20.12
 * Add flag `params.skip_loqusdb` to skip loqusdb CRON
 

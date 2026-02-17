@@ -75,7 +75,7 @@ process annotate_vep {
 	time '5h'
 
 	input:
-		tuple val(group), val(id), path(vcf)
+		tuple val(group), path(vcf)
 
 	output:
 		tuple val(group), path("${group}.vep.vcf"), emit: vcf
@@ -226,7 +226,7 @@ process extract_indels_for_cadd {
 	time '1h'
 
 	input:
-		tuple val(group), val(id), path(vcf)
+	    tuple val(group), path(vcf)
 
 	output:
 		tuple val(group), path("${group}.only_indels.vcf"), emit: vcf
