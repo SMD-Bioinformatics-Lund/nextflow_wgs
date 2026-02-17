@@ -914,7 +914,7 @@ def picard_mergevcfs_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    MergeVcfs: \$(echo \$(picard MergeVcfs --version 2>&1 ) | cut -f 2 -d : | tail -1)
+	    picard: \$( echo \$(picard MergeVcfs --version 2>&1) | grep -o 'Version:.*' | cut -f2- -d:)
 	END_VERSIONS
 	"""
 }
