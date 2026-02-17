@@ -62,7 +62,7 @@ def vcflib_vcfbreakmulti_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    vcflib: 1.0.9
+	    vcflib: 1.0.12
 	END_VERSIONS
 	"""
 }
@@ -70,7 +70,7 @@ def vcflib_vcfbreakmulti_version(task) {
 process bcftools_norm_sort {
     cpus 2
 	tag "$group"
-	memory '50 GB'
+	memory '10 GB'
 	time '1h'
 
     container "${params.container_bcftools}"
@@ -111,7 +111,7 @@ def bcftools_norm_version(task) {
 process vcflib_vcfuniq {
     cpus 2
 	tag "$group"
-	memory '50 GB'
+	memory '10 GB'
 	time '1h'
 
     container "${params.container_vcflib}"
@@ -141,7 +141,7 @@ def vcflib_vcfuniq_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    vcflib: 1.0.9
+	    vcflib: 1.0.12
 	END_VERSIONS
 	"""
 }
@@ -150,7 +150,7 @@ process wgs_dpaf_filter {
     cpus 2
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
 	tag "$group"
-	memory '50 GB'
+	memory '10 GB'
 	time '1h'
 
     container "${params.container_perl}"
@@ -188,7 +188,7 @@ def wgs_dpaf_filter_version(task) {
 process bedtools_intersect {
 	cpus 2
 	tag "$group"
-	memory '50 GB'
+	memory '10 GB'
 	time '1h'
 
     container "${params.container_bedtools}"
@@ -229,7 +229,7 @@ process bgzip_tabix {
 	cpus 2
     publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
 	tag "$group"
-	memory '50 GB'
+	memory '10 GB'
 	time '1h'
 
     container "${params.container_perl}"

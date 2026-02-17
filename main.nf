@@ -2135,7 +2135,7 @@ def freebayes_version(task) {
 process concat_gvcf_freebayes {
     cpus 2
 	tag "$group"
-	memory '50 GB'
+	memory '10 GB'
 	time '1h'
 
     container "${params.container_bcftools}"
@@ -2557,7 +2557,7 @@ process rename_mito_contigs {
     cpus 2
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
 	tag "$group"
-	memory '50 GB'
+	memory '1 GB'
 	time '1h'
 
     container "${params.container_perl}"
