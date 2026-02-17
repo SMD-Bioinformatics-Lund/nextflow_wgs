@@ -2614,7 +2614,7 @@ process qc_to_cdm {
 
 	script:
 		"""
-		echo "--sequencing-run ${sequencing_run} --sample-id ${id} --assay $params.cdm --subassay ${diagnosis} --qc ${params.results_output_dir}/qc/${id}.QC --lims-id ${lims_id}" > ${id}.cdmpy
+		echo "--sequencing-run ${sequencing_run} --sample-id ${id} --assay $params.cdm_assay --subassay ${diagnosis} --qc ${params.results_output_dir}/qc/${id}.QC --lims-id ${lims_id}" > ${id}.cdmpy
 		"""
 }
 
