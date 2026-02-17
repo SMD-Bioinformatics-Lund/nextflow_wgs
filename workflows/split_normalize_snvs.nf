@@ -34,7 +34,6 @@ process vcflib_vcfbreakmulti {
 	tag "$group"
 	memory '10 GB'
 	time '1h'
-
     container "${params.container_vcflib}"
     
     input:
@@ -72,7 +71,6 @@ process bcftools_norm_sort {
 	tag "$group"
 	memory '10 GB'
 	time '1h'
-
     container "${params.container_bcftools}"
     publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
     
@@ -113,14 +111,13 @@ process vcflib_vcfuniq {
 	tag "$group"
 	memory '10 GB'
 	time '1h'
-
     container "${params.container_vcflib}"
     
     input:
 		tuple val(group), path(vcf), path(idx)
     output:
-	tuple val(group), path("${group}.uniq.vcf.gz"), path("${group}.uniq.vcf.gz.tbi"), emit: vcf_tbi
-    path "*versions.yml", emit: versions
+	    tuple val(group), path("${group}.uniq.vcf.gz"), path("${group}.uniq.vcf.gz.tbi"), emit: vcf_tbi
+        path "*versions.yml", emit: versions
 
     script:
     """
@@ -152,7 +149,6 @@ process wgs_dpaf_filter {
 	tag "$group"
 	memory '10 GB'
 	time '1h'
-
     container "${params.container_perl}"
     
     input:
@@ -190,7 +186,6 @@ process bedtools_intersect {
 	tag "$group"
 	memory '10 GB'
 	time '1h'
-
     container "${params.container_bedtools}"
     
 	input:
@@ -235,11 +230,11 @@ process bgzip_tabix {
     container "${params.container_perl}"
     
 	input:
-	tuple val(group), path(vcf) // is ids supposed to be tuple?
+	    tuple val(group), path(vcf) // is ids supposed to be tuple?
 
 	output:
-	tuple val(group), path("${group}.intersected.vcf.gz"), path("${group}.intersected.vcf.gz.tbi"), emit: vcf_tbi
-	path "*versions.yml", emit: versions
+	    tuple val(group), path("${group}.intersected.vcf.gz"), path("${group}.intersected.vcf.gz.tbi"), emit: vcf_tbi
+	    path "*versions.yml", emit: versions
 
     script:
     """
