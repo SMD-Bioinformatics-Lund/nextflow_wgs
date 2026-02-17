@@ -207,7 +207,15 @@ workflow NEXTFLOW_WGS {
 			def fastq_r2 = row.read2
 			tuple(group, id, diagnosis, fastq_r1, fastq_r2)
 		}
-
+	ch_runfolder = ch_samplesheet
+		.map { row ->
+			def group = row.group
+			def id = row.id
+			def diagnosis = row.diagnosis
+			def sequencing_run = row.sequencing_run
+			def n_reads = row.n_reads
+			tuple(group, id, diagnosis, sequencing_run, n_reads)		
+		}
 	// meta sent to stranger
 	ch_stranger_meta = ch_samplesheet
 		.filter { row ->
@@ -368,6 +376,7 @@ workflow NEXTFLOW_WGS {
 	// CONTAMINATION //
 	if (params.antype == "wgs") {
 		verifybamid2(ch_bam_bai)
+		ch_qc_json = ch_qc_json.mix(verifybamid2.out.contamination_json)
 		ch_versions = ch_versions.mix(verifybamid2.out.versions.first())
 	}
 
@@ -435,6 +444,10 @@ workflow NEXTFLOW_WGS {
 
 		split_normalize(ch_split_normalize, ch_split_normalize_concat_vcf)
 
+		if (params.antype == "panel") {
+			panel_contamination(split_normalize.out.multibreak_vcf)
+			ch_qc_json = ch_qc_json.mix(panel_contamination.out.contamination_json)
+		}
 		ch_snv_indel_vcf = split_normalize.out.intersected_vcf.mix(ch_vcf_annotation_only)
 
 		SNV_ANNOTATE(ch_snv_indel_vcf, ch_ped_trio_affected_permutations)
@@ -795,7 +808,7 @@ workflow NEXTFLOW_WGS {
 
 	// MERGE QC JSONs AND OUTPUT TO CDM //
 	merge_qc_json(ch_qc_json.groupTuple(by: [0,1]))
-	ch_qc_to_cdm = merge_qc_json.out.qc_cdm_merged.join(ch_qc_extra, by: [0,1])
+	ch_qc_to_cdm = merge_qc_json.out.qc_cdm_merged.join(ch_runfolder, by: [0,1])
 	qc_to_cdm(ch_qc_to_cdm)
 
 	// OUTPUT INFO
@@ -1399,6 +1412,7 @@ process verifybamid2 {
 	output:
 		path("${id}.result.selfSM")
 		path("${id}.result.Ancestry")
+		tuple val(group), val(id), path("${id}.contamination.json"), emit: contamination_json
 		path "*versions.yml", emit: versions
 
 	script:
@@ -1409,6 +1423,9 @@ process verifybamid2 {
 			--BamFile ${bam}
 
 			mv result.selfSM ${id}.result.selfSM
+			tail -n 1 ${id}.result.selfSM | cut -f 7 > ${id}.contamination.value
+			value=\$(cat ${id}.contamination.value)
+			echo "{ \\"contamination\\": \\"\$value\\" }" > ${id}.contamination.json
 			mv result.Ancestry ${id}.result.Ancestry
 
 		${verifybamid2_version(task)}
@@ -1418,6 +1435,7 @@ process verifybamid2 {
 		"""
 		touch "${id}.result.selfSM"
 		touch "${id}.result.Ancestry"
+		touch ${id}.contamination.json
 
 		${verifybamid2_version(task)}
 		"""
@@ -1429,6 +1447,35 @@ def verifybamid2_version(task) {
 	    VerifyBamID2: \$( echo \$( verifybamid2 --help 2>&1 | grep Version ) | sed "s/^.*Version://" )
 	END_VERSIONS
 	"""
+}
+
+process panel_contamination {
+	cpus 2
+	memory '2 GB'
+	publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: 'true', pattern: '*.json'
+	publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: 'true', pattern: '*.png'
+	tag "$id"
+	container  "/fs1/resources/containers/nextflow_wgs/perl_scripts/perl-data-dumper_perl-gd_perl-gdgraph_perl-json_pruned_fb3a9903cddb4e2e" // placeholder, need merge from @alkc
+
+	input:
+		tuple val(group), val(id), path(vcf)
+
+	output:
+		path("${id}.contamination.json"), emit: contamination_json
+		path("${id}.png")
+
+	script:
+		"""
+		find_contaminant.pl --vcf $vcf --case-id $id --detect-level 0.01 --ADfield-name AD --high 0.3 --binsize-cutoff 80 --normal > ${id}.contamination.value
+		value=\$(cat ${id}.contamination.value)
+		echo "{ \\"contamination\\": \\"\$value\\" }" > ${id}.contamination.json
+		"""
+
+	stub:
+		"""
+		touch ${id}.contamination.json
+		touch ${id}.png
+		"""
 }
 
 // Calculate coverage for paneldepth
@@ -2448,7 +2495,7 @@ process split_normalize {
 	output:
 		tuple val(group), path("${group}.norm.uniq.DPAF.vcf.gz"), emit: norm_uniq_dpaf_vcf
 		tuple val(group), val(id), path("${group}.intersected.vcf"), emit: intersected_vcf
-		tuple val(group), path("${group}.multibreak.vcf"), emit: multibreak_vcf
+		tuple val(group), val(id), path("${group}.multibreak.vcf"), emit: multibreak_vcf
 		path "*versions.yml", emit: versions
 
 	script:
@@ -2554,7 +2601,7 @@ process qc_to_cdm {
 	time '1h'
 
 	input:
-		tuple val(group), val(id), path(qc_json), val(diagnosis), val(r1), val(r2)
+		tuple val(group), val(id), path(qc_json), val(diagnosis), val(sequencing_run), val(n_reads)
 
 	output:
 		path("${id}.cdm"), emit: cdm_done
@@ -2565,9 +2612,6 @@ process qc_to_cdm {
 
 
 	script:
-		parts = r1.split('/')
-		idx =  parts.findIndexOf {run_path_part -> run_path_part  ==~ /......_......_...._........../}
-		rundir = parts[0..idx].join("/")
 		"""
 	    echo "--run-folder ${rundir} --sample-id ${id} --subassay ${diagnosis} --assay ${params.cdm_assay} --qc ${params.results_output_dir}/qc/${id}.QC" > ${id}.cdm
 		"""
