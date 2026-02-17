@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### [Unreleased]
+* Upgrade VEP from 113.0 to 115.2 
+* Switch from old Phylop/Phastcons bigwig files to dbNSFP
+
 ### 3.20.13
 * Split SNV split/normalize steps into new `SPLIT_NORMALIZE_SNVS` workflow
 * Move panel-only Freebayes merge to run before split/normalize (handles empty Freebayes VCFs)
