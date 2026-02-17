@@ -74,6 +74,7 @@ process bcftools_norm_sort {
 	time '1h'
 
     container "${params.container_bcftools}"
+    publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
     
     input:
 		tuple val(group), path(vcf), path(idx)
@@ -147,7 +148,7 @@ def vcflib_vcfuniq_version(task) {
 
 process wgs_dpaf_filter {
     cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
 	tag "$group"
 	memory '50 GB'
 	time '1h'
@@ -157,21 +158,21 @@ process wgs_dpaf_filter {
     input:
 		tuple val(group), path(vcf), path(idx)
     output:
-    tuple val(group), path("${group}.DPAF.vcf.gz"), path("${group}.DPAF.vcf.gz.tbi"), emit: vcf_tbi
-    path "*versions.yml", emit: versions
+        tuple val(group), path("${group}.norm.uniq.DPAF.vcf.gz"), path("${group}.norm.uniq.DPAF.vcf.gz.tbi"), emit: vcf_tbi
+        path "*versions.yml", emit: versions
     
     script:
     """
-    wgs_DPAF_filter.pl ${vcf} | bgzip -c > ${group}.DPAF.vcf.gz
-    tabix -p vcf ${group}.DPAF.vcf.gz
+    wgs_DPAF_filter.pl ${vcf} | bgzip -c > ${group}.norm.uniq.DPAF.vcf.gz
+    tabix -p vcf ${group}.norm.uniq.DPAF.vcf.gz
 
     ${wgs_dpaf_filter_version(task)}
     """
 
     stub:
     """
-    touch "${group}.DPAF.vcf.gz"
-    touch "${group}.DPAF.vcf.gz.tbi"
+    touch "${group}.norm.uniq.DPAF.vcf.gz"
+    touch "${group}.norm.uniq.DPAF.vcf.gz.tbi"
     ${wgs_dpaf_filter_version(task)}
     """
 }
@@ -226,6 +227,7 @@ def bedtool_intersect_version(task) {
 }
 process bgzip_tabix {
 	cpus 2
+    publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
 	tag "$group"
 	memory '50 GB'
 	time '1h'
