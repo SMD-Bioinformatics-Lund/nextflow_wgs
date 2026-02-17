@@ -194,7 +194,7 @@ process bedtools_intersect {
     container "${params.container_bedtools}"
     
 	input:
-		tuple val(group), path(vcf), path(idx) // is ids supposed to be tuple?
+	    tuple val(group), path(vcf), path(idx) // is ids supposed to be tuple?
 	    path(intersect_bed)
 
 	output:
@@ -235,10 +235,10 @@ process bgzip_tabix {
     container "${params.container_perl}"
     
 	input:
-		tuple val(group), path(vcf) // is ids supposed to be tuple?
+	tuple val(group), path(vcf) // is ids supposed to be tuple?
 
 	output:
-	tuple val(group), path("${group}.bgzip.vcf.gz"), path("${group}.bgzip.vcf.gz.tbi"), emit: vcf_tbi
+	tuple val(group), path("${group}.intersected.vcf.gz"), path("${group}.intersected.vcf.gz.tbi"), emit: vcf_tbi
 	path "*versions.yml", emit: versions
 
     script:
