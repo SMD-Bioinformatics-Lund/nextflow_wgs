@@ -1,9 +1,9 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 use strict;
+use warnings;
 use File::Basename;
 use lib dirname(__FILE__);
-use vcf2;
-use Data::Dumper;
+use vcf2 qw( parse_vcf );
 use List::Util qw( max min );
 use Getopt::Long;
 use GD::Graph;
@@ -18,7 +18,7 @@ use GD::Graph::lines;
 my %opt = ();
 GetOptions( \%opt, 'vcf=s', 'case-id=s', 'normal', 'detect-level=s',
     'ADfield-name=s', 'high=s', 'binsize-cutoff=s' );
-my $vcf            = vcf2->new( 'file' => $opt{vcf} );
+my $vcf            = CMD::vcf2->new( 'file' => $opt{vcf} );
 my $id             = $opt{"case-id"};
 my $check_normal   = $opt{normal};
 my $high           = 0.3;
@@ -56,10 +56,8 @@ while ( my $v = $vcf->next_var() ) {
     next if $v->{CHROM} =~ /X|Y/;
     next unless exists $v->{INFO}->{CSQ}->[0]->{gnomADg_AF};
     my $gnomad = $v->{INFO}->{CSQ}->[0]->{gnomADg_AF};
-    next unless ( $gnomad =~ /\d+/ ) {
-        $gnomad = $v->{INFO}->{CSQ}->[0]->{gnomADg_AF};
-        $gnomad = find_max($gnomad);
-    }
+    next unless ( $gnomad =~ /\d+/ );
+    $gnomad = find_max($gnomad);
     next unless ( $gnomad >= 0.05 );
 
     ## only snvs
@@ -133,7 +131,6 @@ if ( $opt{normal} && $paired ) {
 my ( $distri, $num_bins, $num_vars_bin ) = get_distibution( $low, $high );
 my %distri = %$distri;
 
-#print Dumper(%distri);
 ## if no bins, no variants, no contamination
 if ( $num_bins == 0 ) {
     print "0.0\n";
