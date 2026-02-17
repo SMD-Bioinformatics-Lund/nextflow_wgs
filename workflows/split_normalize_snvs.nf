@@ -1,8 +1,8 @@
 workflow SPLIT_NORMALIZE_SNVS {
 
     take:
-    ch_family_snv_vcf_idx // channel: [group_id, family_vcf, family_tbi]
-    bed_intersect         // value:   [bed_intersect]
+    ch_family_snv_vcf_idx // channel: [val(group_id), path(family_vcf), path(family_tbi)]
+    bed_intersect         // value:   [path(bed_intersect)]
 
     main:
     ch_versions = channel.empty()
