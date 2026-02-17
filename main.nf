@@ -1461,7 +1461,7 @@ process panel_contamination {
 		tuple val(group), val(id), path(vcf)
 
 	output:
-		path("${id}.contamination.json"), emit: contamination_json
+		tuple val(group), val(id), path("${id}.contamination.json"), emit: contamination_json
 		path("${id}.png")
 
 	script:
