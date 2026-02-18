@@ -181,13 +181,13 @@ while( <VEP>) {
             push @add_info_field,"dbNSFP_GERP___RS=$GERP";
         }
         ## PHASTCONS
-        my $pC = $doobi->{INFO}->{CSQ}->[0]->{phastCons100way_vertebrate};
+        my $pC = $doobi->{INFO}->{CSQ}->[0]->{phastCons};
         if ($pC) {
             push @add_info_field,"dbNSFP_phastCons100way_vertebrate=$pC";
 
         }
         ## PHYLOP
-        my $pP = $doobi->{INFO}->{CSQ}->[0]->{phyloP100way_vertebrate};
+        my $pP = $doobi->{INFO}->{CSQ}->[0]->{phyloP100way};
         if ($pP) {
             push @add_info_field,"dbNSFP_phyloP100way_vertebrate=$pP";
         }
