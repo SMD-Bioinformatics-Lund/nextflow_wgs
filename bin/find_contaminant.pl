@@ -91,7 +91,7 @@ while ( my $v = $vcf->next_var() ) {
         }
         else {
             $n_VD = $gt->{$ADfield};
-            my @ads = split( /,/, $t_VD );
+            my @ads = split( /,/, $n_VD );
             my $min = min(@ads);
             $n_DP = $gt->{DP};
             if ( $ADfield eq 'VD' ) {
@@ -204,7 +204,7 @@ sub check_vaf {
             my $matchingbin = $vaf * 100;
             my @dec = split( '\.', $matchingbin );
             if ( scalar(@dec) > 1 ) {
-                $matchingbin = $dec[0]++ if $dec[1] >= 0.5;
+                $matchingbin = ++$dec[0] if $dec[1] >= 0.5;
                 $matchingbin = $dec[0]   if $dec[1] < 0.5;
             }
             else {
@@ -223,7 +223,7 @@ sub check_vaf {
             my $matchingbin = $othervaf * 100;
             my @dec = split( '\.', $matchingbin );
             if ( scalar(@dec) > 1 ) {
-                $matchingbin = $dec[0]++ if $dec[1] >= 0.5;
+                $matchingbin = ++$dec[0] if $dec[1] >= 0.5;
                 $matchingbin = $dec[0]   if $dec[1] < 0.5;
             }
             else {
