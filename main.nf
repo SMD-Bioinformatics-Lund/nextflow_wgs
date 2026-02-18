@@ -1556,7 +1556,7 @@ process panel_contamination {
 	publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: 'true', pattern: '*.json'
 	publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: 'true', pattern: '*.png'
 	tag "$id"
-	container  "/fs1/resources/containers/nextflow_wgs/perl_scripts/perl-data-dumper_perl-gd_perl-gdgraph_perl-json_pruned_fb3a9903cddb4e2e" // placeholder, need merge from @alkc
+	container  "${params.container_perl}"
 
 	input:
 		tuple val(group), path(vcf), path(tbi), val(id)
