@@ -94,8 +94,16 @@ def test_create_case_yaml_single_only_keeps_proband_and_no_ups(tmp_path: Path) -
         trio=False,
     )
 
-    assert result.count("- sample_id:") == 1
-    assert "- sample_id: 'kid'" in result
+    sample_lines = [
+        line.strip()
+        for line in result.splitlines()
+        if line.strip().startswith("- sample_id:")
+    ]
+    assert sample_lines == [
+        "- sample_id: 'kid'",
+        "- sample_id: 'mom'",
+        "- sample_id: 'dad'",
+    ]
     assert "name: 'LOH'" in result
     assert "name: 'UPS'" not in result
 
@@ -116,8 +124,15 @@ def test_create_case_yaml_single_falls_back_to_ordered_first_sample_without_prob
         trio=False,
     )
 
-    assert result.count("- sample_id:") == 1
-    assert "- sample_id: 'beta'" in result
+    sample_lines = [
+        line.strip()
+        for line in result.splitlines()
+        if line.strip().startswith("- sample_id:")
+    ]
+    assert sample_lines == [
+        "- sample_id: 'beta'",
+        "- sample_id: 'alpha'",
+    ]
     assert "sample_annotations:" not in result
 
 
