@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import argparse
 import csv
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +27,7 @@ def main(
     meta_files: list[str],
     chrom_meta_files: list[str],
     output: Path,
-    isTrio: bool,
+    is_trio: bool,
 ) -> None:
     samples = load_samples_from_cli_args(
         sample_ids=sample_ids,
@@ -39,12 +39,11 @@ def main(
         chrom_meta_files=chrom_meta_files,
     )
 
-    # selected = select_samples(samples, isTrio)
     yaml_lines = build_yaml_lines(
         case_id=case_id,
         gens_accessdir=gens_accessdir,
         samples=samples,
-        trio=isTrio,
+        trio=is_trio,
     )
     output.write_text("\n".join(yaml_lines) + "\n", encoding="utf-8")
 
@@ -58,9 +57,7 @@ def load_samples_from_cli_args(
     meta_files: list[str],
     chrom_meta_files: list[str],
 ) -> list[Sample]:
-    """Generate a per-sample dict"""
-
-    # Check that argument lists contain the same numbers (or an empty list)
+    """Generate per-sample objects from grouped CLI arguments."""
     fields = {
         "sample_id": sample_ids,
         "sample_type": sample_types,
@@ -87,18 +84,17 @@ def load_samples_from_cli_args(
         sample_id = normalize(sample_ids[idx])
         if sample_id is None:
             continue
-
-        sample = Sample(
-            sample_id,
-            normalize(sample_types[idx]),
-            normalize(sexes[idx]),
-            normalize(roh_tracks[idx]),
-            normalize(upd_tracks[idx]),
-            normalize(meta_files[idx]),
-            normalize(chrom_meta_files[idx]),
+        samples.append(
+            Sample(
+                sample_id=sample_id,
+                sample_type=normalize(sample_types[idx]),
+                sex=normalize(sexes[idx]),
+                roh_track=normalize(roh_tracks[idx]),
+                upd_track=normalize(upd_tracks[idx]),
+                meta_file=normalize(meta_files[idx]),
+                chrom_meta_file=normalize(chrom_meta_files[idx]),
+            )
         )
-
-        samples.append(sample)
 
     if not samples:
         raise ValueError("No sample rows found in CLI sample options")
@@ -110,28 +106,6 @@ def load_samples_from_cli_args(
         )
     )
     return samples
-
-
-# def select_samples(
-#     samples: list[Sample], trio: bool
-# ) -> list[dict[str, str | None]]:
-#     if trio:
-#         by_type: dict[str, Sample] = {}
-#         for sample in samples:
-#             sample_type = sample.sample_type
-#             if sample_type in TYPE_ORDER and sample_type not in by_type:
-#                 by_type[sample_type] = sample
-#         selected = [
-#             by_type[key] for key in ("proband", "mother", "father") if key in by_type
-#         ]
-#         if selected:
-#             return selected[:3]
-#         return samples[:3]
-
-#     for sample in samples:
-#         if sample["sample_type"] == "proband":
-#             return [sample]
-#     return samples[:1]
 
 
 def build_yaml_lines(
@@ -148,8 +122,6 @@ def build_yaml_lines(
 
     for sample in samples:
         sample_id = sample.sample_id
-        if sample_id is None:
-            continue
         lines.append(f"  - sample_id: '{sample_id}'")
         lines.append(
             f"    baf: '{path_in_accessdir(gens_accessdir, f'{sample_id}.baf.bed.gz')}'"
@@ -199,60 +171,13 @@ def build_yaml_lines(
 
 
 def normalize(value: str | None) -> str | None:
-    """Remove whitespaces and return None for empty string values"""
+    """Remove whitespaces and return None for empty string values."""
     if value is None:
         return None
     stripped = value.strip()
     if stripped.lower() in EMPTY_VALUES:
         return None
     return stripped
-
-
-def load_samples(sample_table: Path) -> list[dict[str, str | None]]:
-    samples: list[dict[str, str | None]] = []
-    with sample_table.open(encoding="utf-8") as handle:
-        reader = csv.DictReader(handle, delimiter="\t")
-        required = {
-            "sample_id",
-            "sample_type",
-            "sex",
-            "roh_track",
-            "upd_track",
-            "meta_file",
-            "chrom_meta_file",
-        }
-        if reader.fieldnames is None or not required.issubset(set(reader.fieldnames)):
-            missing = sorted(required - set(reader.fieldnames or []))
-            raise ValueError(
-                f"Sample table is missing required column(s): {', '.join(missing)}"
-            )
-
-        for row in reader:
-            sample_id = normalize(row.get("sample_id"))
-            if sample_id is None:
-                continue
-            samples.append(
-                {
-                    "sample_id": sample_id,
-                    "sample_type": normalize(row.get("sample_type")),
-                    "sex": normalize(row.get("sex")),
-                    "roh_track": normalize(row.get("roh_track")),
-                    "upd_track": normalize(row.get("upd_track")),
-                    "meta_file": normalize(row.get("meta_file")),
-                    "chrom_meta_file": normalize(row.get("chrom_meta_file")),
-                }
-            )
-
-    if not samples:
-        raise ValueError("No sample rows found in sample table")
-
-    samples.sort(
-        key=lambda sample: (
-            TYPE_ORDER.get(sample["sample_type"] or "", PLACE_LAST),
-            sample["sample_id"] or "",
-        )
-    )
-    return samples
 
 
 def path_in_accessdir(gens_accessdir: str, filename_or_path: str) -> str:
@@ -270,7 +195,7 @@ class Sample:
     chrom_meta_file: str | None
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--case_id", required=True)
     parser.add_argument("--gens_accessdir", required=True)
@@ -283,12 +208,10 @@ def parse_arguments():
     parser.add_argument("--chrom_meta_files", nargs="+")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--trio", action="store_true")
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-
     args = parse_arguments()
 
     main(

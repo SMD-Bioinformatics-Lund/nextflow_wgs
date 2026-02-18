@@ -3074,16 +3074,16 @@ process gens_v4_cron {
 		def trioFlag = params.trio ? "--trio" : ""
 		"""
 		create_gens_case_yaml.py \\
-		  --case-id "${group}" \\
-		  --gens-accessdir "${params.gens_accessdir}" \\
+		  --case_id "${group}" \\
+		  --gens_accessdir "${params.gens_accessdir}" \\
 		  ${trioFlag} \\
-		  --sample-id ${sampleIdArgs} \\
-		  --sample-type ${sampleTypeArgs} \\
-		  --sex ${sexArgs} \\
-		  --roh-track ${rohTrackArgs} \\
-		  --upd-track ${updTrackArgs} \\
-		  --meta-file ${metaArgs} \\
-		  --chrom-meta-file ${chromMetaArgs} \\
+		  --sample_ids ${sampleIdArgs} \\
+		  --sample_types ${sampleTypeArgs} \\
+		  --sexes ${sexArgs} \\
+		  --roh_tracks ${rohTrackArgs} \\
+		  --upd_tracks ${updTrackArgs} \\
+		  --meta_files ${metaArgs} \\
+		  --chrom_meta_files ${chromMetaArgs} \\
 		  --output "${group}.gens_const.yaml"
 		"""
 	
