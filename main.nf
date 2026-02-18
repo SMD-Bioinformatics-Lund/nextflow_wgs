@@ -412,6 +412,7 @@ workflow NEXTFLOW_WGS {
 	}
  
 	if (params.antype == "panel") {
+		// this only works panels right now as they are not run as trios. FIX with proper meta-channel!
 		ch_probandid_meta = ch_samplesheet
 				.filter { row ->
 					row.type == "proband"
