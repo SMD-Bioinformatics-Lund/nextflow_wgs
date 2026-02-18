@@ -49,7 +49,7 @@ def run_create_case_yaml(
     return output_yaml.read_text(encoding="utf-8")
 
 
-def test_create_case_yaml_trio_has_proband_mother_father_and_annotations(
+def test_create_case_yaml_trio(
     tmp_path: Path,
 ) -> None:
     result = run_create_case_yaml(
@@ -80,17 +80,17 @@ def test_create_case_yaml_trio_has_proband_mother_father_and_annotations(
     assert "meta_files:" in result
 
 
-def test_create_case_yaml_single_only_keeps_proband_and_no_ups(tmp_path: Path) -> None:
+def test_create_case_yaml_single(tmp_path: Path) -> None:
     result = run_create_case_yaml(
         tmp_path,
         case_id="CASE_SINGLE",
-        sample_ids=["mom", "kid", "dad"],
-        sample_types=["mother", "proband", "father"],
-        sexes=["F", "M", "M"],
-        roh_tracks=["mom.roh.bed", "kid.roh.bed", "dad.roh.bed"],
-        upd_tracks=["mom.upd.bed", "kid.upd.bed", "dad.upd.bed"],
-        meta_files=["mom.meta.tsv", "kid.meta.tsv", "dad.meta.tsv"],
-        chrom_meta_files=["mom.chrom.tsv", "kid.chrom.tsv", "dad.chrom.tsv"],
+        sample_ids=["kid"],
+        sample_types=["proband"],
+        sexes=["F"],
+        roh_tracks=["kid.roh.bed"],
+        upd_tracks=[],
+        meta_files=["kid.meta.tsv"],
+        chrom_meta_files=["kid.chrom.tsv"],
         trio=False,
     )
 
@@ -108,45 +108,17 @@ def test_create_case_yaml_single_only_keeps_proband_and_no_ups(tmp_path: Path) -
     assert "name: 'UPS'" not in result
 
 
-def test_create_case_yaml_single_falls_back_to_ordered_first_sample_without_proband(
-    tmp_path: Path,
-) -> None:
+def test_create_case_yaml_trio_no_non_mandatory(tmp_path: Path) -> None:
     result = run_create_case_yaml(
         tmp_path,
-        case_id="CASE_FALLBACK",
-        sample_ids=["alpha", "beta"],
-        sample_types=["relative", "mother"],
-        sexes=["F", "F"],
-        roh_tracks=["alpha.roh.bed", "beta.roh.bed"],
-        upd_tracks=["alpha.upd.bed", "beta.upd.bed"],
-        meta_files=["alpha.meta.tsv", "beta.meta.tsv"],
-        chrom_meta_files=["alpha.chrom.tsv", "beta.chrom.tsv"],
-        trio=False,
-    )
-
-    sample_lines = [
-        line.strip()
-        for line in result.splitlines()
-        if line.strip().startswith("- sample_id:")
-    ]
-    assert sample_lines == [
-        "- sample_id: 'beta'",
-        "- sample_id: 'alpha'",
-    ]
-    assert "sample_annotations:" not in result
-
-
-def test_create_case_yaml_trio_from_grouped_cli_args(tmp_path: Path) -> None:
-    result = run_create_case_yaml(
-        tmp_path,
-        case_id="CASE_GROUPED",
+        case_id="CASE_TRIO_NO_OPTIONALS",
         sample_ids=["kid", "mom", "dad"],
-        sample_types=["proband", "mother", "father"],
-        sexes=["F", "F", "M"],
-        roh_tracks=["kid.roh.bed", "mom.roh.bed", "dad.roh.bed"],
-        upd_tracks=["kid.upd.bed", "mom.upd.bed", "dad.upd.bed"],
-        meta_files=["kid.meta.tsv", "mom.meta.tsv", "dad.meta.tsv"],
-        chrom_meta_files=["kid.chrom.tsv", "mom.chrom.tsv", "dad.chrom.tsv"],
+        sample_types=[],
+        sexes=[],
+        roh_tracks=[],
+        upd_tracks=[],
+        meta_files=[],
+        chrom_meta_files=[],
         trio=True,
     )
 
@@ -160,5 +132,7 @@ def test_create_case_yaml_trio_from_grouped_cli_args(tmp_path: Path) -> None:
         "- sample_id: 'mom'",
         "- sample_id: 'dad'",
     ]
-    assert "name: 'LOH'" in result
-    assert "name: 'UPS'" in result
+    assert "meta_files:" not in result
+    assert "sample_annotations:" not in result
+    assert "name: 'LOH'" not in result
+    assert "name: 'UPS'" not in result
