@@ -1,6 +1,6 @@
 from pathlib import Path
-import subprocess
-import sys
+
+from bin.create_gens_case_yaml import main as create_case_yaml_main
 
 
 def run_create_case_yaml(
@@ -18,34 +18,19 @@ def run_create_case_yaml(
 ) -> str:
     output_yaml = tmp_path / f"{case_id}.gens_const.yaml"
 
-    cmd = [
-        sys.executable,
-        str(Path("bin/create_gens_case_yaml.py")),
-        "--case_id",
-        case_id,
-        "--gens_accessdir",
-        "/gens/data",
-        "--sample_ids",
-        *sample_ids,
-        "--sample_types",
-        *sample_types,
-        "--sexes",
-        *sexes,
-        "--roh_tracks",
-        *roh_tracks,
-        "--upd_tracks",
-        *upd_tracks,
-        "--meta_files",
-        *meta_files,
-        "--chrom_meta_files",
-        *chrom_meta_files,
-        "--output",
-        str(output_yaml),
-    ]
-    if trio:
-        cmd.append("--trio")
-
-    subprocess.run(cmd, check=True, capture_output=True, text=True)
+    create_case_yaml_main(
+        case_id=case_id,
+        gens_accessdir="/gens/data",
+        sample_ids=sample_ids,
+        sample_types=sample_types,
+        sexes=sexes,
+        roh_tracks=roh_tracks,
+        upd_tracks=upd_tracks,
+        meta_files=meta_files,
+        chrom_meta_files=chrom_meta_files,
+        output=output_yaml,
+        is_trio=trio,
+    )
     return output_yaml.read_text(encoding="utf-8")
 
 
@@ -84,13 +69,13 @@ def test_create_case_yaml_single(tmp_path: Path) -> None:
     result = run_create_case_yaml(
         tmp_path,
         case_id="CASE_SINGLE",
-        sample_ids=["kid"],
-        sample_types=["proband"],
-        sexes=["F"],
-        roh_tracks=["kid.roh.bed"],
-        upd_tracks=[],
-        meta_files=["kid.meta.tsv"],
-        chrom_meta_files=["kid.chrom.tsv"],
+        sample_ids=["mom", "kid", "dad"],
+        sample_types=["mother", "proband", "father"],
+        sexes=["F", "M", "M"],
+        roh_tracks=["mom.roh.bed", "kid.roh.bed", "dad.roh.bed"],
+        upd_tracks=["mom.upd.bed", "kid.upd.bed", "dad.upd.bed"],
+        meta_files=["mom.meta.tsv", "kid.meta.tsv", "dad.meta.tsv"],
+        chrom_meta_files=["mom.chrom.tsv", "kid.chrom.tsv", "dad.chrom.tsv"],
         trio=False,
     )
 
@@ -113,12 +98,12 @@ def test_create_case_yaml_trio_no_non_mandatory(tmp_path: Path) -> None:
         tmp_path,
         case_id="CASE_TRIO_NO_OPTIONALS",
         sample_ids=["kid", "mom", "dad"],
-        sample_types=[],
-        sexes=[],
-        roh_tracks=[],
-        upd_tracks=[],
-        meta_files=[],
-        chrom_meta_files=[],
+        sample_types=["proband", "mother", "father"],
+        sexes=["F", "F", "M"],
+        roh_tracks=["none", "mom.roh.bed", "dad.roh.bed"],
+        upd_tracks=["none", "mom.upd.bed", "dad.upd.bed"],
+        meta_files=["none", "mom.meta.tsv", "dad.meta.tsv"],
+        chrom_meta_files=["none", "mom.chrom.tsv", "dad.chrom.tsv"],
         trio=True,
     )
 
