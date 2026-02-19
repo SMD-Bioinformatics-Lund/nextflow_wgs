@@ -1,7 +1,10 @@
 # CHANGELOG
 
-### TBD
+### 3.22.0
 * Update Gens v4 output to write a case yaml instead of the command files.
+
+### 3.21.0
+* Check defined params for file existence and non-emptines and directory existence
 
 ### 3.20.13
 * Split SNV split/normalize steps into new `SPLIT_NORMALIZE_SNVS` workflow
