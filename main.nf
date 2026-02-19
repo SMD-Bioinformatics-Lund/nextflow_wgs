@@ -5,6 +5,7 @@ include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
 include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
 include { VALIDATE_PARAMETERS } from './workflows/validate_params.nf'
+include { SPLIT_NORMALIZE_SNVS } from './workflows/split_normalize_snvs.nf'
 include { vcfHasVariants } from './workflows/util.nf'
 
 nextflow.enable.dsl=2
@@ -153,16 +154,16 @@ workflow NEXTFLOW_WGS {
 	}
 
 
-	ch_vcf_annotation_only = ch_samplesheet
+	ch_samplesheet
 		.filter {
 			row -> row.read1.endsWith(".vcf") || row.read1.endsWith(".vcf.gz")
 		}
 		.map { row ->
 			def group = row.group
-			def id = row.id
 			def vcf = row.read1
-			tuple(group, id, vcf)
+			[ group, vcf ]
 		}
+        .set { ch_vcf_annotation_only }
 
 	// GATK Ref:
 	ch_gatk_ref = channel
@@ -296,17 +297,15 @@ workflow NEXTFLOW_WGS {
 
 	create_ped(ch_ped_input)
 	ch_ped_base = create_ped.out.ped_base
-	ch_ped_father_affected = channel.empty()
-	ch_ped_mother_affected = channel.empty()
 
 	ch_ped_trio_affected_permutations = channel.empty()  // channel for base ped + father and mother set as affected peds
 	ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations.mix(ch_ped_base)
 	if(params.mode == "family" && params.assay == "wgs") {
 
-		ch_ped_father_affected = create_ped.out.ped_fa
-		ch_ped_mother_affected = create_ped.out.ped_ma
-
-		ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations.mix(ch_ped_father_affected).mix(ch_ped_mother_affected)
+		ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations
+            .mix(create_ped.out.ped_fa)
+            .mix(create_ped.out.ped_ma)
+        
 		madeline(ch_ped_trio_affected_permutations)
 
 		ch_versions = ch_versions.mix(madeline.out.versions.first())
@@ -380,18 +379,42 @@ workflow NEXTFLOW_WGS {
 	gvcf_combine(dnascope.out.gvcf_tbi.groupTuple())
 	ch_versions = ch_versions.mix(gvcf_combine.out.versions.first())
 
-	ch_split_normalize = gvcf_combine.out.combined_vcf
-	ch_split_normalize_concat_vcf = channel.empty()
-
+    ch_split_normalize_in = channel.empty()
+    
 	// TODO: move antypes and similar to constants?
-	if (params.antype == "panel") {
+	if (params.onco) {
 		freebayes(ch_bam_bai)
 		ch_versions = ch_versions.mix(freebayes.out.versions.first())
-		ch_split_normalize_concat_vcf = ch_split_normalize_concat_vcf.mix(freebayes.out.freebayes_variants)
-	}
+        
+        freebayes.out.freebayes_variants
+            .join(
+                gvcf_combine.out.combined_vcf
+            )
+            .map {
+                group, freebayes_vcf, _id, gvcf, _gvcf_tbi ->
+                [ group, gvcf, freebayes_vcf ]
+            }
+            .set { ch_concat_gvcf_freebayes_in  }
 
-	// MITO SIDE-QUEST
-	if (params.antype == "wgs") { // TODO: if params.mito etc ? will probably mess up split_normalize
+        concat_gvcf_freebayes(ch_concat_gvcf_freebayes_in)
+        ch_split_normalize_in = concat_gvcf_freebayes.out.vcf_tbi
+        ch_versions = ch_versions.mix(concat_gvcf_freebayes.out.versions.first())
+        
+	} else {
+        gvcf_combine.out.combined_vcf
+            .map { group, _id, vcf, tbi -> [ group, vcf, tbi ] }
+            .set { ch_split_normalize_in }
+    }
+
+    
+    SPLIT_NORMALIZE_SNVS(ch_split_normalize_in, params.intersect_bed)
+    ch_versions = ch_versions.mix(SPLIT_NORMALIZE_SNVS.out.versions)
+
+    ch_rename_mito_contigs_in = channel.empty() 
+    
+	// MITO SNVS and SVs
+    // TODO: Break up into workflow(s)
+	if (!params.skip_mito) { 
 
 		fetch_MTseqs(ch_bam_bai)
 
@@ -412,9 +435,16 @@ workflow NEXTFLOW_WGS {
 			run_mutect2.out.vcf,
 			ch_split_normalize_meta
 			)
+        
+		run_hmtnote(split_normalize_mito.out.vcf) 
 
-		run_hmtnote(split_normalize_mito.out.vcf)
-		ch_split_normalize_concat_vcf = ch_split_normalize_concat_vcf.mix(run_hmtnote.out.vcf)
+        SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+            .join(run_hmtnote.out.vcf) 
+            .map { group, snv_vcf, _tbi, mito_vcf -> [ group, snv_vcf, mito_vcf ] }
+            .set { ch_picard_mergevcfs_in }
+
+        picard_mergevcfs(ch_picard_mergevcfs_in)
+        ch_rename_mito_contigs_in = picard_mergevcfs.out.merged_vcf
 
 		run_haplogrep(run_mutect2.out.vcf)
 		ch_output_info = ch_output_info.mix(run_haplogrep.out.haplogrep_INFO)
@@ -429,18 +459,28 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(run_mutect2.out.versions.first())
 		ch_versions = ch_versions.mix(sentieon_mitochondrial_qc.out.versions.first())
 		ch_versions = ch_versions.mix(fetch_MTseqs.out.versions.first())
-		ch_versions = ch_versions.mix(run_eklipse.out.versions.first())
+        ch_versions = ch_versions.mix(picard_mergevcfs.out.versions.first())
 		ch_versions = ch_versions.mix(run_haplogrep.out.versions.first())
-	}
+		ch_versions = ch_versions.mix(run_eklipse.out.versions.first())
+	} else {
+        SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+            .set { ch_rename_mito_contigs_in }                            
+    }
 
+    // TODO: Do this inside mito snv workflow? 
+    rename_mito_contigs(ch_rename_mito_contigs_in)
+    rename_mito_contigs.out.vcf_tbi
+        .map { group, vcf, _tbi -> [ group, vcf ] }
+        .set { ch_snv_annotate_in }
+
+    ch_versions = ch_versions.mix(rename_mito_contigs.out.versions.first())
+        
 	// SNV ANNOTATION
 	if (params.annotate) {
 
-		split_normalize(ch_split_normalize, ch_split_normalize_concat_vcf)
-
-		ch_snv_indel_vcf = split_normalize.out.intersected_vcf.mix(ch_vcf_annotation_only)
-
-		SNV_ANNOTATE(ch_snv_indel_vcf, ch_ped_trio_affected_permutations)
+        ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_annotation_only)
+        
+		SNV_ANNOTATE(ch_snv_annotate_in, ch_ped_trio_affected_permutations)
 		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
 		ch_output_info = ch_output_info.mix(SNV_ANNOTATE.out.output_info)
 
@@ -460,8 +500,12 @@ workflow NEXTFLOW_WGS {
 
 		if (params.antype == "wgs") {
 			// fastgnomad
-			fastgnomad(split_normalize.out.norm_uniq_dpaf_vcf)
-
+			fastgnomad(
+                SPLIT_NORMALIZE_SNVS.out.vcf_tbi_full
+                    .map {
+                        group, vcf, _tbi -> [ group, vcf ]
+                    }
+            )
 
 			// upd
 			ch_upd_meta = ch_samplesheet
@@ -645,22 +689,29 @@ workflow NEXTFLOW_WGS {
 			ch_versions = ch_versions.mix(intersect_melt.out.versions.first())
 		}
 		
-		ch_cnvkit_cns_cnr = Channel.empty()
-		if (params.antype == "panel") {
+		ch_cnvkit_cns_cnr = channel.empty()
+
+        if (params.antype == "panel") {
 			ch_panel_merge = channel.empty()
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
 
-
-			cnvkit_panel(ch_bam_bai, split_normalize.out.intersected_vcf, ch_melt_qc_vals)
+			cnvkit_panel(
+                ch_bam_bai,
+                SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+                    .map { group, vcf, _tbi -> [ group, vcf ] },
+                ch_melt_qc_vals
+            )
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
 			ch_cnvkit_cns_cnr = ch_cnvkit_cns_cnr.mix(cnvkit_panel.out.cns_cnr)
 
-			ch_panel_merge = ch_panel_merge.mix(
-				ch_cnvkit_out,
-				ch_manta_out,
-				ch_filtered_merged_gatk_calls
-			).groupTuple()
+			ch_panel_merge = ch_panel_merge
+                .mix(
+				    ch_cnvkit_out,
+				    ch_manta_out,
+				    ch_filtered_merged_gatk_calls
+			    )
+                .groupTuple()
 
 			svdb_merge_panel(ch_panel_merge)
 
@@ -738,9 +789,13 @@ workflow NEXTFLOW_WGS {
 
 		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf, ch_svvcf_to_bed_meta)
 
+        SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+            .map { group, vcf, _tbi -> [ group, vcf ] }
+            .set { ch_cnvkit_plot_snvs }
+        
 		// plot cnvkit for panels
 		ch_cnvkit_plot = ch_cnvkit_cns_cnr
-			.join(split_normalize.out.intersected_vcf, by: [0, 1])
+			.join(ch_cnvkit_plot_snvs) 
 			.join(genes_analyzed.out.genes_of_interest, by: [0, 1])
 			.join(bgzip_scored_genmod.out.sv_rescore_vcf, by: [0])
 
@@ -823,6 +878,49 @@ workflow NEXTFLOW_WGS {
 	// 	annotate_only_cadd
 	// }
 
+
+
+process picard_mergevcfs {
+
+    tag "$group"
+    cpus 2
+    container "${params.container_picard}"
+    time "1h"
+    
+    input:
+    tuple val(group), path(snv_vcf), path(mito_snv_vcf) 
+
+    output:
+    tuple val(group), path("${group}.merged.vcf.gz"), path("${group}.merged.vcf.gz.tbi"), emit: merged_vcf
+    path("*versions.yml"), emit: versions
+
+    script:
+    """
+    picard MergeVcfs \
+        --CREATE_INDEX \
+        -I ${snv_vcf} \
+        -I ${mito_snv_vcf} \
+        -O ${group}.merged.vcf.gz
+
+    ${picard_mergevcfs_version(task)}
+    """
+
+    stub:
+    """
+    touch ${group}.merged.vcf.gz
+    touch ${group}.merged.vcf.gz.tbi
+
+    ${picard_mergevcfs_version(task)}
+    """
+}
+def picard_mergevcfs_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    picard: \$( echo \$(picard MergeVcfs --version 2>&1) | grep -o 'Version:.*' | cut -f2- -d:)
+	END_VERSIONS
+	"""
+}
 
 process genes_analyzed {
 	cpus 2
@@ -2005,34 +2103,19 @@ process freebayes {
 		tuple val(group), path("${id}.pathfreebayes.vcf_no_header.tsv.gz"), emit: freebayes_variants
 		path "*versions.yml", emit: versions
 
-
-	when:
-		params.antype == "panel"
-
-
 	script:
-		if (params.onco) {
-			"""
-			freebayes -f ${params.genome_file} --pooled-continuous --pooled-discrete -t $params.intersect_bed --min-repeat-entropy 1 -F 0.03 $bam > ${id}.freebayes.vcf
-			vcfbreakmulti ${id}.freebayes.vcf > ${id}.freebayes.multibreak.vcf
-			bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${id}.freebayes.multibreak.norm.vcf ${id}.freebayes.multibreak.vcf
-			vcfanno_linux64 -lua $params.VCFANNO_LUA $params.vcfanno ${id}.freebayes.multibreak.norm.vcf > ${id}.freebayes.multibreak.norm.anno.vcf
-			grep ^# ${id}.freebayes.multibreak.norm.anno.vcf > ${id}.freebayes.multibreak.norm.anno.path.vcf
-			grep -v ^# ${id}.freebayes.multibreak.norm.anno.vcf | grep -i pathogenic > ${id}.freebayes.multibreak.norm.anno.path.vcf2
-			cat ${id}.freebayes.multibreak.norm.anno.path.vcf ${id}.freebayes.multibreak.norm.anno.path.vcf2 > ${id}.freebayes.multibreak.norm.anno.path.vcf3
-			filter_freebayes.pl ${id}.freebayes.multibreak.norm.anno.path.vcf3 | bgzip -c > "${id}.pathfreebayes.vcf_no_header.tsv.gz"
+		"""
+		freebayes -f ${params.genome_file} --pooled-continuous --pooled-discrete -t $params.intersect_bed --min-repeat-entropy 1 -F 0.03 $bam > ${id}.freebayes.vcf
+		vcfbreakmulti ${id}.freebayes.vcf > ${id}.freebayes.multibreak.vcf
+		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${id}.freebayes.multibreak.norm.vcf ${id}.freebayes.multibreak.vcf
+		vcfanno_linux64 -lua $params.VCFANNO_LUA $params.vcfanno ${id}.freebayes.multibreak.norm.vcf > ${id}.freebayes.multibreak.norm.anno.vcf
+		grep ^# ${id}.freebayes.multibreak.norm.anno.vcf > ${id}.freebayes.multibreak.norm.anno.path.vcf
+		grep -v ^# ${id}.freebayes.multibreak.norm.anno.vcf | grep -i pathogenic > ${id}.freebayes.multibreak.norm.anno.path.vcf2
+		cat ${id}.freebayes.multibreak.norm.anno.path.vcf ${id}.freebayes.multibreak.norm.anno.path.vcf2 > ${id}.freebayes.multibreak.norm.anno.path.vcf3
+		filter_freebayes.pl ${id}.freebayes.multibreak.norm.anno.path.vcf3 | bgzip -c > "${id}.pathfreebayes.vcf_no_header.tsv.gz"
 
-			${freebayes_version(task)}
-			"""
-		}
-		else {
-			"""
-			touch "${id}.pathfreebayes.vcf_no_header.tsv.gz"
-
-			${freebayes_version(task)}
-			"""
-		}
-
+		${freebayes_version(task)}
+		"""
 	stub:
 		"""
 		touch "${id}.pathfreebayes.vcf_no_header.tsv.gz"
@@ -2051,6 +2134,44 @@ def freebayes_version(task) {
 	END_VERSIONS
 	"""
 }
+
+process concat_gvcf_freebayes {
+    cpus 2
+	tag "$group"
+	memory '10 GB'
+	time '1h'
+
+    container "${params.container_bcftools}"
+    
+    input:
+	tuple val(group), path(gvcf), path(freebayes_headerless_vcf)
+    output:
+    tuple val(group), path("${group}.sorted.vcf.gz"), path("${group}.sorted.vcf.gz.tbi"), emit: vcf_tbi
+    path "*versions.yml", emit: versions
+    
+    script:
+    """
+    zcat ${gvcf} ${freebayes_headerless_vcf} |\
+        bcftools sort -o ${group}.sorted.vcf.gz -O z --write-index=tbi
+    ${concat_gvcf_freebayes_version(task)}
+    """
+
+    stub:
+    """
+    touch ${group}.sorted.vcf.gz
+    touch ${group}.sorted.vcf.gz.tbi
+    ${concat_gvcf_freebayes_version(task)}
+    """
+}
+def concat_gvcf_freebayes_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
+	END_VERSIONS
+	"""
+}
+
 
 /////////////// MITOCHONDRIA SNV CALLING ///////////////
 ///////////////                          ///////////////
@@ -2435,85 +2556,45 @@ def run_eklipse_version(task) {
 	"""
 }
 
-//eklipseM_INFO.collectPath(name: "eklipse.INFO").set{ eklipse_INFO }
-
-// Splitting & normalizing variants, merging with Freebayes/Mutect2, intersecting against exome/clinvar introns
-process split_normalize {
-	cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '{*.vcf,*.vcf.gz}'
+process rename_mito_contigs {
+    cpus 2
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
 	tag "$group"
-	memory '50 GB'
+	memory '5 GB'
 	time '1h'
-	input:
-		tuple val(group), val(ids), path(vcf), path(idx) // is ids supposed to be tuple?
-		tuple val(group2), path(vcfconcat)
 
-	output:
-		tuple val(group), path("${group}.norm.uniq.DPAF.vcf.gz"), emit: norm_uniq_dpaf_vcf
-		tuple val(group), val(id), path("${group}.intersected.vcf"), emit: intersected_vcf
-		tuple val(group), path("${group}.multibreak.vcf"), emit: multibreak_vcf
-		path "*versions.yml", emit: versions
+    container "${params.container_perl}"
+    
+    input:
+	    tuple val(group), path(vcf), path(tbi)
+    output:
+    	tuple val(group), path("${group}.mt_rename.vcf.gz"), path("${group}.mt_rename.vcf.gz.tbi"), emit: vcf_tbi
+    	path "*versions.yml", emit: versions
+    
+    script:
+    """
+    zcat ${vcf} |\
+	    sed 's/^M\t/MT\t/' |\
+		sed 's/ID=M,length/ID=MT,length/' |\
+        bgzip -c > "${group}.mt_rename.vcf.gz"
 
-	script:
-	id = ids[0]
-	// rename M to MT because genmod does not recognize M
-	if (params.onco || params.assay == "modycf") {
-		"""
-		if [[ -s "$vcfconcat" ]]; then
-			zcat $vcf $vcfconcat > ${id}.concat.freebayes.vcf
-		else
-			# Otherwise it crashes for modycf where $vcfconcat is empty
-			zcat $vcf > ${id}.concat.freebayes.vcf
-		fi
-		vcfbreakmulti ${id}.concat.freebayes.vcf > ${group}.multibreak.vcf
-		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
-		bcftools sort ${group}.norm.vcf | vcfuniq > ${group}.norm.uniq.vcf
-		wgs_DPAF_filter.pl ${group}.norm.uniq.vcf | bgzip -c > ${group}.norm.uniq.DPAF.vcf.gz
-		bedtools intersect \\
-			-a ${group}.norm.uniq.DPAF.vcf.gz \\
-			-b ${params.intersect_bed} \\
-			-u -header > ${group}.intersected.vcf
+    tabix -p vcf "${group}.mt_rename.vcf.gz"
+    
+    ${rename_mito_contigs_version(task)}
+    """
 
-		${split_normalize_version(task)}
-		"""
-	} else {
-		"""
-		vcfbreakmulti ${vcf} > ${group}.multibreak.vcf
-		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${group}.norm.vcf ${group}.multibreak.vcf
-		bcftools sort ${group}.norm.vcf | vcfuniq > ${group}.norm.uniq.vcf
-		wgs_DPAF_filter.pl ${group}.norm.uniq.vcf | bgzip -c > ${group}.norm.uniq.DPAF.vcf.gz
-		bedtools intersect \\
-			-a ${group}.norm.uniq.DPAF.vcf.gz \\
-			-b ${params.intersect_bed} \\
-			-u -header > ${group}.intersected_diploid.vcf
-		java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs \\
-		I=${group}.intersected_diploid.vcf I=${vcfconcat} O=${group}.intersected.vcf
-		sed 's/^M/MT/' -i ${group}.intersected.vcf
-		sed 's/ID=M,length/ID=MT,length/' -i ${group}.intersected.vcf
-
-		${split_normalize_version(task)}
-		"""
-	}
-
-	stub:
-		id = ids[0]
-		"""
-		echo ${id} > id.val
-		touch "${group}.norm.uniq.DPAF.vcf.gz"
-		touch "${group}.intersected.vcf"
-		touch "${group}.multibreak.vcf"
-
-		${split_normalize_version(task)}
-		"""
+    stub:
+    """
+    touch "${group}.mt_rename.vcf.gz"
+    touch "${group}.mt_rename.vcf.gz.tbi"
+    ${rename_mito_contigs_version(task)}
+    """
 }
-def split_normalize_version(task) {
+def rename_mito_contigs_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    vcflib: 1.0.9
-	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
-	    bedtools: \$(echo \$(bedtools --version 2>&1) | sed -e "s/^.*bedtools v//" )
-	    merge-vcfs: \$(echo \$(java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar MergeVcfs --version 2>&1 | sed 's/-SNAPSHOT//'))
+	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
 	END_VERSIONS
 	"""
 }
@@ -2636,7 +2717,7 @@ process fastgnomad {
 	time '2h'
 
 	input:
-		tuple val(group), path(vcf)
+	    tuple val(group), path(vcf)
 
 	output:
 		tuple val(group), path("${group}.SNPs.vcf.gz"), emit: vcf
@@ -3396,7 +3477,7 @@ process cnvkit_panel {
 	memory '20 GB'
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
-		tuple val(group2), val(id2), path(intersected_vcf)
+		tuple val(group2), path(intersected_vcf)
 		tuple val(group3), val(id3), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV)
 
 	output:
