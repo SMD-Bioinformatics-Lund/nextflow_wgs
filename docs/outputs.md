@@ -4,13 +4,13 @@ When running the pipeline, two separate results folders are produced. One contai
 
 ## Cron-folder
 
-| Subfolder | Mode | Process              | Name            | Description                       |
-| --------- | ---- | -------------------- | --------------- | --------------------------------- |
-| gens      | wgs  | `generate_gens_data` | `<group>.gens`  | Input data to Gens                |
+| Subfolder | Mode | Process              | Name                      | Description                         |
+| --------- | ---- | -------------------- | ------------------------- | ----------------------------------- |
+| gens      | wgs  | `generate_gens_data` | `<group>.gens`            | Input data to Gens                  |
 | gens      | wgs  | `gens_v4_cron`       | `<group>.gens_const.yaml` | Gens case YAML for `gens load case` |
-| loqus     |      | `add_to_loqusdb`     | `<group>.loqus` | Artefact frequencies to LoqusDB   |
-| qc        |      | `qc_to_cdm`          | `<group>.cdm`   | Sample quality information to CDM |
-| scout     |      | `scout`              | `<group>.yaml`  | Scout input YAML file             |
+| loqus     |      | `add_to_loqusdb`     | `<group>.loqus`           | Artefact frequencies to LoqusDB     |
+| qc        |      | `qc_to_cdm`          | `<group>.cdm`             | Sample quality information to CDM   |
+| scout     |      | `scout`              | `<group>.yaml`            | Scout input YAML file               |
 
 ## Results-folder
 
