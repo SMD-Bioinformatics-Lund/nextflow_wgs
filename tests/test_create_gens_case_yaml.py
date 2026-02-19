@@ -2,6 +2,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import yaml
+
 from bin.create_gens_case_yaml import main as create_case_yaml_main
 
 
@@ -52,19 +54,15 @@ def test_create_case_yaml_trio(
         trio=True,
     )
 
-    sample_lines = [
-        line.strip()
-        for line in result.splitlines()
-        if line.strip().startswith("- sample_id:")
-    ]
-    assert sample_lines == [
-        "- sample_id: 'kid'",
-        "- sample_id: 'mom'",
-        "- sample_id: 'dad'",
-    ]
-    assert "name: 'LOH'" in result
-    assert "name: 'UPS'" in result
-    assert "meta_files:" in result
+    case_data = yaml.safe_load(result)
+    sample_ids = [sample["sample_id"] for sample in case_data["samples"]]
+    assert sample_ids == ["kid", "mom", "dad"]
+
+    proband_row = case_data["samples"][0]
+    annotation_names = [annotation["name"] for annotation in proband_row["sample_annotations"]]
+    assert "LOH" in annotation_names
+    assert "UPS" in annotation_names
+    assert "meta_files" in proband_row
 
 
 def test_create_case_yaml_single(tmp_path: Path) -> None:
@@ -81,18 +79,14 @@ def test_create_case_yaml_single(tmp_path: Path) -> None:
         trio=False,
     )
 
-    sample_lines = [
-        line.strip()
-        for line in result.splitlines()
-        if line.strip().startswith("- sample_id:")
-    ]
-    assert sample_lines == [
-        "- sample_id: 'kid'",
-        "- sample_id: 'mom'",
-        "- sample_id: 'dad'",
-    ]
-    assert "name: 'LOH'" in result
-    assert "name: 'UPS'" not in result
+    case_data = yaml.safe_load(result)
+    sample_ids = [sample["sample_id"] for sample in case_data["samples"]]
+    assert sample_ids == ["kid", "mom", "dad"]
+
+    proband_row = case_data["samples"][0]
+    annotation_names = [annotation["name"] for annotation in proband_row["sample_annotations"]]
+    assert "LOH" in annotation_names
+    assert "UPS" not in annotation_names
 
 
 def test_create_case_yaml_trio_no_non_mandatory(tmp_path: Path) -> None:
@@ -109,20 +103,13 @@ def test_create_case_yaml_trio_no_non_mandatory(tmp_path: Path) -> None:
         trio=True,
     )
 
-    sample_lines = [
-        line.strip()
-        for line in result.splitlines()
-        if line.strip().startswith("- sample_id:")
-    ]
-    assert sample_lines == [
-        "- sample_id: 'kid'",
-        "- sample_id: 'mom'",
-        "- sample_id: 'dad'",
-    ]
-    assert "meta_files:" not in result
-    assert "sample_annotations:" not in result
-    assert "name: 'LOH'" not in result
-    assert "name: 'UPS'" not in result
+    case_data = yaml.safe_load(result)
+    sample_ids = [sample["sample_id"] for sample in case_data["samples"]]
+    assert sample_ids == ["kid", "mom", "dad"]
+
+    proband_row = case_data["samples"][0]
+    assert "meta_files" not in proband_row
+    assert "sample_annotations" not in proband_row
 
 
 def test_create_case_yaml_cli_smoke(tmp_path: Path) -> None:
@@ -157,5 +144,6 @@ def test_create_case_yaml_cli_smoke(tmp_path: Path) -> None:
         text=True,
     )
     result = output_yaml.read_text(encoding="utf-8")
-    assert "case_id: 'CASE_CLI_SMOKE'" in result
-    assert "- sample_id: 'kid'" in result
+    case_data = yaml.safe_load(result)
+    assert case_data["case_id"] == "CASE_CLI_SMOKE"
+    assert case_data["samples"][0]["sample_id"] == "kid"

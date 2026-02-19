@@ -4,15 +4,14 @@
 from __future__ import annotations
 
 import argparse
-import csv
-import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 
 TYPE_ORDER = {"proband": 0, "mother": 1, "father": 2}
-PLACE_LAST = math.inf
 EMPTY_VALUES = {"", "none", "null", "."}
 
 
@@ -39,13 +38,17 @@ def main(
         chrom_meta_files=chrom_meta_files,
     )
 
-    yaml_lines = build_yaml_lines(
+    yaml_dict = build_yaml_dict(
         case_id=case_id,
         gens_accessdir=gens_accessdir,
         samples=samples,
         trio=is_trio,
     )
-    output.write_text("\n".join(yaml_lines) + "\n", encoding="utf-8")
+
+    output.write_text(
+        yaml.dump(yaml_dict, default_flow_style=False, sort_keys=False),
+        encoding="utf-8",
+    )
 
 
 def load_samples_from_cli_args(
@@ -108,32 +111,27 @@ def load_samples_from_cli_args(
     return samples
 
 
-def build_yaml_lines(
+def build_yaml_dict(
     case_id: str,
     gens_accessdir: str,
     samples: list[Sample],
     trio: bool,
-) -> list[str]:
-    lines: list[str] = [
-        f"case_id: '{case_id}'",
-        "genome_build: 38",
-        "samples:",
-    ]
+) -> dict[str, Any]:
+    yaml_dict: dict[str, Any] = {"case_id": case_id, "genome_build": 38, "samples": []}
+    sample_dicts: list[dict[str, Any]] = []
 
     for sample in samples:
         sample_id = sample.sample_id
-        lines.append(f"  - sample_id: '{sample_id}'")
-        lines.append(
-            f"    baf: '{path_in_accessdir(gens_accessdir, f'{sample_id}.baf.bed.gz')}'"
-        )
-        lines.append(
-            f"    coverage: '{path_in_accessdir(gens_accessdir, f'{sample_id}.cov.bed.gz')}'"
-        )
+        sample_row: dict[str, Any] = {
+            "sample_id": sample_id,
+            "baf": path_in_accessdir(gens_accessdir, f"{sample_id}.baf.bed.gz"),
+            "coverage": path_in_accessdir(gens_accessdir, f"{sample_id}.cov.bed.gz"),
+        }
 
         if sample.sample_type is not None:
-            lines.append(f"    sample_type: '{sample.sample_type}'")
+            sample_row["sample_type"] = sample.sample_type
         if sample.sex is not None:
-            lines.append(f"    sex: '{sample.sex}'")
+            sample_row["sex"] = sample.sex
 
         if sample.sample_type == "proband":
             meta_paths = [
@@ -142,9 +140,7 @@ def build_yaml_lines(
                 if value is not None
             ]
             if meta_paths:
-                lines.append("    meta_files:")
-                for path in meta_paths:
-                    lines.append(f"      - '{path}'")
+                sample_row["meta_files"] = meta_paths
 
             annotation_rows: list[dict[str, Any]] = []
             if sample.roh_track is not None:
@@ -162,12 +158,12 @@ def build_yaml_lines(
                     }
                 )
             if annotation_rows:
-                lines.append("    sample_annotations:")
-                for annotation in annotation_rows:
-                    lines.append(f"      - file: '{annotation['file']}'")
-                    lines.append(f"        name: '{annotation['name']}'")
+                sample_row["sample_annotations"] = annotation_rows
 
-    return lines
+        sample_dicts.append(sample_row)
+
+    yaml_dict["samples"] = sample_dicts
+    return yaml_dict
 
 
 def normalize(value: str | None) -> str | None:

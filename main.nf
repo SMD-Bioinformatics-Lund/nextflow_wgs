@@ -3053,6 +3053,7 @@ process gens_v4_cron {
 	cpus 1
 	time '10m'
 	memory '1 GB'
+	container  "${params.container_python_pyyaml}"
 
 	input:
 		tuple val(group), val(ids), val(types), val(sexes), val(track_rohs), val(track_upds), val(meta_tsvs), val(chrom_meta_tsvs)
