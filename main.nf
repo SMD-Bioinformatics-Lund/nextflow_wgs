@@ -4,6 +4,7 @@ include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
 include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
+include { VALIDATE_PARAMETERS } from './workflows/validate_params.nf'
 include { SPLIT_NORMALIZE_SNVS } from './workflows/split_normalize_snvs.nf'
 include { vcfHasVariants } from './workflows/util.nf'
 
@@ -11,7 +12,9 @@ nextflow.enable.dsl=2
 
 
 workflow {
-
+	// Validate all configured parameters
+	parameters_to_validate = params.global_parameters_to_validate + params.profile_parameters_to_validate
+	VALIDATE_PARAMETERS(parameters_to_validate)
 	// Print startup and conf output dirs and modes.
 
 	// TODO: Params assignment inside workflow block is a temp solution:
