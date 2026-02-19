@@ -1574,7 +1574,7 @@ process panel_contamination {
 			--ADfield-name ${params.panel_contamination.alt_allele_field_name} \\
 			--high ${params.panel_contamination.max_af} \\
 			--binsize-cutoff ${params.panel_contamination.binsize_cutoff} \\
-			--normal > ${id}.contamination.value
+			> ${id}.contamination.value
 		value=\$(cat ${id}.contamination.value)
 		echo "{ \\"contamination\\": \\"\$value\\" }" > ${id}.contamination.json
 		"""
