@@ -84,18 +84,18 @@ def load_samples_from_cli_args(
 
     samples: list[Sample] = []
     for idx in range(sample_count):
-        sample_id = normalize(sample_ids[idx])
+        sample_id = normalize_string(sample_ids[idx])
         if sample_id is None:
             continue
         samples.append(
             Sample(
                 sample_id=sample_id,
-                sample_type=normalize(sample_types[idx]),
-                sex=normalize(sexes[idx]),
-                roh_track=normalize(roh_tracks[idx]),
-                upd_track=normalize(upd_tracks[idx]),
-                meta_file=normalize(meta_files[idx]),
-                chrom_meta_file=normalize(chrom_meta_files[idx]),
+                sample_type=normalize_string(sample_types[idx]),
+                sex=normalize_string(sexes[idx]),
+                roh_track=normalize_string(roh_tracks[idx]),
+                upd_track=normalize_string(upd_tracks[idx]),
+                meta_file=normalize_string(meta_files[idx]),
+                chrom_meta_file=normalize_string(chrom_meta_files[idx]),
             )
         )
 
@@ -166,7 +166,7 @@ def build_yaml_dict(
     return yaml_dict
 
 
-def normalize(value: str | None) -> str | None:
+def normalize_string(value: str | None) -> str | None:
     """Remove whitespaces and return None for empty string values."""
     if value is None:
         return None
