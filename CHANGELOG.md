@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### 3.22.0
+* pass contamination check for WGS into CDM json
+* use python-script nomenclature for CDM load
+* require sequencing_run from CSV instead of regex from fastq-files (breaks old CSVs for panels)
+
 ### 3.21.0
 * Check defined params for file existence and non-emptines and directory existence
 
