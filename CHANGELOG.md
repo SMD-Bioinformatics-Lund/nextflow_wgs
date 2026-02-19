@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.21.0
+* Check defined params for file existence and non-emptines and directory existence
+
 ### 3.20.13
 * Split SNV split/normalize steps into new `SPLIT_NORMALIZE_SNVS` workflow
 * Move panel-only Freebayes merge to run before split/normalize (handles empty Freebayes VCFs)
