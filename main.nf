@@ -411,20 +411,6 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(verifybamid2.out.versions.first())
 	}
  
-	if (params.antype == "panel") {
-		// this only works panels right now as they are not run as trios. FIX with proper meta-channel!
-		ch_probandid_meta = ch_samplesheet
-				.filter { row ->
-					row.type == "proband"
-				}
-				.map { row ->
-					tuple(row.group, row.id)
-		}
-		ch_contamination = SPLIT_NORMALIZE_SNVS.out.vcf_multi_nonfiltered.join(ch_probandid_meta)
-		panel_contamination(ch_contamination)
-		ch_qc_json = ch_qc_json.mix(panel_contamination.out.contamination_json)
-	}
-
 	// MITO SNVS and SVs
     // TODO: Break up into workflow(s)
 	if (!params.skip_mito) { 
@@ -1548,42 +1534,6 @@ def verifybamid2_version(task) {
 	    VerifyBamID2: \$( echo \$( verifybamid2 --help 2>&1 | grep Version ) | sed "s/^.*Version://" )
 	END_VERSIONS
 	"""
-}
-
-process panel_contamination {
-	cpus 2
-	memory '2 GB'
-	publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: 'true', pattern: '*.json'
-	publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: 'true', pattern: '*.png'
-	tag "$id"
-	container  "${params.container_perl}"
-
-	input:
-		tuple val(group), path(vcf), path(tbi), val(id)
-
-	output:
-		tuple val(group), val(id), path("${id}.contamination.json"), emit: contamination_json
-		path("${id}.png")
-
-	script:
-		"""
-		find_contaminant.pl \\
-			--vcf $vcf \\
-			--case-id $id \\
-			--detect-level ${params.panel_contamination.detect_level} \\
-			--ADfield-name ${params.panel_contamination.alt_allele_field_name} \\
-			--high ${params.panel_contamination.max_af} \\
-			--binsize-cutoff ${params.panel_contamination.binsize_cutoff} \\
-			> ${id}.contamination.value
-		value=\$(cat ${id}.contamination.value)
-		echo "{ \\"contamination\\": \\"\$value\\" }" > ${id}.contamination.json
-		"""
-
-	stub:
-		"""
-		touch ${id}.contamination.json
-		touch ${id}.png
-		"""
 }
 
 // Calculate coverage for paneldepth
