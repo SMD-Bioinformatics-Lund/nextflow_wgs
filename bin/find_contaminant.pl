@@ -68,7 +68,7 @@ while ( my $v = $vcf->next_var() ) {
     ## if paired returns normal sample-id
     $paired = paired( $id, $v );
     if ( $opt{normal} && $paired eq "0" ) {
-        print "no normal sample in vcf\n";
+        print STDERR "no normal sample in vcf\n";
     }
 
     for my $gt ( @{ $v->{GT} } ) {
