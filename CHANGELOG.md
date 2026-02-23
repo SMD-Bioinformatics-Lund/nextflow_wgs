@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.23.0
+* Replace sentieon with new version, v202503.02
+
 ### 3.22.0
 * Update Gens v4 output to write a case yaml instead of the command files.
 
