@@ -4031,7 +4031,7 @@ process vep_sv {
 			-o ${group}.vep.vcf \\
 			--offline \\
 			--merged \\
-			--gnomad_af --sift b --polyphen b --ccds --hgvs --symbol --numbers --domains --regulatory --canonical --protein --biotype --af --af_1kg --max_af --pubmed --uniprot --mane --tsl --appris --variant_class --gene_phenotype --mirna \\
+			--af_gnomad --sift b --polyphen b --ccds --hgvs --symbol --numbers --domains --regulatory --canonical --protein --biotype --af --af_1kg --max_af --pubmed --uniprot --mane --tsl --appris --variant_class --gene_phenotype --mirna \\
 			--synonyms $params.VEP_SYNONYMS \\
 			--vcf \\
 			--no_stats \\
