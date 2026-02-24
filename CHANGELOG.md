@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.22.1
+* Remove D4 coverage generation and `d4_file` Scout YAML output from the workflow.
+* Remove D4 software/output references from documentation.
+
 ### 3.22.0
 * Update Gens v4 output to write a case yaml instead of the command files.
 
