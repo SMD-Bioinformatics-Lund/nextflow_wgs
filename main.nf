@@ -354,9 +354,6 @@ workflow NEXTFLOW_WGS {
 	ch_versions = ch_versions.mix(IDSNP_CALL.out.versions.first())
 
 	// COVERAGE //
-	d4_coverage(ch_bam_bai)
-	ch_versions = ch_versions.mix(d4_coverage.out.versions.first())
-	ch_output_info = ch_output_info.mix(d4_coverage.out.d4_INFO)
 
 	if (params.gatkcov) {
 		gatkcov(ch_gatkcov_meta.join(ch_bam_bai, by: [0, 1]))
@@ -1451,53 +1448,6 @@ process sentieon_qc_postprocess {
 			> ${id}_qc.json
 
 		"""
-}
-
-process d4_coverage {
-	cpus 16
-	memory '10 GB'
-	publishDir "${params.results_output_dir}/cov", mode: 'copy', overwrite: 'true', pattern: '*.d4'
-	tag "$id"
-	container  "${params.container_d4tools}"
-
-	input:
-		tuple val(group), val(id), path(bam), path(bai)
-
-	output:
-		tuple val(group), val(id), path("${id}_coverage.d4"), emit: ch_final_d4
-		tuple val(group), path("${group}_d4.INFO"), emit: d4_INFO
-		path "*versions.yml", emit: versions
-
-	when:
-		params.run_chanjo2
-
-	script:
-	"""
-	d4tools create \\
-		--threads ${task.cpus} \\
-		"${bam}" \\
-		"${id}_coverage.d4"
-
-	echo "D4	$id	/access/${params.subdir}/cov/${id}_coverage.d4" > ${group}_d4.INFO
-
-	${d4_coverage_version(task)}
-	"""
-
-	stub:
-	"""
-	touch "${id}_coverage.d4"
-	touch "${group}_d4.INFO"
-
-	${d4_coverage_version(task)}
-	"""
-}
-def d4_coverage_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    d4tools: \$(echo \$( d4tools 2>&1 | head -1 ) | sed "s/.*version: //" | sed "s/)//" )
-	END_VERSIONS
-	"""
 }
 
 process verifybamid2 {
