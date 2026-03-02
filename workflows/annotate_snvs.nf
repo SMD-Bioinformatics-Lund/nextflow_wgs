@@ -211,7 +211,7 @@ process mark_splice {
 
 	script:
 		"""
-		/opt/bin/mark_spliceindels.pl $vcf > ${group}.marksplice.vcf
+		mark_spliceindels.pl $vcf > ${group}.marksplice.vcf
 		"""
 
 	stub:
