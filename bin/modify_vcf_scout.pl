@@ -1,5 +1,6 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 use strict;
+use warnings;
 use Data::Dumper;
 use List::Util qw( min max );
 # use List::MoreUtils qw(first_index);

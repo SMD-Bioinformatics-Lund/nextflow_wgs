@@ -1,5 +1,6 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 use strict;
+use warnings;
 use Data::Dumper;
 use List::Util qw(max);
 use File::Basename qw(dirname);

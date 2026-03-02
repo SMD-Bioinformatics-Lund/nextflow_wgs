@@ -1,6 +1,7 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 use strict;
 
+use warnings;
 my $tsv = $ARGV[0];
 my $cov = $ARGV[1];
 

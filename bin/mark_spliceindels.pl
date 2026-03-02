@@ -1,7 +1,8 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 use strict;
 
 
+use warnings;
 if( is_gzipped($ARGV[0]) ) {
     open( VCF, "zcat $ARGV[0] |" );
 }

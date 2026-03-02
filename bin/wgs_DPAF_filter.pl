@@ -1,6 +1,7 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 use strict;
 
+use warnings;
 if( $ARGV[0] =~ /\.gz$/ ) {
     open( VCF, "zcat $ARGV[0]|" );
 }
