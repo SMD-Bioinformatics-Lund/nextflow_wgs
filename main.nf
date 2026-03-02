@@ -3322,7 +3322,6 @@ process filter_merge_gatk {
 	time '2h'
 	memory '1 GB'
 	publishDir "${params.results_output_dir}/sv_vcf", mode: 'copy', overwrite: 'true'
-	container "${params.container_perl}"
 
 	input:
 		tuple val(group), val(id), path(gentotyped_intervals), path(genotyped_segments), path(denoised_copy_ration)

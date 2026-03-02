@@ -1,6 +1,4 @@
-#!/usr/bin/env perl
-
-use warnings;
+#!/usr/bin/perl -w
 use strict;
 use Getopt::Long;
 use File::Basename;
