@@ -25,7 +25,6 @@ When running the pipeline, two separate results folders are produced. One contai
 | cov            | Coverage    | onco  | `depth_onco`                    | `<group>.lowcov.overlapping.bed`                 | Coverage calculations                                                             |
 | cov            | Coverage    | wgs   | `gatkcov`                       | `<group>.denoisedCR.tsv`                         | Coverage calculations                                                             |
 | cov            | Coverage    | wgs   | `gatkcov`                       | `<group>.standardizedCR.tsv`                     | Coverage calculations                                                             |
-| cov            | Coverage    | wgs   | `d4_coverage`                   | `<group>_coverage.d4`                            | Coverage calculations                                                             |
 | ped            | Pedigree    | trio  | `create_ped`                    | `<group>_[ma\|fa\|base].ped`                     | Pedigree information                                                              |
 | ped            | Pedigree    | trio  | `peddy`                         | `<group>_[ma\|fa\|base].peddy.ped`               | Pedigree information                                                              |
 | ped            | Pedigree    | trio  | `peddy`                         | `<group>.sex_check.csv`                          | Control of assigned sex                                                           |
