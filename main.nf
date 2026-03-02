@@ -1413,6 +1413,7 @@ process sentieon_qc_postprocess {
 	memory '1 GB'
 	tag "$id"
 	time '2h'
+	container "${params.container_perl}"
 
 	input:
 		tuple(
@@ -1502,6 +1503,7 @@ process depth_onco {
 	memory '10 GB'
 	publishDir "${params.results_output_dir}/cov", mode: 'copy', overwrite: 'true'
 	tag "$id"
+	container "${params.container_perl}"
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
 
@@ -1966,6 +1968,7 @@ process create_ped {
 	time '20m'
 	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: 'true'
 	memory '1 GB'
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), val(id), val(type), val(sex), val(mother), val(father)
@@ -2758,6 +2761,7 @@ process upd_table {
 	time '1h'
 	memory '1 GB'
 	cpus 2
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), path(upd_sites)
@@ -2883,6 +2887,7 @@ process overview_plot {
 	time '1h'
 	memory '5 GB'
 	publishDir "${params.results_output_dir}/plots", mode: 'copy' , overwrite: 'true', pattern: "*.png"
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoised)
@@ -2919,6 +2924,7 @@ process generate_gens_data {
 	cpus 1
 	time '3h'
 	memory '5 GB'
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), val(id), path(gvcf), path(gvcf_index), path(cov_stand), path(cov_denoise)
@@ -3316,6 +3322,7 @@ process filter_merge_gatk {
 	time '2h'
 	memory '1 GB'
 	publishDir "${params.results_output_dir}/sv_vcf", mode: 'copy', overwrite: 'true'
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), val(id), path(gentotyped_intervals), path(genotyped_segments), path(denoised_copy_ration)
@@ -4407,6 +4414,7 @@ process compound_finder {
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz*'
 	memory '10 GB'
 	time '2h'
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), val(type), path(sv_vcf), path(sv_tbi), path(ped), path(snv_vcf), path(snv_tbi)
@@ -4488,6 +4496,7 @@ process svvcf_to_bed {
 	memory '1 GB'
 	time '1h'
 	cpus 2
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), path(vcf)
@@ -4549,6 +4558,7 @@ process create_yaml {
 	tag "$group"
 	time '5m'
 	memory '1 GB'
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis)
