@@ -4413,7 +4413,6 @@ process compound_finder {
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz*'
 	memory '10 GB'
 	time '2h'
-	container "${params.container_perl}"
 
 	input:
 		tuple val(group), val(type), path(sv_vcf), path(sv_tbi), path(ped), path(snv_vcf), path(snv_tbi)
