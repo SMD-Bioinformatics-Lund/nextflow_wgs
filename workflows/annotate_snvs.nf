@@ -175,6 +175,7 @@ process modify_vcf {
 	tag "$group"
 	memory '1 GB'
 	time '1h'
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), path(vcf)
@@ -200,6 +201,7 @@ process mark_splice {
 	tag "$group"
 	memory '1 GB'
 	time '1h'
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), path(vcf)
@@ -209,7 +211,7 @@ process mark_splice {
 
 	script:
 		"""
-		/opt/bin/mark_spliceindels.pl $vcf > ${group}.marksplice.vcf
+		mark_spliceindels.pl $vcf > ${group}.marksplice.vcf
 		"""
 
 	stub:

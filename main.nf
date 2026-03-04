@@ -616,9 +616,11 @@ workflow NEXTFLOW_WGS {
 			.combine(ch_gatk_ref.groupTuple(by : [3])) // TODO: Explanation here.
 
 		postprocessgatk(ch_gatk_postprocess_input)
-		filter_merge_gatk(postprocessgatk.out.called_gatk)
-		ch_filtered_merged_gatk_calls = filter_merge_gatk.out.merged_filtered_vcf
 
+
+		filter_gatk(postprocessgatk.out.genotyped_segments)
+        merge_gatk(filter_gatk.out.vcf_gz)
+		ch_filtered_merged_gatk_calls = merge_gatk.out.vcf_gz
 
 		ch_versions = ch_versions.mix(gatk_call_cnv.out.versions.first())
 		ch_versions = ch_versions.mix(gatk_coverage.out.versions.first())
@@ -1413,6 +1415,7 @@ process sentieon_qc_postprocess {
 	memory '1 GB'
 	tag "$id"
 	time '2h'
+	container "${params.container_perl}"
 
 	input:
 		tuple(
@@ -1966,6 +1969,7 @@ process create_ped {
 	time '20m'
 	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: 'true'
 	memory '1 GB'
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), val(id), val(type), val(sex), val(mother), val(father)
@@ -2758,6 +2762,7 @@ process upd_table {
 	time '1h'
 	memory '1 GB'
 	cpus 2
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), path(upd_sites)
@@ -2883,6 +2888,7 @@ process overview_plot {
 	time '1h'
 	memory '5 GB'
 	publishDir "${params.results_output_dir}/plots", mode: 'copy' , overwrite: 'true', pattern: "*.png"
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoised)
@@ -2919,6 +2925,7 @@ process generate_gens_data {
 	cpus 1
 	time '3h'
 	memory '5 GB'
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), val(id), path(gvcf), path(gvcf_index), path(cov_stand), path(cov_denoise)
@@ -3232,7 +3239,9 @@ process postprocessgatk {
 		tuple val(group), val(id), val(i), path(tar), path(ploidy), val(shard_no), val(shard)
 
 	output:
-		tuple val(group), val(id), path("genotyped-intervals-${group}-vs-cohort30.vcf.gz"), path("genotyped-segments-${group}-vs-cohort30.vcf.gz"), path("denoised-${group}-vs-cohort30.vcf.gz"), emit: called_gatk
+	    tuple val(group), val(id), path("genotyped-intervals-${group}-vs-cohort30.vcf.gz"), emit: genotyped_intervals
+        tuple val(group), val(id), path("genotyped-segments-${group}-vs-cohort30.vcf.gz"), emit: genotyped_segments
+        tuple val(group), val(id), path("denoised-${group}-vs-cohort30.vcf.gz"), emit: denoised_copy_ratios
 		path "*versions.yml", emit: versions
 
 
@@ -3310,28 +3319,53 @@ def postprocessgatk_version(task) {
 }
 
 
-process filter_merge_gatk {
+process filter_gatk {
 	cpus 2
 	tag "$group"
 	time '2h'
 	memory '1 GB'
 	publishDir "${params.results_output_dir}/sv_vcf", mode: 'copy', overwrite: 'true'
-
+    
 	input:
-		tuple val(group), val(id), path(gentotyped_intervals), path(genotyped_segments), path(denoised_copy_ration)
+		tuple val(group), val(id), path(genotyped_segments)
 
 	output:
-		tuple val(group), val(id), path("${id}.gatk.filtered.merged.vcf"), emit: merged_filtered_vcf
+		tuple val(group), val(id), path("${id}.gatk.filtered.vcf.gz"), emit: vcf_gz
 
 	script:
 		"""
-		filter_gatk.pl $genotyped_segments > ${id}.gatk.filtered.vcf
-		mergeGATK.pl ${id}.gatk.filtered.vcf > ${id}.gatk.filtered.merged.vcf
+		filter_gatk.pl $genotyped_segments | bgzip -c > ${id}.gatk.filtered.vcf.gz
 		"""
 
 	stub:
 		"""
-		touch "${id}.gatk.filtered.merged.vcf"
+		touch "${id}.gatk.filtered.vcf.gz"
+		"""
+}
+
+
+process merge_gatk {
+	cpus 2
+	tag "$group"
+	time '2h'
+	memory '1 GB'
+	publishDir "${params.results_output_dir}/sv_vcf", mode: 'copy', overwrite: 'true'
+	container "${params.container_perl}"
+
+	input:
+	tuple val(group), val(id), path(gatk_filtered_vcf)
+
+	output:
+		tuple val(group), val(id), path("${id}.gatk.filtered.merged.vcf.gz"), emit: vcf_gz
+
+	script:
+		"""
+	    mergeGATK.pl ${gatk_filtered_vcf} | bgzip -c > ${id}.gatk.filtered.merged.vcf.gz
+		"""
+
+	stub:
+	    """
+		touch "${id}.gatk.filtered.merged.vcf.gz"
 		"""
 }
 
@@ -4488,6 +4522,7 @@ process svvcf_to_bed {
 	memory '1 GB'
 	time '1h'
 	cpus 2
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), path(vcf)
@@ -4549,6 +4584,7 @@ process create_yaml {
 	tag "$group"
 	time '5m'
 	memory '1 GB'
+	container "${params.container_perl}"
 
 	input:
 		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis)
