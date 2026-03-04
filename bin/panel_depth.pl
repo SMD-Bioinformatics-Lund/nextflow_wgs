@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 use strict;
-
 use warnings;
+
 my $cutoff = 500;
 die "USAGE: panel_depth.pl BAM BED\n" unless @ARGV == 2;
 

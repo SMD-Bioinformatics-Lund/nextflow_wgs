@@ -1505,7 +1505,6 @@ process depth_onco {
 	memory '10 GB'
 	publishDir "${params.results_output_dir}/cov", mode: 'copy', overwrite: 'true'
 	tag "$id"
-	container "${params.container_perl}"
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
 
