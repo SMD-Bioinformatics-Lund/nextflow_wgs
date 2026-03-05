@@ -4,12 +4,13 @@ When running the pipeline, two separate results folders are produced. One contai
 
 ## Cron-folder
 
-| Subfolder | Mode | Process              | Name            | Description                       |
-| --------- | ---- | -------------------- | --------------- | --------------------------------- |
-| gens      | wgs  | `generate_gens_data` | `<group>.gens`  | Input data to Gens                |
-| loqus     |      | `add_to_loqusdb`     | `<group>.loqus` | Artefact frequencies to LoqusDB   |
-| qc        |      | `qc_to_cdm`          | `<group>.cdm`   | Sample quality information to CDM |
-| scout     |      | `scout`              | `<group>.yaml`  | Scout input YAML file             |
+| Subfolder | Mode | Process              | Name                      | Description                         |
+| --------- | ---- | -------------------- | ------------------------- | ----------------------------------- |
+| gens      | wgs  | `generate_gens_data` | `<group>.gens`            | Input data to Gens                  |
+| gens      | wgs  | `gens_v4_cron`       | `<group>.gens_const.yaml` | Gens case YAML for `gens load case` |
+| loqus     |      | `add_to_loqusdb`     | `<group>.loqus`           | Artefact frequencies to LoqusDB     |
+| qc        |      | `qc_to_cdm`          | `<group>.cdm`             | Sample quality information to CDM   |
+| scout     |      | `scout`              | `<group>.yaml`            | Scout input YAML file               |
 
 ## Results-folder
 
@@ -24,7 +25,6 @@ When running the pipeline, two separate results folders are produced. One contai
 | cov            | Coverage    | onco  | `depth_onco`                    | `<group>.lowcov.overlapping.bed`                 | Coverage calculations                                                             |
 | cov            | Coverage    | wgs   | `gatkcov`                       | `<group>.denoisedCR.tsv`                         | Coverage calculations                                                             |
 | cov            | Coverage    | wgs   | `gatkcov`                       | `<group>.standardizedCR.tsv`                     | Coverage calculations                                                             |
-| cov            | Coverage    | wgs   | `d4_coverage`                   | `<group>_coverage.d4`                            | Coverage calculations                                                             |
 | ped            | Pedigree    | trio  | `create_ped`                    | `<group>_[ma\|fa\|base].ped`                     | Pedigree information                                                              |
 | ped            | Pedigree    | trio  | `peddy`                         | `<group>_[ma\|fa\|base].peddy.ped`               | Pedigree information                                                              |
 | ped            | Pedigree    | trio  | `peddy`                         | `<group>.sex_check.csv`                          | Control of assigned sex                                                           |
