@@ -34,6 +34,7 @@ workflow VALIDATE_SAMPLES_CSV {
 		'father',
 		'mother',
 		'platform',
+		'sequencing_run',
 		'read1',
 		'read2',
 		'analysis'
