@@ -589,6 +589,7 @@ process adjust_cftr_homopolymer_repeat_scores {
 	tag "$group"
 	time '1h'
 	memory '5 GB'
+	container "${params.container_pysam_cmdvcf}"
 
 	input:
 		tuple val(group), val(type), path(vcf), val(id), path(bam), path(bai)
