@@ -4,6 +4,7 @@ workflow SNV_ANNOTATE {
 
 
 	take:
+	ch_bam
 	ch_snv_indels_vcf
 	ch_ped
 
@@ -46,6 +47,15 @@ workflow SNV_ANNOTATE {
 
 	// SCORE VARIANTS //
 	genmodscore(inher_models.out.vcf)
+	vcf_completion_ch = channel.empty()
+	if (params.cftr) {
+		cftr_ch = genmodscore.out.scored_vcf.join(ch_bam)
+		adjust_cftr_homopolymer_repeat_scores(cftr_ch)
+		vcf_completion_ch = (adjust_cftr_homopolymer_repeat_scores.out.rescored)
+	}
+	else {
+		vcf_completion_ch = genmodscore.out.scored_vcf
+	}
 	vcf_completion(genmodscore.out.scored_vcf)
 	ch_output_info = ch_output_info.mix(vcf_completion.out.snv_INFO)
 
@@ -572,4 +582,31 @@ def vcf_completion_version(task) {
 	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
 	END_VERSIONS
 	"""
+}
+
+process adjust_cftr_homopolymer_repeat_scores {
+	cpus 2
+	tag "$group"
+	time '1h'
+	memory '5 GB'
+
+	input:
+		tuple val(group), val(type), path(vcf), val(id), path(bam), path(bai)
+
+	output:
+		tuple val(group), val(type), path("${group}.scored.cftr.vcf"), emit: rescored
+
+	script:
+		"""
+		cftr_5T_TG.py \\
+			--input_vcf $vcf \\
+			--bam $bam \\
+			--out_vcf ${group}.scored.cftr.vcf \\
+		"""
+
+	stub:
+	"""
+		touch "${group}.scored.cftr.vcf"
+		touch "${group}_snv.INFO"
+		"""	
 }
