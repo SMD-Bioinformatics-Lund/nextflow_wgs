@@ -1,4 +1,6 @@
 #!/usr/bin/env nextflow
+include { bgzip_index_vcf } from './util.nf'
+
 
 workflow SNV_ANNOTATE {
 
@@ -49,7 +51,9 @@ workflow SNV_ANNOTATE {
 	genmodscore(inher_models.out.vcf)
 	vcf_completion_ch = channel.empty()
 	if (params.cftr) {
-		cftr_ch = genmodscore.out.scored_vcf.join(ch_bam)
+		bgzip_index_vcf(genmodscore.out.scored_vcf)
+		cftr_ch = bgzip_index_vcf.out.compressed_indexed_vcf.join(ch_bam)
+
 		adjust_cftr_homopolymer_repeat_scores(cftr_ch)
 		vcf_completion_ch = (adjust_cftr_homopolymer_repeat_scores.out.rescored)
 	}
@@ -592,7 +596,7 @@ process adjust_cftr_homopolymer_repeat_scores {
 	container "${params.container_pysam_cmdvcf}"
 
 	input:
-		tuple val(group), val(type), path(vcf), val(id), path(bam), path(bai)
+		tuple val(group), val(type), path(vcf), path(tbi), val(id), path(bam), path(bai)
 
 	output:
 		tuple val(group), val(type), path("${group}.scored.cftr.vcf"), emit: rescored
