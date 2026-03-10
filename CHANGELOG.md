@@ -1,7 +1,12 @@
 # CHANGELOG
 
-### 3.23.0
+### 3.23.1
 * Replace sentieon with new version, v202503.02.
+
+### 3.23.0
+* pass contamination check for WGS into CDM json
+* use python-script nomenclature for CDM load
+* require sequencing_run from CSV instead of regex from fastq-files (breaks old CSVs for panels)
 
 ### 3.22.1
 * Remove D4 coverage generation and `d4_file` Scout YAML output from the workflow.
