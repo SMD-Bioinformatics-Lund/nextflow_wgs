@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.23.1
+* Replace sentieon with new version, v202503.02.
+
 ### 3.23.0
 * pass contamination check for WGS into CDM json
 * use python-script nomenclature for CDM load
