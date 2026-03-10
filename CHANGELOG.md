@@ -1,5 +1,79 @@
 # CHANGELOG
 
+### 3.23.0
+* pass contamination check for WGS into CDM json
+* use python-script nomenclature for CDM load
+* require sequencing_run from CSV instead of regex from fastq-files (breaks old CSVs for panels)
+
+### 3.22.1
+* Remove D4 coverage generation and `d4_file` Scout YAML output from the workflow.
+* Remove D4 software/output references from documentation.
+
+### 3.22.0
+* Update Gens v4 output to write a case yaml instead of the command files.
+
+### 3.21.0
+* Check defined params for file existence and non-emptines and directory existence
+
+### 3.20.13
+* Split SNV split/normalize steps into new `SPLIT_NORMALIZE_SNVS` workflow
+* Move panel-only Freebayes merge to run before split/normalize (handles empty Freebayes VCFs)
+* Move mito SNV merge to run after split/normalize on intersected WGS output.
+* Add `skip_mito` workflow flag
+* Add `skip_mito` defaults per profile
+* Add containers for vcflib, bedtools, and perl/htslib utilities 
+
+### 3.20.12
+* Add flag `params.skip_loqusdb` to skip loqusdb CRON
+
+### 3.20.11
+* Fix missing CNVkit process stub outputs
+
+### 3.20.10
+* Better plotting for CNVkit, gene based from genepanels
+* CNVkit 0.9.6 -> 0.9.12 (no changes to calling)
+* Process to keep track of analyzed genes if valid gene list is chosen
+
+### 3.20.9
+* Rename fastgnomad binary from annotate to fastgnomad 
+* Compress fastgnomad input and output VCF
+
+### 3.20.8
+* Fix LSP parsing error introduced in #353
+* Update `constitutional` vcf record checking code with valid nxf syntax and move to own function
+* Fix easy LSP warnings
+
+### 3.20.7
+* Rename all instances of `Channel` to `channel`
+
+### 3.20.6
+* Input CSV validation workflow
+
+### 3.20.5
+* Update PR template
+
+### 3.20.4
+* Peddy activated for constitutional
+
+### 3.20.3
+* Wait for Gens data before generating Gens v4 CRON script
+
+### 3.20.2
+* added clinical scout institute to familjär hyperkolesterlomi
+
+### 3.20.1
+* Update Gens CRON suffix `.gens_v4` -> `.gens_v4_const`
+
+### 3.20.0
+* Gens v4 label updates
+* Don't CRON load Gens v4 UPD track for singles and parent samples
+* Don't calculate Y-coverage for females
+* Split the UPD metrics for sample meta data into separate count and percentage fields
+
+### 3.19.1
+* Add new config param `params.cdm_assay`
+* Change constitutionalv1-0 CDM assay from `mody` to `constitutionalv1-0`
+
 ### 3.19.0
 * constitutional profile
   - bed and interval files

@@ -178,8 +178,8 @@ my %assays = (
             'institute_owner' => 'MODY',
         },
         'fh' => {
-            'institute' => 'FH',
-            'institute_owner' => 'FH'
+            'institute' => 'constitutional',
+            'institute_owner' => 'constitutional'
         },
         'aat' => {
             'institute' => 'MODY',
@@ -261,9 +261,6 @@ while ( <INFO> ) {
     }
     elsif ($category eq "mtBAM") {
         $INFO{mtBAM}->{$subcat} = $filepath;
-    }
-    elsif ($category eq "D4") {
-        $INFO{D4}->{$subcat} = $filepath;
     }
     elsif ($category eq "IMG") {
         $INFO{IMG}->{$subcat} = $filepath;
@@ -392,9 +389,6 @@ foreach my $ind (@inher_patterns) {
         }
         if ($INFO{mtBAM}{$pedline[1]}) {
             print OUT "    mt_bam: $INFO{mtBAM}{$pedline[1]}\n";
-        }
-        if ($INFO{D4}{$pedline[1]}) {
-            print OUT "    d4_file: $INFO{D4}{$pedline[1]}\n";
         }
     }
     ##########################################

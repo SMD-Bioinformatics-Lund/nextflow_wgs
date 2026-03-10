@@ -13,8 +13,8 @@ workflow SNV_ANNOTATE {
 	params.results_output_dir = params.outdir + '/' + params.subdir
 	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
 
-	ch_versions = Channel.empty()
-	ch_output_info = Channel.empty()
+	ch_versions = channel.empty()
+	ch_output_info = channel.empty()
 
 	annotate_vep(ch_snv_indels_vcf)
 	vcfanno(annotate_vep.out.vcf)
@@ -75,7 +75,7 @@ process annotate_vep {
 	time '5h'
 
 	input:
-		tuple val(group), val(id), path(vcf)
+		tuple val(group), path(vcf)
 
 	output:
 		tuple val(group), path("${group}.vep.vcf"), emit: vcf
@@ -226,7 +226,7 @@ process extract_indels_for_cadd {
 	time '1h'
 
 	input:
-		tuple val(group), val(id), path(vcf)
+	    tuple val(group), path(vcf)
 
 	output:
 		tuple val(group), path("${group}.only_indels.vcf"), emit: vcf

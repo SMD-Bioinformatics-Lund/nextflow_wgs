@@ -14,7 +14,7 @@ description = """
 Generates inputs for Gens v4+
 
 * Parses ROH output and UPD output into a single bed file
-* Calculates overal ROH %
+* Calculates overall ROH %
 * Calculates average chromosome coverage
 * Summarizes various UPD / ROH metrics
 """
@@ -34,7 +34,6 @@ def main(
     sample: str,
     sex: str,
     roh_quality_threshold: float,
-    cov_diff_threshold: float,
     color_roh: str,
     color_upd_maternal: str,
     color_upd_paternal: str,
@@ -42,6 +41,7 @@ def main(
     out_gens_track_upd: Path,
     out_chrom_meta: Path,
     out_meta: Path,
+    analysis_mode: str,
 ):
     LOG.info("Starting up")
 
@@ -52,10 +52,17 @@ def main(
     roh_entries: List[RohEntry] = parse_roh(roh_path, sample, roh_quality_threshold)
     LOG.info("Parsing UPD")
     upd_entries: List[UPDEntry] = parse_upd(upd_regions_path)
-    LOG.info("Parsing UPD sites")
-    upd_site_info: Dict[str, Dict[str, str]] = parse_upd_sites(upd_sites_path)
+
+    is_single_sample = analysis_mode == "single"
+
+    if is_single_sample:
+        LOG.info("Skipping UPD site parsing for single-sample analysis")
+        upd_site_info: Dict[str, Dict[str, str]] = defaultdict(dict)
+    else:
+        LOG.info("Parsing UPD sites")
+        upd_site_info: Dict[str, Dict[str, str]] = parse_upd_sites(upd_sites_path)
     LOG.info("Parsing coverage")
-    avg_cov_entries: List[ChromCovEntry] = parse_cov(cov_path, cov_diff_threshold, sex)
+    avg_cov_entries: List[ChromCovEntry] = parse_cov(cov_path, sex)
 
     tot_roh_length = sum(
         [entry.get_length() for entry in roh_entries if entry.chrom in AUTO_CHROMS]
@@ -82,28 +89,39 @@ def main(
     LOG.info("Writing per-chromosome meta to %s", str(out_chrom_meta))
     with open_file(out_chrom_meta, "w") as out_fh:
 
-        print("\t".join(["Chromosome", "type", "value", "color"]), file=out_fh)
+        print("\t".join(["Chromosome", "type", "value"]), file=out_fh)
         for chrom_cov in avg_cov_entries:
-            label = "Estimated chromosomal copy numbers"
-            print(f"{chrom_cov.chrom}\t{label}\t{chrom_cov.cov}\t{chrom_cov.color}", file=out_fh)
 
-        upd_labels = [
-            # "Chromosome",
-            "Total SNPs",
-            "Non-informative",
-            "Mismatch father",
-            "Mismatch mother",
-            "Anti-UPD",
-        ]
+            # Skip Y chromosome coverage for females
+            if chrom_cov.chrom == "Y" and sex == "F":
+                continue
+
+            label = "Estimated copy number"
+            print(f"{chrom_cov.chrom}\t{label}\t{chrom_cov.cov}", file=out_fh)
+
+        if not is_single_sample:
+            upd_labels = [
+                "Total SNPs",
+                "Non-informative",
+                "Non-informative (%)",
+                "Mismatch father",
+                "Mismatch father (%)",
+                "Mismatch mother",
+                "Mismatch mother (%)",
+                "Anti-UPD",
+                "Anti-UPD (%)",
+            ]
+        else:
+            upd_labels = []
         for chrom in CHROMS:
             for upd_label in upd_labels:
                 field_value = upd_site_info[chrom].get(upd_label, 0)
-                print(f"{chrom}\t{upd_label}\t{field_value}\trgb(0,0,0)", file=out_fh)
+                print(f"{chrom}\t{upd_label}\t{field_value}", file=out_fh)
 
     LOG.info("Writing sample-wide meta to %s", str(out_meta))
     with open_file(out_meta, "w") as out_fh:
         print("\t".join(["type", "value"]), file=out_fh)
-        print("\t".join(["%ROH", str(roh_perc)]), file=out_fh)
+        print("\t".join(["%Autosomal LOH", str(roh_perc)]), file=out_fh)
 
 
 class RohEntry:
@@ -122,7 +140,7 @@ class RohEntry:
         return self.end - self.start
 
     def get_bed_fields(self, color: str) -> List[str]:
-        return [self.chrom, str(self.start), str(self.end), "ROH", ".", ".", ".", ".", color]
+        return [self.chrom, str(self.start), str(self.end), "LOH", ".", ".", ".", ".", color]
 
 
 class UPDEntry:
@@ -149,7 +167,7 @@ class UPDEntry:
             self.chrom,
             str(self.start),
             str(self.end),
-            f"UPD ({self.origin})",
+            f"Uniparental segment ({self.origin})",
             ".",
             ".",
             ".",
@@ -172,10 +190,9 @@ class CovEntry:
 
 
 class ChromCovEntry:
-    def __init__(self, chrom: str, cov: float, color: str):
+    def __init__(self, chrom: str, cov: float):
         self.chrom = chrom
         self.cov = cov
-        self.color = color
 
 
 def parse_upd_sites(upd_sites: Path) -> Dict[str, Dict[str, str]]:
@@ -217,10 +234,14 @@ def parse_upd_sites(upd_sites: Path) -> Dict[str, Dict[str, str]]:
 
         chrom_info: Dict[str, str] = {
             "Total SNPs": str(chrom_tot),
-            "Non-informative": f"{non_informative} ({non_informative_perc}%)",
-            "Mismatch mother": f"{paternal_origin} ({paternal_origin_perc}%)",
-            "Mismatch father": f"{maternal_origin} ({maternal_origin_perc}%)",
-            "Anti-UPD": f"{anti} ({anti_perc}%)",
+            "Non-informative": f"{non_informative}",
+            "Non-informative (%)": f"{non_informative_perc}",
+            "Mismatch mother": f"{paternal_origin}",
+            "Mismatch mother (%)": f"{paternal_origin_perc}",
+            "Mismatch father": f"{maternal_origin}",
+            "Mismatch father (%)": f"{maternal_origin_perc}",
+            "Anti-UPD": f"{anti}",
+            "Anti-UPD (%)": f"{anti_perc}",
         }
 
         out_fields[chrom] = chrom_info
@@ -243,7 +264,7 @@ def parse_chrom_lengths(chrom_lengths_path: Path) -> Dict[str, int]:
     return chrom_lengths
 
 
-def parse_cov(cov: Path, cov_diff_thres: float, sex: str) -> List[ChromCovEntry]:
+def parse_cov(cov: Path, sex: str) -> List[ChromCovEntry]:
     cov_sums = {}
     with open_file(cov, "r") as cov_fh:
         for line in cov_fh:
@@ -263,14 +284,11 @@ def parse_cov(cov: Path, cov_diff_thres: float, sex: str) -> List[ChromCovEntry]
     scaled_covs = []
     for chrom in CHROMS:
 
-        color = "rgb(0,0,0)"
         chrom_count = 1 if sex == "M" and chrom in SEX_CHROMS else 2
         # Calculate the full value
         cn_val = chrom_count * 2 ** avg_covs.get(chrom, 0)
-        if abs(cn_val - chrom_count) > cov_diff_thres:
-            color = "rgb(255,0,0)"
 
-        scaled_covs.append(ChromCovEntry(chrom, round(cn_val, 2), color))
+        scaled_covs.append(ChromCovEntry(chrom, round(cn_val, 2)))
 
     return scaled_covs
 
@@ -327,7 +345,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description=description)
 
     parser.add_argument(
-        "--roh", required=True, type=Path, help="ROH output as provided by the bcftools command roh"
+        "--roh", required=True, type=Path, help="ROH (LOH) output as provided by the bcftools command roh"
     )
     parser.add_argument(
         "--upd_regions",
@@ -373,12 +391,6 @@ def parse_arguments():
         type=float,
         help="Only entries with quality threshold above this in --roh are considered",
     )
-    parser.add_argument(
-        "--cov_diff_threshold",
-        default=0.1,
-        type=float,
-        help="Chromosome coverage values differing more than this are colored in red in output data",
-    )
     parser.add_argument("--color_roh", default="rgb(255,186,60)", help="Color for ROH in track")
     parser.add_argument(
         "--color_upd_maternal", default="rgb(255,75,75)", help="Color for maternal UPD in track"
@@ -394,13 +406,19 @@ def parse_arguments():
         "--out_gens_track_upd", required=True, type=Path, help="Bed ranges with UPD information"
     )
     parser.add_argument(
-        "--out_meta", required=True, type=Path, help="Output global meta info (i.e. ROH%)"
+        "--out_meta", required=True, type=Path, help="Output global meta info (i.e. LOH%)"
     )
     parser.add_argument(
         "--out_chrom_meta",
         required=True,
         type=Path,
         help="Writes per-chromosome information about coverage and UPD details",
+    )
+    parser.add_argument(
+        "--analysis_mode",
+        default="family",
+        choices=["family", "single"],
+        help="Generate Gens input for either family (UPD info in meta table) or single"
     )
 
     args = parser.parse_args()
@@ -422,7 +440,6 @@ if __name__ == "__main__":
         args.sample,
         args.sex,
         args.roh_quality_threshold,
-        args.cov_diff_threshold,
         args.color_roh,
         args.color_upd_maternal,
         args.color_upd_paternal,
@@ -430,4 +447,5 @@ if __name__ == "__main__":
         args.out_gens_track_upd,
         args.out_chrom_meta,
         args.out_meta,
+        args.analysis_mode,
     )

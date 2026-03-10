@@ -10,6 +10,8 @@ def test_merge_json_output_sorted(tmp_path: Path) -> None:
     file1.write_text(json.dumps({"b": 1, "a": 2}))
     file2.write_text(json.dumps({"d": 4, "c": 3}))
 
+    # FIXME: Looks like this should be imported directly from module
+    # Then the test would not be sensitive to caller base folder
     result = subprocess.run(
         [
             sys.executable,
