@@ -1,5 +1,6 @@
 #! /usr/bin/perl -w
 #use MongoDB;
+#
 use strict;
 use warnings;
 use Data::Dumper;
@@ -286,7 +287,6 @@ close INFO;
 
 my $kit = "Intersected WGS"; ## placeholder, does not change for panels
 my $diagnosis = $opt{d};
-
 ### Read ped, save individuals ####################
 my $PED = $opt{ped};
 open (PED, $PED) or die "Cannot open $PED\n";
@@ -295,6 +295,7 @@ while ( <PED> ) {
     push @ped, $_;
 }
 close PED;
+if (@ped == 3 and $assay eq 'wgs-hg38'){ $diagnosis.="+OMIM-AUTO+panelapp-green"; }
 ####################################################
 
 ### get genlist ###
