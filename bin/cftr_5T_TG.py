@@ -102,7 +102,7 @@ def print_vcf(in_vcf,out_vcf,variation_combo_str):
             if var_id in ids_of_variants_to_modify:
                 if var_dict['INFO'].get('RankScore'):
                     family_id = str(var_dict['INFO']['RankScore'].split(":")[0])
-                    current_score = int(var_dict['INFO']['RankScore'].split(":")[1])
+                    current_score = float(var_dict['INFO']['RankScore'].split(":")[1])
                     adjusted_score = current_score + SCORE_ADJUSTMENT
                     var_dict['INFO']['RankScore'] = f"{family_id}:{str(adjusted_score)}"
                 else:
