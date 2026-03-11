@@ -60,7 +60,7 @@ workflow SNV_ANNOTATE {
 	else {
 		vcf_completion_ch = genmodscore.out.scored_vcf
 	}
-	vcf_completion(genmodscore.out.scored_vcf)
+	vcf_completion(vcf_completion_ch)
 	ch_output_info = ch_output_info.mix(vcf_completion.out.snv_INFO)
 
 	// VERSIONS
