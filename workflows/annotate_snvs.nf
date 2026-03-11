@@ -551,7 +551,7 @@ process vcf_completion {
 		tuple val(group), val(type), path(vcf)
 
 	output:
-		tuple val(group), val(type), path("${group_score}.scored.vcf.gz"), path("${group_score}.scored.vcf.gz.tbi"), emit: vcf_tbi
+		tuple val(group), val(type), path("${group_score}.scored*vcf.gz"), path("${group_score}.scored*vcf.gz.tbi"), emit: vcf_tbi
 		tuple val(group), path("${group}_snv.INFO"), emit: snv_INFO
 		path "*versions.yml", emit: versions
 
