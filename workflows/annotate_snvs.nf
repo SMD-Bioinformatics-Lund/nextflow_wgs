@@ -563,7 +563,7 @@ process vcf_completion {
 		sed 's/ID=MT,length/ID=M,length/' -i $vcf
 		bgzip -@ ${task.cpus} $vcf -f
 		tabix ${vcf}.gz -f
-		echo "SNV	$type	${params.accessdir}/vcf/${group_score}.scored.vcf.gz" > ${group}_snv.INFO
+		echo "SNV	$type	${params.accessdir}/vcf/${vcf}.gz" > ${group}_snv.INFO
 
 		${vcf_completion_version(task)}
 		"""
