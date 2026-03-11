@@ -26,6 +26,8 @@ GetOptions(
 
 my @required = ('g', 'd', 'out', 'files', 'ped', 'panelsdef', 'assay', 'antype');
 
+my $DEFAULT_PANELS_TRIO = '+OMIM-AUTO+panelapp-green'; # choose deafault panels for trios
+
 my @missing;
 foreach my $param (@required) {
     push @missing, $param unless exists $opt{$param};
@@ -295,7 +297,9 @@ while ( <PED> ) {
     push @ped, $_;
 }
 close PED;
-if (@ped == 3 and $assay eq 'wgs-hg38'){ $diagnosis.="+OMIM-AUTO+panelapp-green"; }
+
+if (@ped == 3 and $assay eq 'wgs-hg38'){ $diagnosis .= $DEFAULT_PANELS_TRIO; } # change default panels if wgs-hg38 trio
+
 ####################################################
 
 ### get genlist ###
