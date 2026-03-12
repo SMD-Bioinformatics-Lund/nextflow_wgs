@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.23.2
+* append OMIM-AUTO+panelapp-green as default panels for trios in bin/create_yml.pl
+
 ### 3.23.1
 * Replace sentieon with new version, v202503.02.
 
