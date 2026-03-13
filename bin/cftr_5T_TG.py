@@ -7,7 +7,7 @@ import itertools
 from pprint import pprint
 from collections import defaultdict
 
-SCORE_ADJUSTMENT = 25
+SCORE_ADJUSTMENT = 20
 CENTER_7T = 117548632
 PADDING_7T = 10
 REF_T_REPS = 7
@@ -112,7 +112,7 @@ def print_vcf(in_vcf,out_vcf,variation_combo_str):
         
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Adds variantcaller specific penalties to variants with only one variant caller")
+    parser = argparse.ArgumentParser(description="Finds variants in CFTR giving rise to 5T or 14TG and gives them surplus scores")
 
     parser.add_argument(
         "--input_vcf",
