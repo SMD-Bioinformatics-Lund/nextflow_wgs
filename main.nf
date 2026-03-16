@@ -202,16 +202,16 @@ workflow NEXTFLOW_WGS {
 	ch_svvcf_to_bed_meta  = ch_split_normalize_meta
 
 	// meta sent to qc_to_cdm
-	ch_qc_extra = ch_samplesheet
+	ch_runfolder = ch_samplesheet
 		.map { row ->
 			def group = row.group
 			def id = row.id
+			def lims_id = row.clarity_sample_id
 			def diagnosis = row.diagnosis
-			def fastq_r1 = row.read1
-			def fastq_r2 = row.read2
-			tuple(group, id, diagnosis, fastq_r1, fastq_r2)
+			def sequencing_run = row.sequencing_run
+			def n_reads = row.n_reads
+			tuple(group, id, lims_id, diagnosis, sequencing_run, n_reads)		
 		}
-
 	// meta sent to stranger
 	ch_stranger_meta = ch_samplesheet
 		.filter { row ->
@@ -354,9 +354,6 @@ workflow NEXTFLOW_WGS {
 	ch_versions = ch_versions.mix(IDSNP_CALL.out.versions.first())
 
 	// COVERAGE //
-	d4_coverage(ch_bam_bai)
-	ch_versions = ch_versions.mix(d4_coverage.out.versions.first())
-	ch_output_info = ch_output_info.mix(d4_coverage.out.d4_INFO)
 
 	if (params.gatkcov) {
 		gatkcov(ch_gatkcov_meta.join(ch_bam_bai, by: [0, 1]))
@@ -367,11 +364,6 @@ workflow NEXTFLOW_WGS {
 		depth_onco(ch_bam_bai)
 	}
 
-	// CONTAMINATION //
-	if (params.antype == "wgs") {
-		verifybamid2(ch_bam_bai)
-		ch_versions = ch_versions.mix(verifybamid2.out.versions.first())
-	}
 
 	// SNV CALLING //
 	dnascope(ch_bam_bai.join(bqsr.out.dnascope_bqsr, by: [0, 1]))
@@ -411,7 +403,14 @@ workflow NEXTFLOW_WGS {
     ch_versions = ch_versions.mix(SPLIT_NORMALIZE_SNVS.out.versions)
 
     ch_rename_mito_contigs_in = channel.empty() 
-    
+
+	// CONTAMINATION //
+	if (params.antype == "wgs") {
+		verifybamid2(ch_bam_bai)
+		ch_qc_json = ch_qc_json.mix(verifybamid2.out.contamination_json)
+		ch_versions = ch_versions.mix(verifybamid2.out.versions.first())
+	}
+ 
 	// MITO SNVS and SVs
     // TODO: Break up into workflow(s)
 	if (!params.skip_mito) { 
@@ -866,7 +865,7 @@ workflow NEXTFLOW_WGS {
 
 	// MERGE QC JSONs AND OUTPUT TO CDM //
 	merge_qc_json(ch_qc_json.groupTuple(by: [0,1]))
-	ch_qc_to_cdm = merge_qc_json.out.qc_cdm_merged.join(ch_qc_extra, by: [0,1])
+	ch_qc_to_cdm = merge_qc_json.out.qc_cdm_merged.join(ch_runfolder, by: [0,1])
 	qc_to_cdm(ch_qc_to_cdm)
 
 	// OUTPUT INFO
@@ -1453,53 +1452,6 @@ process sentieon_qc_postprocess {
 		"""
 }
 
-process d4_coverage {
-	cpus 16
-	memory '10 GB'
-	publishDir "${params.results_output_dir}/cov", mode: 'copy', overwrite: 'true', pattern: '*.d4'
-	tag "$id"
-	container  "${params.container_d4tools}"
-
-	input:
-		tuple val(group), val(id), path(bam), path(bai)
-
-	output:
-		tuple val(group), val(id), path("${id}_coverage.d4"), emit: ch_final_d4
-		tuple val(group), path("${group}_d4.INFO"), emit: d4_INFO
-		path "*versions.yml", emit: versions
-
-	when:
-		params.run_chanjo2
-
-	script:
-	"""
-	d4tools create \\
-		--threads ${task.cpus} \\
-		"${bam}" \\
-		"${id}_coverage.d4"
-
-	echo "D4	$id	/access/${params.subdir}/cov/${id}_coverage.d4" > ${group}_d4.INFO
-
-	${d4_coverage_version(task)}
-	"""
-
-	stub:
-	"""
-	touch "${id}_coverage.d4"
-	touch "${group}_d4.INFO"
-
-	${d4_coverage_version(task)}
-	"""
-}
-def d4_coverage_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    d4tools: \$(echo \$( d4tools 2>&1 | head -1 ) | sed "s/.*version: //" | sed "s/)//" )
-	END_VERSIONS
-	"""
-}
-
 process verifybamid2 {
 	cpus 16
 	memory '10 GB'
@@ -1513,6 +1465,7 @@ process verifybamid2 {
 	output:
 		path("${id}.result.selfSM")
 		path("${id}.result.Ancestry")
+		tuple val(group), val(id), path("${id}.contamination.json"), emit: contamination_json
 		path "*versions.yml", emit: versions
 
 	script:
@@ -1523,6 +1476,9 @@ process verifybamid2 {
 			--BamFile ${bam}
 
 			mv result.selfSM ${id}.result.selfSM
+			tail -n 1 ${id}.result.selfSM | cut -f 7 > ${id}.contamination.value
+			value=\$(cat ${id}.contamination.value)
+			echo "{ \\"contamination\\": \\"\$value\\" }" > ${id}.contamination.json
 			mv result.Ancestry ${id}.result.Ancestry
 
 		${verifybamid2_version(task)}
@@ -1532,6 +1488,7 @@ process verifybamid2 {
 		"""
 		touch "${id}.result.selfSM"
 		touch "${id}.result.Ancestry"
+		touch ${id}.contamination.json
 
 		${verifybamid2_version(task)}
 		"""
@@ -2651,10 +2608,10 @@ process qc_to_cdm {
 	time '1h'
 
 	input:
-		tuple val(group), val(id), path(qc_json), val(diagnosis), val(r1), val(r2)
+		tuple val(group), val(id), path(qc_json), val(lims_id), val(diagnosis), val(sequencing_run), val(n_reads)
 
 	output:
-		path("${id}.cdm"), emit: cdm_done
+		path("${id}.cdmpy"), emit: cdm_done
 
 
 	when:
@@ -2662,11 +2619,8 @@ process qc_to_cdm {
 
 
 	script:
-		parts = r1.split('/')
-		idx =  parts.findIndexOf {run_path_part -> run_path_part  ==~ /......_......_...._........../}
-		rundir = parts[0..idx].join("/")
 		"""
-	    echo "--run-folder ${rundir} --sample-id ${id} --subassay ${diagnosis} --assay ${params.cdm_assay} --qc ${params.results_output_dir}/qc/${id}.QC" > ${id}.cdm
+		echo "--sequencing-run ${sequencing_run} --sample-id ${id} --assay $params.cdm_assay --subassay ${diagnosis} --qc ${params.results_output_dir}/qc/${id}.QC --lims-id ${lims_id}" > ${id}.cdmpy
 		"""
 }
 
