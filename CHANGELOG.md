@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### Unreleased
+* Update vep to 114.2
+
 ### 3.23.2
 * append OMIM-AUTO+panelapp-green as default panels for trios in bin/create_yml.pl
 
