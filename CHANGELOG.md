@@ -1,7 +1,8 @@
 # CHANGELOG
 
-### Unreleased
+### 3.24.0
 * Update vep to 114.2
+* Update bed intersect with ensembl/114 and clinvar/20260226 
 
 ### 3.23.2
 * append OMIM-AUTO+panelapp-green as default panels for trios in bin/create_yml.pl
