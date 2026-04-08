@@ -494,6 +494,35 @@ workflow NEXTFLOW_WGS {
 		peddy(ch_peddy_input_vcf.join(ch_ped_base, by: [0,1]))
 		ch_output_info = ch_output_info.mix(peddy.out.peddy_INFO)
 		ch_versions = ch_versions.mix(peddy.out.versions.first())
+
+		ch_grouped = ch_samplesheet
+			.map { row ->
+				tuple(row.group, row)
+			}
+			.groupTuple()
+
+		ch_trios = ch_grouped.map { group, rows ->
+
+			def proband = rows.find { row -> row.type == "proband" }
+			def mother  = rows.find { row -> row.type == "mother" }
+			def father  = rows.find { row -> row.type == "father" }
+
+			// You can decide how strict you want to be:
+			if (!proband) return null
+
+			tuple(
+				group,
+				proband.id,
+				proband.sex,
+				mother?.id,
+				father?.id,
+				rows.collect { r -> 
+					[id: r.id, sequencing_run: r.sequencing_run]
+				}
+			)
+		}.filter { value -> value != null }
+		ch_trios.println()
+
 		peddy2cdm(peddy.out.peddy_files.join(ch_ped_input))
 		
 		if (params.antype == "wgs") {
