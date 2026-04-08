@@ -493,10 +493,9 @@ workflow NEXTFLOW_WGS {
 		// TODO: Move this guy to QC:
 		peddy(ch_peddy_input_vcf.join(ch_ped_base, by: [0,1]))
 		ch_output_info = ch_output_info.mix(peddy.out.peddy_INFO)
-
-
 		ch_versions = ch_versions.mix(peddy.out.versions.first())
-
+		peddy2cdm(peddy.out.peddy_files.join(ch_ped_input))
+		
 		if (params.antype == "wgs") {
 			// fastgnomad
 			fastgnomad(
@@ -2639,7 +2638,7 @@ process peddy {
 		tuple val(group), val(type), path(vcf), path(idx), path(ped)
 
 	output:
-		tuple path("${group}.ped_check.csv"),path("${group}.peddy.ped"), path("${group}.sex_check.csv"), emit: peddy_files
+		tuple val(group), path("${group}.ped_check.csv"),path("${group}.peddy.ped"), path("${group}.sex_check.csv"), emit: peddy_files
 		tuple val(group), path("${group}_peddy.INFO"), emit: peddy_INFO
 		path "*versions.yml", emit: versions
 
@@ -2673,6 +2672,33 @@ def peddy_version(task) {
 	    peddy: \$(echo \$(python -m peddy --version 2>&1) | sed 's/^.*peddy, version //')
 	END_VERSIONS
 	"""
+}
+
+process peddy2cdm {
+	cpus 2
+	memory '20 MB'
+	tag "$group"
+	publishDir "${params.results_output_dir}/qc", mode: 'copy', overwrite: 'true', pattern: '*.json'
+	publishDir "${params.crondir}/peddy", mode: 'copy' , overwrite: 'true', pattern: '*.json'
+	container "${params.container_pysam_cmdvcf}"
+	time '20m'
+
+	input:
+		tuple val(group), path(ped_check),path(peddy_ped), path(sex_check), val(id), val(type), val(sex), val(mother), val(father)
+
+	output:
+		tuple val(group), path("*.json"), emit: json
+
+	script:
+		"""
+		peddy2cdm.py --ped $ped_check --sex $sex_check --proband $id --mother $mother --father $father
+		"""
+
+	stub:
+		"""
+		touch "${id}.json"
+	    """
+
 }
 
 // Extract all variants (
