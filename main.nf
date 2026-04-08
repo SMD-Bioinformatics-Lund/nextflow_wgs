@@ -2690,8 +2690,15 @@ process peddy2cdm {
 		tuple val(group), path("*.json"), emit: json
 
 	script:
+		def mother_arg = mother ? "--mother ${mother}" : ""
+		def father_arg = father ? "--father ${father}" : ""
 		"""
-		peddy2cdm.py --ped $ped_check --sex $sex_check --proband $id --mother $mother --father $father
+		peddy2cdm.py \
+		--ped $ped_check \
+		--sex $sex_check \
+		--proband $id \
+		${mother_arg} \
+		${father_arg}
 		"""
 
 	stub:
