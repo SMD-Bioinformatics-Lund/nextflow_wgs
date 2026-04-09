@@ -2699,22 +2699,28 @@ process peddy2cdm {
 		tuple val(group), path(ped_check),path(peddy_ped), path(sex_check), val(id), val(sequencing_run)
 
 	output:
-		tuple val(group), path("${id}_peddy2cdm.json"), emit: json
+		tuple val(group), path("*_peddy2cdm.json"), emit: json
+		tuple val(group), path("*_peddy2cdm"), emit: cdm
 
 	script:
+		def sample_arg = id
+			.collectWithIndex { s, i -> "${s}:${sequencing_run[i]}" }
+			.join('-')
+
 		"""
 		peddy2cdm.py \
 		--ped $ped_check \
 		--sex $sex_check \
-		--sample $id \
-		--output ${id}_peddy2cdm.json
-		echo "--sequencing-run ${sequencing_run} --sample-id ${id} --assay $params.cdm_assay --peddy ${params.results_output_dir}/qc/${id}_peddy2cdm.json " > ${id}.peddy2cdm
+		--sample $sample_arg \
+		--cdmassay $params.cdm_assay \
+		--results_dir ${params.results_output_dir}/qc
 		"""
 		
 
 	stub:
 		"""
-		touch "${id}_peddy2cdm.json"
+		touch "${group}_peddy2cdm.json"
+		touch "${group}.peddy2cdm"
 	    """
 
 }
