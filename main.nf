@@ -499,18 +499,12 @@ workflow NEXTFLOW_WGS {
 		ch_peddy2cdm_input = ch_samplesheet
 			.map { row ->
 				tuple(row.group, row.id, row.sequencing_run)
-			}
+			}.groupTuple()
 
 		// add peddy output to each trio case, make sure it is matched on group
 		// combine does not do this and join will only take first entry
-		ch_peddy2cdm = peddy.out.peddy_files
-			.combine(ch_peddy2cdm_input)
-			.filter { p_group, ped_check, peddy_ped, sex_check, s_group, id, sequencing_run ->
-				p_group == s_group
-			}
-			.map { p_group, ped_check, peddy_ped, sex_check, s_group, id, sequencing_run ->
-				tuple(p_group, ped_check, peddy_ped, sex_check, id, sequencing_run)
-			}
+		ch_peddy2cdm = peddy.out.peddy_files.join(ch_peddy2cdm_input).view()
+			
 
 		peddy2cdm(ch_peddy2cdm)
 		
