@@ -499,7 +499,7 @@ workflow NEXTFLOW_WGS {
 		ch_peddy2cdm_input = ch_samplesheet
 			.map { row ->
 				tuple(row.group, row.id, row.sequencing_run)
-			}
+			}.view()
 
 		peddy2cdm(
 			peddy.out.peddy_files
