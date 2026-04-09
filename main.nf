@@ -497,15 +497,26 @@ workflow NEXTFLOW_WGS {
 
 
 		ch_peddy2cdm_input = ch_samplesheet
-			.filter { row -> row.type == "proband" }
 			.map { row ->
 				def group = row.group
 				def id = row.id
 				def sequencing_run = row.sequencing_run
 				tuple(group, id, sequencing_run)
 			}
-			
-		peddy2cdm(peddy.out.peddy_files.join(ch_peddy2cdm_input))
+
+		samples_by_group = ch_peddy2cdm_input
+			.groupTuple(by: 0)
+
+		joined = peddy.out.peddy_files
+    		.join(samples_by_group)
+
+		expanded = joined.flatMap { group, ped_check, peddy_ped, sex_check, samples ->
+    		samples.collect { s ->
+        		def (_, id, sequencing_run) = s
+        		tuple(group, ped_check, peddy_ped, sex_check, id, sequencing_run )
+    		}
+		}
+		peddy2cdm(expanded)
 		
 		if (params.antype == "wgs") {
 			// fastgnomad
