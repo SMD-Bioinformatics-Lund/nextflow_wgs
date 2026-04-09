@@ -125,7 +125,7 @@ def main(ped_file, sex_file, sample_arg, cdmassay,results_dir):
         )
 
 
-        output_file = f"{sample}.json"
+        output_file = f"{sample}_peddy.json"
         
         write_individual_jsons(result, output_file)
         write_cdm_load(sample,cdmassay,output_file,samples_dict,results_dir)

@@ -2699,8 +2699,8 @@ process peddy2cdm {
 		tuple val(group), path(ped_check),path(peddy_ped), path(sex_check), val(id), val(sequencing_run)
 
 	output:
-		tuple val(group), path("*_peddy2cdm.json"), emit: json
-		tuple val(group), path("*_peddy2cdm"), emit: cdm
+		tuple val(group), path("*peddy.json"), emit: json
+		tuple val(group), path("*peddy2cdm"), emit: cdm
 
 	script:
 		def sample_arg = id
@@ -2719,7 +2719,7 @@ process peddy2cdm {
 
 	stub:
 		"""
-		touch "${group}_peddy2cdm.json"
+		touch "${group}_peddy.json"
 		touch "${group}.peddy2cdm"
 	    """
 
