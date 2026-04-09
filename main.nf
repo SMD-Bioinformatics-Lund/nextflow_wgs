@@ -495,35 +495,17 @@ workflow NEXTFLOW_WGS {
 		ch_output_info = ch_output_info.mix(peddy.out.peddy_INFO)
 		ch_versions = ch_versions.mix(peddy.out.versions.first())
 
-		ch_grouped = ch_samplesheet
+
+		ch_peddy2cdm_input = ch_samplesheet
+			.filter { row -> row.type == "proband" }
 			.map { row ->
-				tuple(row.group, row)
+				def group = row.group
+				def id = row.id
+				def sequencing_run = row.sequencing_run
+				tuple(group, id, sequencing_run)
 			}
-			.groupTuple()
-
-		ch_trios = ch_grouped.map { group, rows ->
-
-			def proband = rows.find { row -> row.type == "proband" }
-			def mother  = rows.find { row -> row.type == "mother" }
-			def father  = rows.find { row -> row.type == "father" }
-
-			// You can decide how strict you want to be:
-			if (!proband) return null
-
-			tuple(
-				group,
-				proband.id,
-				proband.sex,
-				mother?.id,
-				father?.id,
-				rows.collect { r -> 
-					[id: r.id, sequencing_run: r.sequencing_run]
-				}
-			)
-		}.filter { value -> value != null }
-		ch_trios.println()
-
-		peddy2cdm(peddy.out.peddy_files.join(ch_ped_input))
+			
+		peddy2cdm(peddy.out.peddy_files.join(ch_peddy2cdm_input))
 		
 		if (params.antype == "wgs") {
 			// fastgnomad
@@ -2708,31 +2690,30 @@ process peddy2cdm {
 	memory '20 MB'
 	tag "$group"
 	publishDir "${params.results_output_dir}/qc", mode: 'copy', overwrite: 'true', pattern: '*.json'
-	publishDir "${params.crondir}/peddy", mode: 'copy' , overwrite: 'true', pattern: '*.json'
+	publishDir "${params.crondir}/peddy", mode: 'copy' , overwrite: 'true', pattern: '*.peddy2cdm'
 	container "${params.container_pysam_cmdvcf}"
 	time '20m'
 
 	input:
-		tuple val(group), path(ped_check),path(peddy_ped), path(sex_check), val(id), val(type), val(sex), val(mother), val(father)
+		tuple val(group), path(ped_check),path(peddy_ped), path(sex_check), val(id), val(sequencing_run)
 
 	output:
-		tuple val(group), path("*.json"), emit: json
+		tuple val(group), path("${id}_peddy2cdm.json"), emit: json
 
 	script:
-		def mother_arg = mother ? "--mother ${mother}" : ""
-		def father_arg = father ? "--father ${father}" : ""
 		"""
 		peddy2cdm.py \
 		--ped $ped_check \
 		--sex $sex_check \
-		--proband $id \
-		${mother_arg} \
-		${father_arg}
+		--sample $id \
+		--output ${id}_peddy2cdm.json
+		echo "--sequencing-run ${sequencing_run} --sample-id ${id} --assay $params.cdm_assay --peddy ${params.results_output_dir}/qc/${id}_peddy2cdm.json " > ${id}.peddy2cdm
 		"""
+		
 
 	stub:
 		"""
-		touch "${id}.json"
+		touch "${id}_peddy2cdm.json"
 	    """
 
 }

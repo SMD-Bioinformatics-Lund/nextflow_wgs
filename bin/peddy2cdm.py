@@ -63,21 +63,21 @@ def build_per_sample_outputs(sex_ok, ped_rows, sample):
     return result
 
 
-def write_individual_jsons(results, sample):
+def write_individual_jsons(results, output):
 
 
-    filename = f"{sample}.json"
+    filename = output
     with open(filename, "w") as f:
         json.dump(results, f, indent=2)
 
 
-def main(ped_file, sex_file, sample):
+def main(ped_file, sex_file, sample, output):
     sex_ok = load_sex_check(sex_file,sample)
     ped_rows = load_ped_check(ped_file)
 
     result = build_per_sample_outputs(sex_ok, ped_rows, sample)
 
-    write_individual_jsons(result, sample)
+    write_individual_jsons(result, output)
 
 
 if __name__ == "__main__":
@@ -87,8 +87,12 @@ if __name__ == "__main__":
     parser.add_argument("--ped", required=True, help="id.ped_check.csv")
     parser.add_argument("--sex", required=True, help="id.sex_check.csv")
     parser.add_argument("--sample", required=True, help="id of sample")
+    parser.add_argument("--output", default=None, help="id of sample")
 
 
     args = parser.parse_args()
 
-    main(args.ped, args.sex, args.sample)
+    if args.output is None:
+        args.output = f"{args.sample}.json"
+
+    main(args.ped, args.sex, args.sample, args.output)
