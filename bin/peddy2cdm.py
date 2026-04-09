@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import csv
 import json
+from datetime import datetime, timezone
 
 def load_sex_check(file_path, sample):
     sex_ok = True
@@ -54,7 +55,8 @@ def build_per_sample_outputs(sex_ok, ped_rows, sample):
 
     result = {
         "trio": is_trio,
-        "sex": sex_ok
+        "sex": sex_ok,
+        'analysis_date' : datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
     if is_trio:
