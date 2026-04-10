@@ -2703,10 +2703,14 @@ process peddy2cdm {
 		tuple val(group), path("*peddy2cdm"), emit: cdm
 
 	script:
-		def sample_arg = id
-			.collectWithIndex { s, i -> "${s}:${sequencing_run[i]}" }
-			.join('-')
+		def ids = id instanceof List ? id : [id]
+		def runs = sequencing_run instanceof List ? sequencing_run : [sequencing_run]
 
+		def sample_arg = [ids, runs]
+			.transpose()
+			.collect { s, r -> "${s}:${r}" }
+			.join('-')
+			
 		"""
 		peddy2cdm.py \
 		--ped $ped_check \

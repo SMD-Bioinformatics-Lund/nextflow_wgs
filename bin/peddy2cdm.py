@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import csv
 import json
+import argparse
 from datetime import datetime, timezone
 
 def load_sex_check(file_path, sample):
@@ -69,7 +70,7 @@ def build_per_sample_outputs(sex_ok, ped_sex, ped_rows, sample, samples_dict):
         "is_correct_sex": sex_ok,
         "pedigree_sex" : ped_sex,
     }
-    
+
     result["sex_check"] = sex_check
 
     if is_trio:
@@ -140,8 +141,7 @@ def main(ped_file, sex_file, sample_arg, cdmassay,results_dir):
 
 
 if __name__ == "__main__":
-    import argparse
-
+    
     parser = argparse.ArgumentParser(description="Process PED and SEX check files")
     parser.add_argument("--ped", required=True, help="id.ped_check.csv")
     parser.add_argument("--sex", required=True, help="id.sex_check.csv")
