@@ -93,7 +93,7 @@ def write_cdm_load(sample,cdmassay,output_file,samples_dict,results_dir):
     seqrun = samples_dict.get(sample)
     filename = f"{sample}.peddy2cdm"
     with open(filename, "w") as f:
-        f.write(f"--sequencing_run {seqrun} --assay {cdmassay} --sample-id {sample} --peddy {results_dir}/{output_file}")
+        f.write(f"--sequencing-run {seqrun} --assay {cdmassay} --sample-id {sample} --peddy {results_dir}/{output_file}")
 
 def parse_samples(sample_arg):
     """
