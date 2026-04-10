@@ -13,9 +13,10 @@ def load_sex_check(file_path, sample):
             if sample_id == sample:
                 found = True
                 sex_ok = row["error"].lower() == "false"
+                ped_sex = row["ped_sex"]
     if not found:
         exit(f"{sample} is not in pedigree")
-    return sex_ok
+    return sex_ok, ped_sex
 
 
 def load_ped_check(file_path):
@@ -56,20 +57,25 @@ def is_correct(row):
     return is_correct
     
 
-def build_per_sample_outputs(sex_ok, ped_rows, sample, samples_dict):
+def build_per_sample_outputs(sex_ok, ped_sex, ped_rows, sample, samples_dict):
     is_trio = len(ped_rows) > 0
 
     if is_trio:
         rel_status = evaluate_kinship(ped_rows, sample, samples_dict)
 
-    result = {
-        "trio": is_trio,
-        "sex": sex_ok,
-        'analysis_date': datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    result = {}
+
+    sex_check = {
+        "is_correct_sex": sex_ok,
+        "pedigree_sex" : ped_sex,
     }
+    
+    result["sex_check"] = sex_check
 
     if is_trio:
         result['kinship'] = rel_status
+
+    result['analysis_date'] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     return result
 
@@ -115,10 +121,11 @@ def main(ped_file, sex_file, sample_arg, cdmassay,results_dir):
     samples_dict = parse_samples(sample_arg)
 
     for sample in samples_dict:
-        sex_ok = load_sex_check(sex_file, sample)
+        sex_ok, ped_sex = load_sex_check(sex_file, sample)
 
         result = build_per_sample_outputs(
             sex_ok,
+            ped_sex,
             ped_rows,
             sample,
             samples_dict
