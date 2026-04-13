@@ -503,9 +503,8 @@ workflow NEXTFLOW_WGS {
 
 		// add peddy output to each trio case, make sure it is matched on group
 		// combine does not do this and join will only take first entry
-		ch_peddy2cdm = peddy.out.peddy_files.join(ch_peddy2cdm_input).view()
+		ch_peddy2cdm = peddy.out.peddy_files.join(ch_peddy2cdm_input)
 			
-
 		peddy2cdm(ch_peddy2cdm)
 		
 		if (params.antype == "wgs") {
