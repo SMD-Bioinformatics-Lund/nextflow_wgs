@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.24.1
+* Added peddy sex-check and ped-check as a CDM output
+* changed json for ID-SNPs to be in the same format as somatic unpaired samples
+
 ### 3.24.0
 * Update vep to 114.2
 * Update bed intersect with ensembl/114 and clinvar/20260226 
