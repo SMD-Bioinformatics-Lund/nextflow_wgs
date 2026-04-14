@@ -1,5 +1,6 @@
 #! /usr/bin/perl -w
 #use MongoDB;
+#
 use strict;
 use warnings;
 use Data::Dumper;
@@ -24,6 +25,8 @@ GetOptions(
 ) or usage();
 
 my @required = ('g', 'd', 'out', 'files', 'ped', 'panelsdef', 'assay', 'antype');
+
+my $DEFAULT_PANELS_TRIO = '+OMIM-AUTO+panelapp-green'; # choose deafault panels for trios
 
 my @missing;
 foreach my $param (@required) {
@@ -286,7 +289,6 @@ close INFO;
 
 my $kit = "Intersected WGS"; ## placeholder, does not change for panels
 my $diagnosis = $opt{d};
-
 ### Read ped, save individuals ####################
 my $PED = $opt{ped};
 open (PED, $PED) or die "Cannot open $PED\n";
@@ -295,6 +297,9 @@ while ( <PED> ) {
     push @ped, $_;
 }
 close PED;
+
+if (@ped == 3 and $assay eq 'wgs-hg38'){ $diagnosis .= $DEFAULT_PANELS_TRIO; } # change default panels if wgs-hg38 trio
+
 ####################################################
 
 ### get genlist ###
