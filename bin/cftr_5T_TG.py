@@ -92,7 +92,18 @@ def print_vcf(in_vcf,out_vcf,variation_combo_str):
     if variation_combo_str:
         ids_of_variants_to_modify = variation_combo_str.split('+')
     
-    vcf_out = VariantFile(out_vcf, "w", header=in_vcf.header)
+    header = in_vcf.header.copy()
+
+    # Add CFTR INFO field BEFORE writing
+    if "CFTR" not in header.info:
+        header.info.add(
+            "CFTR",
+            number=0,
+            type="Flag",
+            description="Variant implicated in CFTR intron repeat (5T or TG) causation"
+        )
+
+    vcf_out = VariantFile(out_vcf, "w", header=header)
     vcf_out.close()
     with open(out_vcf, "a") as vcf_out:
         for var in in_vcf.fetch():
@@ -104,6 +115,7 @@ def print_vcf(in_vcf,out_vcf,variation_combo_str):
                     current_score = float(var_dict['INFO']['RankScore'].split(":")[1])
                     adjusted_score = current_score + SCORE_ADJUSTMENT
                     var_dict['INFO']['RankScore'] = f"{family_id}:{str(adjusted_score)}"
+                    var_dict['INFO']['CFTR'] = True
                 else:
                     exit("Needs a scored VCF")
             vcf_str = cmdvcf.vcf_string(var_dict,in_vcf.header)
@@ -253,7 +265,7 @@ def combinatorics_to_find_TG_causatives(variants,alleles):
             ref_motif_variant = apply_variants(CFTR_REGION['ref'], combo)
             variant_ids = [v['id'] for v in combo]
             combo_label = "+".join(variant_ids)
-            
+
             variant_change_TG_count = count_consecutive_tgs(''.join(ref_motif_variant))
             if variant_change_TG_count >= BAD_TG_COUNT and variant_change_TG_count in alleles:
                 print(f"Combination ({combo_label}) is causative ")
