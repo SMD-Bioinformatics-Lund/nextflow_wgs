@@ -94,7 +94,6 @@ def print_vcf(in_vcf,out_vcf,variation_combo_str):
     
     header = in_vcf.header.copy()
 
-    # Add CFTR INFO field BEFORE writing
     if "CFTR" not in header.info:
         header.info.add(
             "CFTR",
