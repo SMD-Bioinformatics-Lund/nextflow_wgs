@@ -4,8 +4,20 @@ import json
 import argparse
 from datetime import datetime, timezone
 
+"""
+This script takes output files from peddy and creates json input for register_sample.py --peddy
+Needs sex_check.csv and ped_check.csv and sample ids + sequencing run ids
+
+peddy2cdm.py --sex sex_check.csv --ped ped_check.csv --sample s1:run_idX
+
+In addition the script also creates singaling files for middleman to load json into CDM
+"""
 
 def load_sex_check(file_path, sample):
+    """
+    read sex_check csv from peddy
+    return given sex and if correct
+    """
     sex_ok = True
     found = False
     with open(file_path, newline="") as f:
@@ -40,33 +52,36 @@ def evaluate_kinship(ped_rows, sample_id, samples_dict):
         if row["sample_a"] == sample_id:
             other = row["sample_b"]
             rel_status[other] = {
-                "is_correct": is_correct(row),
+                "is_correct": relation_is_correct(row),
                 "sequencing_run": samples_dict.get(other),
             }
 
         if row["sample_b"] == sample_id:
             other = row["sample_a"]
             rel_status[other] = {
-                "is_correct": is_correct(row),
+                "is_correct": relation_is_correct(row),
                 "sequencing_run": samples_dict.get(other),
             }
 
     return rel_status
 
 
-def is_correct(row):
+def relation_is_correct(row):
     parent_error = row["parent_error"].lower() == "true"
     is_correct = not parent_error
     return is_correct
 
 
 def build_per_sample_outputs(sex_ok, ped_sex, ped_rows, sample, samples_dict):
-    is_trio = len(ped_rows) > 0
+    """
+    for a given sample, check sex correctness and relationship status for others in family
+    """
+    result = {}
 
+    is_trio = len(ped_rows) > 0
     if is_trio:
         rel_status = evaluate_kinship(ped_rows, sample, samples_dict)
-
-    result = {}
+        result["kinship"] = rel_status
 
     sex_check = {
         "is_correct_sex": sex_ok,
@@ -74,10 +89,6 @@ def build_per_sample_outputs(sex_ok, ped_sex, ped_rows, sample, samples_dict):
     }
 
     result["sex_check"] = sex_check
-
-    if is_trio:
-        result["kinship"] = rel_status
-
     result["analysis_date"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     return result
@@ -102,6 +113,8 @@ def write_cdm_load(sample, cdmassay, output_file, samples_dict, results_dir):
 
 def parse_samples(sample_arg):
     """
+    expects  s1:run_idX for single samples
+    and s1:run_idX&s2:run_idX&s3:run_idX for trios
     Returns:
     {
         "sample1": "seq1",
@@ -109,13 +122,13 @@ def parse_samples(sample_arg):
     }
     """
     samples = {}
-    parts = sample_arg.split("-")
+    parts = sample_arg.split("&")
 
     for part in parts:
         if ":" in part:
             sample, seqrun = part.split(":", 1)
         else:
-            sample, seqrun = part, None
+            exit("Need to provide sequencing_run id s1:run_idX or s1:run_idX&s2:run_idX&s3:run_idX for trios")
 
         samples[sample] = seqrun
 
