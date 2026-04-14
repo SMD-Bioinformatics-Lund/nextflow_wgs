@@ -69,11 +69,11 @@ def main(args):
         count[max_count] = count[max_count] +1
     allele1,allele2 = find_one_or_two_alleles(count)
 
-    if allele1 <= BAD_T_COUNT or allele2 <= BAD_T_COUNT: 
+    if (allele1 is not None and allele1 <= BAD_T_COUNT) or (allele2 is not None and allele2 <= BAD_T_COUNT): 
         variation_combo_str = combinatorics_to_find_T_causatives(variants,[allele1,allele2])
     else:
         print("Trying to find 13TG+ variants")
-        if allele1 < BAD_TG_COUNT or allele2 < BAD_TG_COUNT:
+        if (allele1 is not None and allele1 <= BAD_TG_COUNT) or (allele2 is not None and allele2 <= BAD_TG_COUNT): 
             print("no bad TG counts either")
         fragments_11tg = get_overlapping_reads_from_bam(bam,CENTER_11TG,PADDING_11TG)
         count = defaultdict(int)
@@ -254,10 +254,11 @@ def combinatorics_to_find_TG_causatives(variants,alleles):
             ref_motif_variant = apply_variants(CFTR_REGION['ref'], combo)
             variant_ids = [v['id'] for v in combo]
             combo_label = "+".join(variant_ids)
+            
             variant_change_TG_count = count_consecutive_tgs(''.join(ref_motif_variant))
             if variant_change_TG_count >= BAD_TG_COUNT and variant_change_TG_count in alleles:
                 print(f"Combination ({combo_label}) is causative ")
-
+                return combo_label
 
 if __name__ == "__main__":
     args = parse_arguments()

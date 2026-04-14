@@ -596,7 +596,7 @@ process adjust_cftr_homopolymer_repeat_scores {
 	container "${params.container_pysam_cmdvcf}"
 
 	input:
-		tuple val(group), val(type), path(vcf), path(tbi), val(id), path(bam), path(bai)
+		tuple val(group), val(type), path(vcf), path(tbi), path(bam), path(bai)
 
 	output:
 		tuple val(group), val(type), path("${group}.scored.cftr.vcf"), emit: rescored

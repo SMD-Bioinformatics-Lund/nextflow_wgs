@@ -476,10 +476,17 @@ workflow NEXTFLOW_WGS {
         
 	// SNV ANNOTATION
 	if (params.annotate) {
+		
+		// bam channel for SNV annotate, special case //
+		ch_bam_snv_annotate = ch_bam_bai
+			.join(ch_ped_input)
+			.map { group, id, bam, bai, type, sex, mother, father ->
+				tuple(group, bam, bai)
+		}
 
         ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_annotation_only)
         
-		SNV_ANNOTATE(ch_bam_bai, ch_snv_annotate_in, ch_ped_trio_affected_permutations)
+		SNV_ANNOTATE(ch_bam_snv_annotate, ch_snv_annotate_in, ch_ped_trio_affected_permutations)
 		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
 		ch_output_info = ch_output_info.mix(SNV_ANNOTATE.out.output_info)
 
