@@ -1731,9 +1731,9 @@ process reviewer {
 				--vcf ${vcf} \\
 				--reference ${params.genome_file} \\
 				--catalog ${params.expansionhunter_catalog} \\
-				--locus "$locus" \\
+				--locus "\$locus" \\
 				--output-prefix ${id}
-			echo "STR_VARIANTS_IMG	$locus	${params.accessdir}/plots/reviewer/${group}/${id}.$locus.svg" >> ${group}_reviewer.INFO
+			echo "STR_VARIANTS_IMG	\$locus	${params.accessdir}/plots/reviewer/${group}/${id}.\$locus.svg" >> ${group}_reviewer.INFO
 		done < reviewer_loci.txt
 
 		echo "${version_str}" > "${task.process}_versions.yml"
