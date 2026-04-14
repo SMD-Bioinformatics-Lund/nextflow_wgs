@@ -2705,7 +2705,7 @@ process peddy2cdm {
 		def sample_arg = [id, sequencing_run]
 			.transpose()
 			.collect { sample_id, run_id -> "${sample_id}:${run_id}" }
-			.join('&')
+			.join('--sample ')
 			
 		"""
 		peddy2cdm.py \

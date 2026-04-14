@@ -111,7 +111,7 @@ def write_cdm_load(sample, cdmassay, output_file, samples_dict, results_dir):
         )
 
 
-def parse_samples(sample_arg):
+def parse_samples(sample_args):
     """
     expects  s1:run_idX for single samples
     and s1:run_idX&s2:run_idX&s3:run_idX for trios
@@ -122,18 +122,16 @@ def parse_samples(sample_arg):
     }
     """
     samples = {}
-    parts = sample_arg.split("&")
 
-    for part in parts:
+    for part in sample_args:
         if ":" in part:
             sample, seqrun = part.split(":", 1)
         else:
-            exit("Need to provide sequencing_run id s1:run_idX or s1:run_idX&s2:run_idX&s3:run_idX for trios")
+            exit("Need format s1:run_idX")
 
         samples[sample] = seqrun
 
     return samples
-
 
 def main(ped_file, sex_file, sample_arg, cdmassay, results_dir):
     ped_rows = load_ped_check(ped_file)
@@ -158,7 +156,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process PED and SEX check files")
     parser.add_argument("--ped", required=True, help="id.ped_check.csv")
     parser.add_argument("--sex", required=True, help="id.sex_check.csv")
-    parser.add_argument("--sample", required=True, help="id of sample")
+    parser.add_argument("--sample", required=True, action="append", help="sample:run_id (can be used multiple times)")
     parser.add_argument("--cdmassay", required=True, help="cdm assay of sample")
     parser.add_argument("--results_dir", required=True, help="cdm assay of sample")
 
