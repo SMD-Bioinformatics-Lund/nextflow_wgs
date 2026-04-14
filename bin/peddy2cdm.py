@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 This script takes output files from peddy and creates json input for register_sample.py --peddy
 Needs sex_check.csv and ped_check.csv and sample ids + sequencing run ids
 
-peddy2cdm.py --sex sex_check.csv --ped ped_check.csv --sample s1:run_idX
+peddy2cdm.py --sex sex_check.csv --ped ped_check.csv --sample s1:run_idX (--sample s2:run_idX --sample s3:run_idX ) --cdmassay
 
 In addition the script also creates singaling files for middleman to load json into CDM
 """
@@ -113,8 +113,7 @@ def write_cdm_load(sample, cdmassay, output_file, samples_dict, results_dir):
 
 def parse_samples(sample_args):
     """
-    expects  s1:run_idX for single samples
-    and s1:run_idX&s2:run_idX&s3:run_idX for trios
+    provides a list of sample:run_id
     Returns:
     {
         "sample1": "seq1",
