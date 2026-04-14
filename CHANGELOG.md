@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### Unreleased
+* Fix create_yml.pl line endings
+
 ### 3.24.1
 * Added peddy sex-check and ped-check as a CDM output
 * changed json for ID-SNPs to be in the same format as somatic unpaired samples
