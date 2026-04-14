@@ -55,7 +55,7 @@ workflow SNV_ANNOTATE {
 		cftr_ch = bgzip_index_vcf.out.compressed_indexed_vcf.join(ch_bam)
 
 		adjust_cftr_homopolymer_repeat_scores(cftr_ch)
-		vcf_completion_ch = (adjust_cftr_homopolymer_repeat_scores.out.rescored)
+		vcf_completion_ch = adjust_cftr_homopolymer_repeat_scores.out.rescored
 	}
 	else {
 		vcf_completion_ch = genmodscore.out.scored_vcf
