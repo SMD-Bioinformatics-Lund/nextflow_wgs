@@ -493,10 +493,20 @@ workflow NEXTFLOW_WGS {
 		// TODO: Move this guy to QC:
 		peddy(ch_peddy_input_vcf.join(ch_ped_base, by: [0,1]))
 		ch_output_info = ch_output_info.mix(peddy.out.peddy_INFO)
-
-
 		ch_versions = ch_versions.mix(peddy.out.versions.first())
 
+
+		ch_peddy2cdm_input = ch_samplesheet
+			.map { row ->
+				tuple(row.group, row.id, row.sequencing_run)
+			}.groupTuple()
+
+		// add peddy output to each trio case, make sure it is matched on group
+		// combine does not do this and join will only take first entry
+		ch_peddy2cdm = peddy.out.peddy_files.join(ch_peddy2cdm_input)
+			
+		peddy2cdm(ch_peddy2cdm)
+		
 		if (params.antype == "wgs") {
 			// fastgnomad
 			fastgnomad(
@@ -2639,7 +2649,7 @@ process peddy {
 		tuple val(group), val(type), path(vcf), path(idx), path(ped)
 
 	output:
-		tuple path("${group}.ped_check.csv"),path("${group}.peddy.ped"), path("${group}.sex_check.csv"), emit: peddy_files
+		tuple val(group), path("${group}.ped_check.csv"),path("${group}.peddy.ped"), path("${group}.sex_check.csv"), emit: peddy_files
 		tuple val(group), path("${group}_peddy.INFO"), emit: peddy_INFO
 		path "*versions.yml", emit: versions
 
@@ -2673,6 +2683,46 @@ def peddy_version(task) {
 	    peddy: \$(echo \$(python -m peddy --version 2>&1) | sed 's/^.*peddy, version //')
 	END_VERSIONS
 	"""
+}
+
+process peddy2cdm {
+	cpus 2
+	memory '20 MB'
+	tag "$group"
+	publishDir "${params.results_output_dir}/qc", mode: 'copy', overwrite: 'true', pattern: '*.json'
+	publishDir "${params.crondir}/peddy", mode: 'copy' , overwrite: 'true', pattern: '*.peddy2cdm'
+	container "${params.container_pysam_cmdvcf}"
+	time '20m'
+
+	input:
+		tuple val(group), path(ped_check),path(peddy_ped), path(sex_check), val(id), val(sequencing_run)
+
+	output:
+		tuple val(group), path("*peddy.json"), emit: json
+		tuple val(group), path("*peddy2cdm"), emit: cdm
+
+	script:
+		def sample_arg = [id, sequencing_run]
+			.transpose()
+			.collect { sample_id, run_id -> "${sample_id}:${run_id}" }
+			.join(' --sample ')
+			
+		"""
+		peddy2cdm.py \
+		--ped $ped_check \
+		--sex $sex_check \
+		--sample $sample_arg \
+		--cdmassay $params.cdm_assay \
+		--results_dir ${params.results_output_dir}/qc
+		"""
+		
+
+	stub:
+		"""
+		touch "${group}_peddy.json"
+		touch "${group}.peddy2cdm"
+	    """
+
 }
 
 // Extract all variants (
