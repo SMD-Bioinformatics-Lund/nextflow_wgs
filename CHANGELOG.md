@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.25.0
+* CFTR goes live. Extra caller to check for 5T variants.
+
 ### 3.24.1
 * Added peddy sex-check and ped-check as a CDM output
 * changed json for ID-SNPs to be in the same format as somatic unpaired samples
