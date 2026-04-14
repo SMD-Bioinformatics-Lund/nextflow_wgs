@@ -271,6 +271,9 @@ while ( <INFO> ) {
     elsif ($category eq "STR_IMG") {
         $INFO{STR_IMG}->{$subcat} = $filepath;
     }
+    elsif ($category eq "STR_VARIANTS_IMG") {
+        $INFO{STR_VARIANTS_IMG}->{$subcat} = $filepath;
+    }
     elsif ($category eq "SV" or $category eq "SVc" or $category eq "SNV" or $category eq "MADDE") {
         if ($category eq "SNV") {
             push @inher_patterns,$subcat;
@@ -511,6 +514,15 @@ foreach my $ind (@inher_patterns) {
             print OUT "      width: $img{STR}{width}\n";
             print OUT "      height: $img{STR}{height}\n";
             print OUT "      path: $INFO{STR_IMG}{$img_type}\n";
+        }
+    }
+    if ($INFO{STR_VARIANTS_IMG}) {
+        print OUT "  str_variants_images:\n";
+        foreach my $locus_id (sort keys %{ $INFO{STR_VARIANTS_IMG} }) {
+            print OUT "    - title: \"Locus plot $locus_id\"\n";
+            print OUT "      str_repid: \"$locus_id\"\n";
+            print OUT "      description: \"Per-locus SVG for $locus_id\"\n";
+            print OUT "      path: $INFO{STR_VARIANTS_IMG}{$locus_id}\n";
         }
     }
 
