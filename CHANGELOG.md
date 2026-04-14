@@ -1,7 +1,8 @@
 # CHANGELOG
 
-### Unreleased
+### 3.24.2
 * Fix create_yml.pl line endings
+* Load reviewer plots into scout 
 
 ### 3.24.1
 * Added peddy sex-check and ped-check as a CDM output
