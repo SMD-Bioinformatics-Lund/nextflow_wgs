@@ -479,7 +479,7 @@ workflow NEXTFLOW_WGS {
 		
 		// bam channel for SNV annotate, special case //
 		ch_bam_snv_annotate = ch_bam_bai
-			.join(ch_ped_input)
+			.join(ch_ped_input, by: [0,1])
 			.map { group, id, bam, bai, type, sex, mother, father ->
 				tuple(group, bam, bai)
 		}
