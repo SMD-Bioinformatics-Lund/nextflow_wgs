@@ -4,7 +4,6 @@ from pysam import VariantFile, AlignmentFile
 import cmdvcf
 import argparse
 import itertools
-from pprint import pprint
 from collections import defaultdict
 
 SCORE_ADJUSTMENT = 20
