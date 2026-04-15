@@ -1,9 +1,12 @@
 #!/usr/bin/env nextflow
+include { bgzip_index_vcf } from './util.nf'
+
 
 workflow SNV_ANNOTATE {
 
 
 	take:
+	ch_bam
 	ch_snv_indels_vcf
 	ch_ped
 
@@ -46,7 +49,18 @@ workflow SNV_ANNOTATE {
 
 	// SCORE VARIANTS //
 	genmodscore(inher_models.out.vcf)
-	vcf_completion(genmodscore.out.scored_vcf)
+	vcf_completion_ch = channel.empty()
+	if (params.cftr) {
+		bgzip_index_vcf(genmodscore.out.scored_vcf)
+		cftr_ch = bgzip_index_vcf.out.compressed_indexed_vcf.join(ch_bam)
+
+		adjust_cftr_homopolymer_repeat_scores(cftr_ch)
+		vcf_completion_ch = adjust_cftr_homopolymer_repeat_scores.out.rescored
+	}
+	else {
+		vcf_completion_ch = genmodscore.out.scored_vcf
+	}
+	vcf_completion(vcf_completion_ch)
 	ch_output_info = ch_output_info.mix(vcf_completion.out.snv_INFO)
 
 	// VERSIONS
@@ -537,7 +551,7 @@ process vcf_completion {
 		tuple val(group), val(type), path(vcf)
 
 	output:
-		tuple val(group), val(type), path("${group_score}.scored.vcf.gz"), path("${group_score}.scored.vcf.gz.tbi"), emit: vcf_tbi
+		tuple val(group), val(type), path("${group_score}.scored*vcf.gz"), path("${group_score}.scored*vcf.gz.tbi"), emit: vcf_tbi
 		tuple val(group), path("${group}_snv.INFO"), emit: snv_INFO
 		path "*versions.yml", emit: versions
 
@@ -549,7 +563,7 @@ process vcf_completion {
 		sed 's/ID=MT,length/ID=M,length/' -i $vcf
 		bgzip -@ ${task.cpus} $vcf -f
 		tabix ${vcf}.gz -f
-		echo "SNV	$type	${params.accessdir}/vcf/${group_score}.scored.vcf.gz" > ${group}_snv.INFO
+		echo "SNV	$type	${params.accessdir}/vcf/${vcf}.gz" > ${group}_snv.INFO
 
 		${vcf_completion_version(task)}
 		"""
@@ -572,4 +586,32 @@ def vcf_completion_version(task) {
 	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
 	END_VERSIONS
 	"""
+}
+
+process adjust_cftr_homopolymer_repeat_scores {
+	cpus 2
+	tag "$group"
+	time '1h'
+	memory '5 GB'
+	container "${params.container_pysam_cmdvcf}"
+
+	input:
+		tuple val(group), val(type), path(vcf), path(tbi), path(bam), path(bai)
+
+	output:
+		tuple val(group), val(type), path("${group}.scored.cftr.vcf"), emit: rescored
+
+	script:
+		"""
+		cftr_5T_TG.py \\
+			--input_vcf $vcf \\
+			--bam $bam \\
+			--out_vcf ${group}.scored.cftr.vcf \\
+		"""
+
+	stub:
+	"""
+		touch "${group}.scored.cftr.vcf"
+		touch "${group}_snv.INFO"
+		"""	
 }
