@@ -197,7 +197,7 @@ my %assays = (
             'institute_owner' => 'cystic-fibrosis',
         }
     }
-    
+
 );
 
 
@@ -222,7 +222,7 @@ if ($opt{assay}) {
         $analysis = 'ahus';
     }
     else { $analysis = 'ph';}
-    
+
 }
 print STDERR "assay: $assay analysis: $analysis\n";
 ### Group ###
@@ -233,12 +233,12 @@ if (defined $opt{g}) {
     @g_c = split/,/,$opt{g};
     unless (scalar(@g_c) == 2) {
         print STDERR "need group-id,clarity-id\n";
-        exit; 
+        exit;
     }
 }
 else {
     print STDERR "need group-id,clarity-id\n";
-    exit;       
+    exit;
 }
 my $group = $g_c[0];
 my $clarity_id = $g_c[1];
@@ -338,9 +338,9 @@ foreach my $ind (@inher_patterns) {
         $out = "$group.yaml".".".$ind;
         $family = $group."_".$ind;
     }
-    
+
     ### Open out, default $group.yaml, fix for ma and fa! ###
-    if ($opt{out}) { 
+    if ($opt{out}) {
         $out = $opt{out};
         unless ( $ind eq "proband") {
             $out = $out.".".$ind;
@@ -376,7 +376,7 @@ foreach my $ind (@inher_patterns) {
             else {
                 print OUT "    phenotype: unaffected\n";
             }
-            
+
         }
         elsif ($pedline[5] == 2) {
             print OUT "    phenotype: affected\n";
@@ -412,7 +412,7 @@ foreach my $ind (@inher_patterns) {
         print OUT "vcf_snv: $INFO{SNV}{$ind}\n";
         if ($INFO{SV}) {
             print OUT "vcf_sv: $INFO{SV}{$ind}\n";
-        } 
+        }
     }
     ## If only SV calling
     elsif ($INFO{SV}) {
@@ -476,12 +476,12 @@ foreach my $ind (@inher_patterns) {
             'width' => '750',
             'height' => '750'
             },
-        'haplogrep' => {             
+        'haplogrep' => {
             'desc' => "Mitochondrial haplotypes, Haplogrep", 
             'width' => '750',
             'height' => '1000'
             },
-        'STR' => {             
+        'STR' => {
             'desc' => "Reviewer plot for STR loci", 
             'width' => '500',
             'height' => '100'
