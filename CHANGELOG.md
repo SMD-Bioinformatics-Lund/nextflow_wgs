@@ -2,6 +2,8 @@
 
 ### 3.25.0
 * CFTR goes live. Extra caller to check for 5T variants.
+* Fix create_yml.pl line endings
+* Load reviewer plots into scout 
 
 ### 3.24.1
 * Added peddy sex-check and ped-check as a CDM output

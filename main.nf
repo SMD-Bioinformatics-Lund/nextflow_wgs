@@ -610,6 +610,7 @@ workflow NEXTFLOW_WGS {
 			)
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
 			reviewer(expansionhunter.out.bam_vcf)
+			ch_output_info = ch_output_info.mix(reviewer.out.reviewer_INFO)
 
 			ch_versions = ch_versions.mix(SMNCopyNumberCaller.out.versions.first())
 			ch_versions = ch_versions.mix(reviewer.out.versions.first())
@@ -1724,18 +1725,23 @@ process reviewer {
 
 	output:
 		path("*svg")
+		tuple val(group), path("${group}_reviewer.INFO"), emit: reviewer_INFO
 		path "*versions.yml", emit: versions
 
 	script:
 		version_str = reviewer_version(task)
 		"""
-		grep LocusId ${params.expansionhunter_catalog} | sed 's/[",^ ]//g' | cut -d':' -f2 | perl -na -e 'chomp; \
-		system("REViewer --reads ${bam} \
-			--vcf ${vcf} \
-			--reference ${params.genome_file} \
-			--catalog ${params.expansionhunter_catalog} \
-			--locus \$_ \
-			--output-prefix ${id}");'
+		grep LocusId ${params.expansionhunter_catalog} | sed 's/[",^ ]//g' | cut -d':' -f2 > reviewer_loci.txt
+		: > ${group}_reviewer.INFO
+		while read -r locus; do
+			REViewer --reads ${bam} \\
+				--vcf ${vcf} \\
+				--reference ${params.genome_file} \\
+				--catalog ${params.expansionhunter_catalog} \\
+				--locus "\$locus" \\
+				--output-prefix ${id}
+			echo "STR_VARIANTS_IMG	\$locus	${params.accessdir}/plots/reviewer/${group}/${id}.\$locus.svg" >> ${group}_reviewer.INFO
+		done < reviewer_loci.txt
 
 		echo "${version_str}" > "${task.process}_versions.yml"
 		"""
@@ -1744,6 +1750,7 @@ process reviewer {
 		version_str = reviewer_version(task)
 		"""
 		touch "${id}.svg"
+		touch "${group}_reviewer.INFO"
 		echo "${version_str}" > "${task.process}_versions.yml"
 		"""
 }
