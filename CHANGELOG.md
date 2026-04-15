@@ -1,6 +1,7 @@
 # CHANGELOG
 
-### 3.24.2
+### 3.25.0
+* CFTR goes live. Extra caller to check for 5T variants.
 * Fix create_yml.pl line endings
 * Load reviewer plots into scout 
 
