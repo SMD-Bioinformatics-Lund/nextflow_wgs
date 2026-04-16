@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.25.1
+* CFTR create_yml missmatch to scout institute
+
 ### 3.25.0
 * CFTR goes live. Extra caller to check for 5T variants.
 * Fix create_yml.pl line endings
