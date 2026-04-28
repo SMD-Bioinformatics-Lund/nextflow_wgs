@@ -193,8 +193,8 @@ my %assays = (
             'institute_owner' => 'hemofili'
         },
         'cf' => {
-            'institute' => 'cystisk-fibros',
-            'institute_owner' => 'cystisk-fibros',
+            'institute' => 'constitutional',
+            'institute_owner' => 'constitutional',
         }
     }
 

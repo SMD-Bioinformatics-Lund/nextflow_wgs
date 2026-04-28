@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.25.2
+* CFTR to constitutional institute...
+
 ### 3.25.1
 * CFTR create_yml missmatch to scout institute
 
