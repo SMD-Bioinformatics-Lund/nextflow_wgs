@@ -860,12 +860,10 @@ workflow NEXTFLOW_WGS {
 
 		// add_to_loqusb won't run if no svvcf is generated
 		// the code below creates dummy svvcf for no-SV runs
-		def dummy_file = file("NA")
 		ch_loqusdb_no_sv_dummy = ch_samplesheet
 			.map { row ->
 				def group = row.group
-				def sv_vcf_dummy = dummy_file
-				tuple(group, sv_vcf_dummy)
+				tuple(group, [])
 			}
 			.first()
 
@@ -874,10 +872,31 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// LOQUSDB //
+	ch_loqusdb_sv_for_load = ch_loqusdb_sv.map { group, svvcf ->
+		def svvcf_for_load = svvcf
+
+		if (svvcf) {
+			def svvcf_exists = svvcf.exists() && svvcf.size() > 0
+			def svvcf_has_variants = svvcf_exists && vcfHasVariants(svvcf)
+
+			if (!svvcf_has_variants) {
+				svvcf_for_load = []
+			}
+		}
+
+		tuple(group, svvcf_for_load)
+	}
+
+	ch_loqusdb_input = ch_ped_base
+		.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1])
+		.join(ch_loqusdb_sv_for_load, by: 0)
+		.map { group, type, ped, vcf_snvs, _tbi, vcf_svs ->
+			tuple(group, type, ped, vcf_snvs, vcf_svs)
+		}
+
     if(!params.skip_loqusdb) {
 	    add_to_loqusdb(
-		    ch_ped_base.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1]),
-		    ch_loqusdb_sv
+		    ch_loqusdb_input
 	    )
     }
 
@@ -3902,8 +3921,7 @@ process add_to_loqusdb {
 	memory '100 MB'
 	time '25m'
 	input:
-		tuple val(group), val(type), path(ped), path(vcf), path(tbi)
-		tuple val(group2), path(svvcf)
+		tuple val(group), val(type), path(ped), path(vcf_snvs), path(vcf_svs)
 
 	output:
 		path("${group}*.loqus"), emit: loqusdb_done
@@ -3913,15 +3931,11 @@ process add_to_loqusdb {
 
 	script:
 
-		def sv_variants_arg=""
+		def sv_variants_arg = vcf_svs ?  "--sv-variants ${params.accessdir}/sv_vcf/merged/${vcf_svs}" : ""
 
-		// Handle missing svvcf:
-		if(svvcf.baseName != "NA") {
-			sv_variants_arg="--sv-variants ${params.accessdir}/sv_vcf/merged/${svvcf}"
-		}
 
 		"""
-		echo "-db $params.loqusdb load -f ${params.accessdir}/ped/${ped} --variant-file ${params.accessdir}/vcf/${vcf} ${sv_variants_arg}" > "${group}.loqus"
+		echo "-db $params.loqusdb load -f ${params.accessdir}/ped/${ped} --variant-file ${params.accessdir}/vcf/${vcf_snvs} ${sv_variants_arg}" > "${group}.loqus"
 		"""
 
 	stub:
