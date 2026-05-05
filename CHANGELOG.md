@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.26.0
+* Do not load empty SV VCFs into loqusdb
+
 ### 3.25.2
 * CFTR to constitutional institute...
 
