@@ -609,7 +609,15 @@ workflow NEXTFLOW_WGS {
 				ch_stranger_meta
 			)
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
-			reviewer(expansionhunter.out.bam_vcf)
+			ch_reviewer_loci = channel
+				.fromPath(params.expansionhunter_catalog)
+				.splitText()
+				.filter { line -> line.contains('LocusId') }
+				.map { line ->
+					line.replaceAll(/[",^ ]/, '').split(':')[1]
+				}
+
+			reviewer(expansionhunter.out.bam_vcf.combine(ch_reviewer_loci))
 			ch_output_info = ch_output_info.mix(reviewer.out.reviewer_INFO)
 
 			ch_versions = ch_versions.mix(SMNCopyNumberCaller.out.versions.first())
@@ -1712,7 +1720,7 @@ def stranger_version(task) {
 
 
 process reviewer {
-	tag "$group"
+	tag "$group:$locus"
 	cpus 2
 	time '1h'
 	memory '1 GB'
@@ -1721,7 +1729,7 @@ process reviewer {
 	publishDir "${params.results_output_dir}/plots/reviewer/${group}", mode: 'copy' , overwrite: 'true', pattern: '*.svg'
 
 	input:
-		tuple val(group), val(id), path(bam), path(bai), path(vcf)
+		tuple val(group), val(id), path(bam), path(bai), path(vcf), val(locus)
 
 	output:
 		path("*svg")
@@ -1731,17 +1739,13 @@ process reviewer {
 	script:
 		version_str = reviewer_version(task)
 		"""
-		grep LocusId ${params.expansionhunter_catalog} | sed 's/[",^ ]//g' | cut -d':' -f2 > reviewer_loci.txt
-		: > ${group}_reviewer.INFO
-		while read -r locus; do
-			REViewer --reads ${bam} \\
-				--vcf ${vcf} \\
-				--reference ${params.genome_file} \\
-				--catalog ${params.expansionhunter_catalog} \\
-				--locus "\$locus" \\
-				--output-prefix ${id}
-			echo "STR_VARIANTS_IMG	\$locus	${params.accessdir}/plots/reviewer/${group}/${id}.\$locus.svg" >> ${group}_reviewer.INFO
-		done < reviewer_loci.txt
+		REViewer --reads ${bam} \\
+			--vcf ${vcf} \\
+			--reference ${params.genome_file} \\
+			--catalog ${params.expansionhunter_catalog} \\
+			--locus "${locus}" \\
+			--output-prefix ${id}
+		echo "STR_VARIANTS_IMG	${locus}	${params.accessdir}/plots/reviewer/${group}/${id}.${locus}.svg" > ${group}_reviewer.INFO
 
 		echo "${version_str}" > "${task.process}_versions.yml"
 		"""
@@ -1749,8 +1753,8 @@ process reviewer {
 	stub:
 		version_str = reviewer_version(task)
 		"""
-		touch "${id}.svg"
-		touch "${group}_reviewer.INFO"
+		touch "${id}.${locus}.svg"
+		echo "STR_VARIANTS_IMG	${locus}	${params.accessdir}/plots/reviewer/${group}/${id}.${locus}.svg" > "${group}_reviewer.INFO"
 		echo "${version_str}" > "${task.process}_versions.yml"
 		"""
 }

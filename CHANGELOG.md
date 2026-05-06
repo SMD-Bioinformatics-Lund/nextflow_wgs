@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.26.0
+* Split up reviewer loci to one process per locus
+
 ### 3.25.2
 * CFTR to constitutional institute...
 
