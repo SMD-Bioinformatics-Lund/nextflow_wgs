@@ -1,5 +1,7 @@
 #!/usr/bin/env nextflow
 
+import groovy.json.JsonSlurper
+
 include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
@@ -609,15 +611,20 @@ workflow NEXTFLOW_WGS {
 				ch_stranger_meta
 			)
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
-			ch_reviewer_loci = channel
-				.fromPath(params.expansionhunter_catalog)
-				.splitText()
-				.filter { line -> line.contains('LocusId') }
-				.map { line ->
-					line.replaceAll(/[",^ ]/, '').split(':')[1]
+
+			reviewer_loci = new groovy.json.JsonSlurper()
+				.parseText(file(params.expansionhunter_catalog).text)
+				.collect { locus_definition -> locus_definition.LocusId }
+				.findAll { locus -> locus }
+
+			ch_reviewer_input = expansionhunter.out.bam_vcf
+				.flatMap { group, id, bam, bai, vcf ->
+					reviewer_loci.collect { locus ->
+						tuple(group, id, bam, bai, vcf, locus)
+					}
 				}
 
-			reviewer(expansionhunter.out.bam_vcf.combine(ch_reviewer_loci))
+			reviewer(ch_reviewer_input)
 			ch_output_info = ch_output_info.mix(reviewer.out.reviewer_INFO)
 
 			ch_versions = ch_versions.mix(SMNCopyNumberCaller.out.versions.first())
