@@ -34,5 +34,4 @@ If running a single sample, then a single data-row is expected. If running a tri
 
 ## Other useful fields
 
-* **priority**: Changes priority of sample in slurm. Default is defined in `nextflow.config`.
-
+* **priority**: Changes priority of sample in slurm. Default is defined in `nextflow.config`. Proband rows with `priority` set to `highest` are loaded into Scout with case status `prioritized`.

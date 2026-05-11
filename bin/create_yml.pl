@@ -21,6 +21,7 @@ GetOptions(
     'assay=s',
     'files=s',
     'panelsdef=s',
+    'status=s',
     'extra_panels=s'
 ) or usage();
 
@@ -357,6 +358,9 @@ foreach my $ind (@inher_patterns) {
     print OUT "owner: $institute_owner\n";
     print OUT "family: '$family'\n";
     print OUT "lims_id: '$clarity_id'\n";
+    if ($opt{status}) {
+        print OUT "status: '$opt{status}'\n";
+    }
     print OUT "samples: \n";
 
     ### MATCH ped inidividuals with bams ###

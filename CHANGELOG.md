@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.25.3
+* Set Scout case status to `prioritized` when the proband CSV priority is `highest`
+
 ### 3.25.2
 * CFTR to constitutional institute...
 
