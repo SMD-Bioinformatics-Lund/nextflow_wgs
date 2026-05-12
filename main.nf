@@ -1,5 +1,7 @@
 #!/usr/bin/env nextflow
 
+import groovy.json.JsonSlurper
+
 include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
@@ -609,7 +611,20 @@ workflow NEXTFLOW_WGS {
 				ch_stranger_meta
 			)
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
-			reviewer(expansionhunter.out.bam_vcf)
+
+			reviewer_loci = new groovy.json.JsonSlurper()
+				.parseText(file(params.expansionhunter_catalog).text)
+				.collect { locus_definition -> locus_definition.LocusId }
+				.findAll { locus -> locus }
+
+			ch_reviewer_input = expansionhunter.out.bam_vcf
+				.flatMap { group, id, bam, bai, vcf ->
+					reviewer_loci.collect { locus ->
+						tuple(group, id, bam, bai, vcf, locus)
+					}
+				}
+
+			reviewer(ch_reviewer_input)
 			ch_output_info = ch_output_info.mix(reviewer.out.reviewer_INFO)
 
 			ch_versions = ch_versions.mix(SMNCopyNumberCaller.out.versions.first())
@@ -1712,7 +1727,7 @@ def stranger_version(task) {
 
 
 process reviewer {
-	tag "$group"
+	tag "$group:$locus"
 	cpus 2
 	time '1h'
 	memory '1 GB'
@@ -1721,7 +1736,7 @@ process reviewer {
 	publishDir "${params.results_output_dir}/plots/reviewer/${group}", mode: 'copy' , overwrite: 'true', pattern: '*.svg'
 
 	input:
-		tuple val(group), val(id), path(bam), path(bai), path(vcf)
+		tuple val(group), val(id), path(bam), path(bai), path(vcf), val(locus)
 
 	output:
 		path("*svg")
@@ -1731,17 +1746,13 @@ process reviewer {
 	script:
 		version_str = reviewer_version(task)
 		"""
-		grep LocusId ${params.expansionhunter_catalog} | sed 's/[",^ ]//g' | cut -d':' -f2 > reviewer_loci.txt
-		: > ${group}_reviewer.INFO
-		while read -r locus; do
-			REViewer --reads ${bam} \\
-				--vcf ${vcf} \\
-				--reference ${params.genome_file} \\
-				--catalog ${params.expansionhunter_catalog} \\
-				--locus "\$locus" \\
-				--output-prefix ${id}
-			echo "STR_VARIANTS_IMG	\$locus	${params.accessdir}/plots/reviewer/${group}/${id}.\$locus.svg" >> ${group}_reviewer.INFO
-		done < reviewer_loci.txt
+		REViewer --reads ${bam} \\
+			--vcf ${vcf} \\
+			--reference ${params.genome_file} \\
+			--catalog ${params.expansionhunter_catalog} \\
+			--locus "${locus}" \\
+			--output-prefix ${id}
+		echo "STR_VARIANTS_IMG	${locus}	${params.accessdir}/plots/reviewer/${group}/${id}.${locus}.svg" > ${group}_reviewer.INFO
 
 		echo "${version_str}" > "${task.process}_versions.yml"
 		"""
@@ -1749,8 +1760,8 @@ process reviewer {
 	stub:
 		version_str = reviewer_version(task)
 		"""
-		touch "${id}.svg"
-		touch "${group}_reviewer.INFO"
+		touch "${id}.${locus}.svg"
+		echo "STR_VARIANTS_IMG	${locus}	${params.accessdir}/plots/reviewer/${group}/${id}.${locus}.svg" > "${group}_reviewer.INFO"
 		echo "${version_str}" > "${task.process}_versions.yml"
 		"""
 }
