@@ -240,6 +240,9 @@ workflow NEXTFLOW_WGS {
 			row.type == "proband"
 		}
 		.map { row ->
+
+			def scout_case_status = row.containsKey("priority") && row.priority == "highest" ? "prioritized" : ""
+
 			tuple(
 				row.group,
 				row.id,
@@ -247,7 +250,8 @@ workflow NEXTFLOW_WGS {
 				row.assay,
 				row.type,
 				row.clarity_sample_id,
-				(row.containsKey("analysis") ? row.analysis : false)
+				(row.containsKey("analysis") ? row.analysis : false),
+				scout_case_status
 			)
 		}
 
@@ -960,7 +964,7 @@ process genes_analyzed {
 	container "${params.container_cnvkit}"
 
 	input:
-		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis)
+		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis), val(scout_status)
 
 	output:
 		tuple val(group), val(id), file("${group}.genes"), emit: genes_of_interest
@@ -4619,7 +4623,7 @@ process create_yaml {
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis)
+		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis), val(scout_status)
 		tuple val(group2), val(type2), path(ped)
 		tuple val(group3), path(INFO)
 
@@ -4638,6 +4642,7 @@ process create_yaml {
 			--files "$INFO" \\
 			--assay "$assay" \\
 			--antype "$params.antype" \\
+			--status "$scout_status" \\
 			--extra_panels "$params.extra_panels"
 		"""
 
