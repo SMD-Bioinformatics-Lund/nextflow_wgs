@@ -1,7 +1,12 @@
 # CHANGELOG
 
-### 3.26.0
+### 3.26.1
+* Set Scout case status to `prioritized` when the proband CSV priority is `highest`
 * Do not load empty SV VCFs into loqusdb
+
+### 3.26.0
+* Split up reviewer loci to one process per locus
+* Add `.codex` and `.agent-shell/` to gitignore 
 
 ### 3.25.2
 * CFTR to constitutional institute...

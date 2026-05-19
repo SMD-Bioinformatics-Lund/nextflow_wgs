@@ -27,3 +27,4 @@ bin/reference_tools/*.bed
 bin/reference_tools/refdata/*.vcf.gz
 
 /.agent-shell/
+.codex
