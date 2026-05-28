@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.26.2
+- Convert all instances of .set{} to direct channel assingment
+
 ### 3.26.1
 * Set Scout case status to `prioritized` when the proband CSV priority is `highest`
 * Do not load empty SV VCFs into loqusdb
