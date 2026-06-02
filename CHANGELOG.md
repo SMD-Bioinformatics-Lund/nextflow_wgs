@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.26.2
+* Emit and publish the ExpansionHunter STR VCF together with its tabix index
+
 ### 3.26.1
 * Set Scout case status to `prioritized` when the proband CSV priority is `highest`
 * Do not load empty SV VCFs into loqusdb
