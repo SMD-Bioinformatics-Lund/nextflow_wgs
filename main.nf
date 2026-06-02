@@ -1659,7 +1659,6 @@ process expansionhunter {
 	input:
 		tuple val(group), val(id), path(bam), path(bai), val(sex), val(type) // TODO: sex + type are not needed here
 
-
 	output:
 		tuple val(group), val(id), path("${group}.eh.vcf"), emit: expansionhunter_vcf
 		tuple val(group), val(id), path("${group}.eh_realigned.sort.bam"), path("${group}.eh_realigned.sort.bam.bai"), path("${group}.eh.vcf"), emit: bam_vcf
@@ -1791,6 +1790,7 @@ def reviewer_version(task) {
 // FIXME: Use env variable for picard path...
 process vcfbreakmulti_expansionhunter {
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: 'true', pattern: '*.vcf.gz'
+    publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: 'true', pattern: '*.vcf.gz.tbi'
 	tag "$group"
 	time '1h'
 	memory '50 GB'
@@ -1800,7 +1800,8 @@ process vcfbreakmulti_expansionhunter {
 		tuple val(group2), val(id2), val(sex), val(mother), val(father), val(phenotype), val(diagnosis), val(type), val(assay), val(clarity_sample_id), val(ffpe), val(analysis)
 
 	output:
-		path("${group}.expansionhunter.vcf.gz"), emit: expansionhunter_scout
+	    tuple val(group), path("${group}.expansionhunter.vcf.gz"), emit: vcf
+        tuple val(group), path("${group}.expansionhunter.vcf.gz.tbi"), emit: tbi
 		tuple val(group), path("${group}_str.INFO"), emit: str_INFO
 		path "*versions.yml", emit: versions
 
@@ -1834,7 +1835,8 @@ process vcfbreakmulti_expansionhunter {
 
 	stub:
 		"""
-		touch "${group}.expansionhunter.vcf.gz"
+	    touch "${group}.expansionhunter.vcf.gz"
+        touch "${group}.expansionhunter.vcf.gz.tbi"
 		touch "${group}_str.INFO"
 
 		${vcfbreakmulti_expansionhunter_version(task)}
