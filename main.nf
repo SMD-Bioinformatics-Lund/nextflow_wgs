@@ -156,7 +156,7 @@ workflow NEXTFLOW_WGS {
 	}
 
 
-	ch_samplesheet
+	ch_vcf_annotation_only = ch_samplesheet
 		.filter {
 			row -> row.read1.endsWith(".vcf") || row.read1.endsWith(".vcf.gz")
 		}
@@ -165,7 +165,6 @@ workflow NEXTFLOW_WGS {
 			def vcf = row.read1
 			[ group, vcf ]
 		}
-        .set { ch_vcf_annotation_only }
 
 	// GATK Ref:
 	ch_gatk_ref = channel
@@ -384,7 +383,7 @@ workflow NEXTFLOW_WGS {
 		freebayes(ch_bam_bai)
 		ch_versions = ch_versions.mix(freebayes.out.versions.first())
         
-        freebayes.out.freebayes_variants
+        ch_concat_gvcf_freebayes_in = freebayes.out.freebayes_variants
             .join(
                 gvcf_combine.out.combined_vcf
             )
@@ -392,16 +391,14 @@ workflow NEXTFLOW_WGS {
                 group, freebayes_vcf, _id, gvcf, _gvcf_tbi ->
                 [ group, gvcf, freebayes_vcf ]
             }
-            .set { ch_concat_gvcf_freebayes_in  }
 
         concat_gvcf_freebayes(ch_concat_gvcf_freebayes_in)
         ch_split_normalize_in = concat_gvcf_freebayes.out.vcf_tbi
         ch_versions = ch_versions.mix(concat_gvcf_freebayes.out.versions.first())
         
 	} else {
-        gvcf_combine.out.combined_vcf
+        ch_split_normalize_in = gvcf_combine.out.combined_vcf
             .map { group, _id, vcf, tbi -> [ group, vcf, tbi ] }
-            .set { ch_split_normalize_in }
     }
 
     
@@ -443,10 +440,9 @@ workflow NEXTFLOW_WGS {
         
 		run_hmtnote(split_normalize_mito.out.vcf) 
 
-        SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+        ch_picard_mergevcfs_in = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
             .join(run_hmtnote.out.vcf) 
             .map { group, snv_vcf, _tbi, mito_vcf -> [ group, snv_vcf, mito_vcf ] }
-            .set { ch_picard_mergevcfs_in }
 
         picard_mergevcfs(ch_picard_mergevcfs_in)
         ch_rename_mito_contigs_in = picard_mergevcfs.out.merged_vcf
@@ -468,15 +464,13 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(run_haplogrep.out.versions.first())
 		ch_versions = ch_versions.mix(run_eklipse.out.versions.first())
 	} else {
-        SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
-            .set { ch_rename_mito_contigs_in }                            
+        ch_rename_mito_contigs_in = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
     }
 
     // TODO: Do this inside mito snv workflow? 
     rename_mito_contigs(ch_rename_mito_contigs_in)
-    rename_mito_contigs.out.vcf_tbi
+    ch_snv_annotate_in = rename_mito_contigs.out.vcf_tbi
         .map { group, vcf, _tbi -> [ group, vcf ] }
-        .set { ch_snv_annotate_in }
 
     ch_versions = ch_versions.mix(rename_mito_contigs.out.versions.first())
         
@@ -838,9 +832,8 @@ workflow NEXTFLOW_WGS {
 
 		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf, ch_svvcf_to_bed_meta)
 
-        SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+        ch_cnvkit_plot_snvs = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
             .map { group, vcf, _tbi -> [ group, vcf ] }
-            .set { ch_cnvkit_plot_snvs }
         
 		// plot cnvkit for panels
 		ch_cnvkit_plot = ch_cnvkit_cns_cnr
