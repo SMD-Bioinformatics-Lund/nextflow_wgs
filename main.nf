@@ -704,11 +704,12 @@ workflow NEXTFLOW_WGS {
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
 		ch_melt_intersect_vcf = channel.empty()
 		if (params.run_melt) {
-			ch_melt_in = ch_bam_bai
-				.join(ch_qc_mean_depth, by: [0, 1])
-				.join(ch_qc_ins_size, by: [0, 1])
             MELT(
-				ch_melt_in,
+				ch_bam_bai,
+				ch_qc_mean_depth,
+				ch_qc_ins_size,
+				channel.value(file(params.genome_file)),
+				channel.value(file(params.mei_list)),
 				channel.value(file(params.meltheader)),
 				channel.value(file(params.intersect_bed))
 			)

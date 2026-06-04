@@ -2,12 +2,20 @@
 workflow MELT {
 
     take:
-    ch_melt_in       // ch:    [ group, id, bam, bai, mean_depth, ins_size ]
+    ch_bam_bai       // ch:    [ group, id, bam, bai   ]
+    ch_mean_depth    // ch:    [ group, id, mean_depth ]
+    ch_ins_size      // ch:    [ group, id, ins_size   ]
+    fasta            // value: path(reference.fa)
+    mei_list         // value: path(mei_list.txt)
     vcf_header       // value: path(vcf_header)
     bed_intersect    // value: path(bed_intersect)
 
     main:
     ch_versions = channel.empty()
+
+    ch_melt_in = ch_bam_bai
+        .join(ch_mean_depth, by: [0, 1])
+        .join(ch_ins_size, by: [0, 1])
 
     melt(ch_melt_in)
     merge_melt(melt.out.melt_vcfs, vcf_header)
@@ -34,7 +42,9 @@ process melt {
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai), val(mean_depth), val(ins_size)
-
+		path(fasta)
+		path(mei_list)
+    
 	output:
 		tuple val(group), val(id), path("ALU.final_comp.vcf"), path("LINE1.final_comp.vcf"), path("SVA.final_comp.vcf"), emit: melt_vcfs
 		path "*versions.yml", emit: versions
@@ -44,11 +54,11 @@ process melt {
 		java -jar /opt/MELTv2.2.2/MELT.jar Single \\
 			-bamfile $bam \\
 			-r 150 \\
-			-h ${params.genome_file} \\
+			-h $fasta \\
 			-n /opt/MELTv2.2.2/add_bed_files/Hg38/Hg38.genes.bed \\
 			-z 500000 \\
 			-d 50 \\
-			-t $params.mei_list \\
+			-t $mei_list \\
 			-w . \\
 			-c $mean_depth \\
 			-e $ins_size \\
