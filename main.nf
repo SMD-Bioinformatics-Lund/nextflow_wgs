@@ -421,10 +421,10 @@ workflow NEXTFLOW_WGS {
 		ch_bam_snv_annotate = ch_bam_bai
 			.join(
 				ch_proband_meta.map { meta ->
-					tuple(meta.group,meta.id)
+					tuple(meta.group,meta.id, meta)
 				}, by: [0,1]
 			)
-			.map { group, id, bam, bai ->
+			.map { group, id, bam, bai, meta ->
 				tuple(group, bam, bai)
 		}
 
@@ -2027,7 +2027,7 @@ process create_ped {
 	memory '1 GB'
 
 	input:
-		tuple val(meta)
+		val(meta)
 
 	output:
 		tuple val({meta.group}), val({meta.type}), path("${meta.group}_base.ped"), emit: ped_base
@@ -3964,7 +3964,7 @@ process filter_proband_null_calls {
 
 	input:
 		tuple val(group), val(id), path(sv_vcf)
-		tuple val(meta)
+		val(meta)
 	
 	output:
 		tuple val(group), val(id), path("${group}.proband.calls.vcf"), emit: filtered_vcf
