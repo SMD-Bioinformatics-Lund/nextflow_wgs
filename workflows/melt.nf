@@ -37,7 +37,7 @@ process melt {
 	errorStrategy 'retry'
 	container  "${params.container_melt}"
 	tag "$id"
-	// memory seems to scale with less number of reads?
+	// memory seems to scale with fewer number of reads?
 	memory '70 GB'
 	time '3h'
 
