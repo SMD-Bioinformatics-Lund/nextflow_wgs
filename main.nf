@@ -353,27 +353,28 @@ workflow NEXTFLOW_WGS {
 
 	ch_qc_json = ch_qc_json.mix(sentieon_qc_postprocess.out.qc_json)
 
-	ch_qc_vals = sentieon_qc_postprocess.out.qc_json
+    // TODO: Move into some future QC workflow:
+	ch_qc_parsed = sentieon_qc_postprocess.out.qc_json
 		.map { group, id, qc_json ->
 			def qc = [:]
-			def missing = { value -> value == null || value.toString().trim() == '' }
 
 			if (qc_json.exists() && qc_json.size() > 0) {
 				def parsed_qc = new groovy.json.JsonSlurper().parseText(qc_json.text)
 				qc.ins_size = parsed_qc.ins_size
 				qc.mean_depth = parsed_qc.mean_coverage
-				qc.cov_dev = parsed_qc.ins_size_dev
 			}
 
-			if (params.run_melt && missing(qc.ins_size)) {
+			if (params.run_melt && !qc.ins_size) {
 				error "Missing required MELT QC value 'ins_size' for ${id}"
 			}
-			if ((params.run_melt || params.antype == "panel") && missing(qc.mean_depth)) {
+			if ((params.run_melt || params.antype == "panel") && !qc.mean_depth) {
 				error "Missing required QC value 'mean_coverage' for ${id}"
 			}
 
 			tuple(group, id, qc)
 		}
+	ch_qc_mean_depth = ch_qc_parsed.map { group, id, qc -> tuple(group, id, qc.mean_depth) }
+	ch_qc_ins_size = ch_qc_parsed.map { group, id, qc -> tuple(group, id, qc.ins_size) }
 
 	IDSNP_CALL(ch_bam_bai, params.idsnps)
 	IDSNP_VCF_TO_JSON(IDSNP_CALL.out.vcf)
@@ -703,11 +704,13 @@ workflow NEXTFLOW_WGS {
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
 		ch_melt_intersect_vcf = channel.empty()
 		if (params.run_melt) {
+			ch_melt_in = ch_bam_bai
+				.join(ch_qc_mean_depth, by: [0, 1])
+				.join(ch_qc_ins_size, by: [0, 1])
             MELT(
-				ch_bam_bai,
-				ch_qc_vals,
-				params.meltheader,
-				params.intersect_bed
+				ch_melt_in,
+				channel.value(file(params.meltheader)),
+				channel.value(file(params.intersect_bed))
 			)
 			ch_melt_intersect_vcf = ch_melt_intersect_vcf.mix(MELT.out.melt_intersect_vcf)
 			ch_versions = ch_versions.mix(MELT.out.versions)
@@ -720,12 +723,15 @@ workflow NEXTFLOW_WGS {
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
 
-			cnvkit_panel(
-                ch_bam_bai,
-                SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
-                    .map { group, vcf, _tbi -> [ group, vcf ] },
-                ch_qc_vals
-            )
+			ch_cnvkit_panel_in = ch_bam_bai
+				.combine(
+					SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+						.map { group, vcf, _tbi -> [ group, vcf ] },
+					by: 0
+				)
+				.join(ch_qc_mean_depth, by: [0, 1])
+
+			cnvkit_panel(ch_cnvkit_panel_in)
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
 			ch_cnvkit_cns_cnr = ch_cnvkit_cns_cnr.mix(cnvkit_panel.out.cns_cnr)
 
@@ -3408,9 +3414,7 @@ process cnvkit_panel {
 	time '1h'
 	memory '20 GB'
 	input:
-		tuple val(group), val(id), path(bam), path(bai)
-		tuple val(group2), path(intersected_vcf)
-		tuple val(group3), val(id3), val(qc)
+		tuple val(group), val(id), path(bam), path(bai), path(intersected_vcf), val(mean_depth)
 
 	output:
 		tuple val(group), val(id), path("${id}.cnvkit_filtered.vcf"), emit: cnvkit_calls
@@ -3426,7 +3430,7 @@ process cnvkit_panel {
 		mv results/\${bam_base}.cns ${id}.cns
 		mv results/\${bam_base}.cnr ${id}.cnr
 		cnvkit.py call ${id}.cns -v $intersected_vcf -o ${id}.call.cns
-		filter_cnvkit.pl ${id}.call.cns ${qc.mean_depth} > ${id}.filtered
+		filter_cnvkit.pl ${id}.call.cns $mean_depth > ${id}.filtered
 		cnvkit.py export vcf ${id}.filtered -i "$id" > ${id}.cnvkit_filtered.vcf
 
 		${cnvkit_panel_version(task)}

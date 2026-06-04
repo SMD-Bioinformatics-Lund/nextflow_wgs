@@ -2,17 +2,12 @@
 workflow MELT {
 
     take:
-    ch_bam_bai       // ch:    [ group, id, bam, bai ]
-    ch_qc_vals       // ch:    [ group, id, qc       ]
+    ch_melt_in       // ch:    [ group, id, bam, bai, mean_depth, ins_size ]
     vcf_header       // value: path(vcf_header)
     bed_intersect    // value: path(bed_intersect)
 
     main:
     ch_versions = channel.empty()
-
-    ch_bam_bai
-        .join(ch_qc_vals, by: [0, 1])
-        .set{ ch_melt_in }
 
     melt(ch_melt_in)
     merge_melt(melt.out.melt_vcfs, vcf_header)
@@ -38,7 +33,7 @@ process melt {
 	time '3h'
 
 	input:
-		tuple val(group), val(id), path(bam), path(bai), val(qc)
+		tuple val(group), val(id), path(bam), path(bai), val(mean_depth), val(ins_size)
 
 	output:
 		tuple val(group), val(id), path("ALU.final_comp.vcf"), path("LINE1.final_comp.vcf"), path("SVA.final_comp.vcf"), emit: melt_vcfs
@@ -55,8 +50,8 @@ process melt {
 			-d 50 \\
 			-t $params.mei_list \\
 			-w . \\
-			-c ${qc.mean_depth} \\
-			-e ${qc.ins_size} \\
+			-c $mean_depth \\
+			-e $ins_size \\
 			-exome
 
 		${melt_version(task)}
