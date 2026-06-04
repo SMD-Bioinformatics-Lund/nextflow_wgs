@@ -6,6 +6,7 @@ workflow MELT {
     ch_mean_depth    // ch:    [ group, id, mean_depth ]
     ch_ins_size      // ch:    [ group, id, ins_size   ]
     fasta            // value: path(reference.fa)
+    fai              // value: path(reference.fa.fai)
     mei_list         // value: path(mei_list.txt)
     vcf_header       // value: path(vcf_header)
     bed_intersect    // value: path(bed_intersect)
@@ -17,7 +18,7 @@ workflow MELT {
         .join(ch_mean_depth, by: [0, 1])
         .join(ch_ins_size, by: [0, 1])
 
-    melt(ch_melt_in, fasta, mei_list)
+    melt(ch_melt_in, fasta, fai, mei_list)
     merge_melt(melt.out.melt_vcfs, vcf_header)
     intersect_melt(merge_melt.out.melt_vcf_nonfiltered, bed_intersect)
 
@@ -43,6 +44,7 @@ process melt {
 	input:
 		tuple val(group), val(id), path(bam), path(bai), val(mean_depth), val(ins_size)
 		path(fasta)
+		path(fasta_fai)
 		path(mei_list)
     
 	output:

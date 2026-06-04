@@ -709,6 +709,7 @@ workflow NEXTFLOW_WGS {
 				ch_qc_mean_depth,
 				ch_qc_ins_size,
 				channel.value(file(params.genome_file)),
+				channel.value(file("${params.genome_file}.fai")),
 				channel.value(file(params.mei_list)),
 				channel.value(file(params.meltheader)),
 				channel.value(file(params.intersect_bed))
