@@ -353,6 +353,27 @@ workflow NEXTFLOW_WGS {
 
 	ch_qc_json = ch_qc_json.mix(sentieon_qc_postprocess.out.qc_json)
 
+	ch_qc_vals = sentieon_qc_postprocess.out.qc_json
+		.map { group, id, qc_json ->
+			def qc = [:]
+			def missing = { value -> value == null || value.toString().trim() == '' }
+
+			if (qc_json.exists() && qc_json.size() > 0) {
+				def parsed_qc = new groovy.json.JsonSlurper().parseText(qc_json.text)
+				qc.ins_size = parsed_qc.ins_size
+				qc.mean_depth = parsed_qc.mean_coverage
+				qc.cov_dev = parsed_qc.ins_size_dev
+			}
+
+			if (params.run_melt && missing(qc.ins_size)) {
+				error "Missing required MELT QC value 'ins_size' for ${id}"
+			}
+			if ((params.run_melt || params.antype == "panel") && missing(qc.mean_depth)) {
+				error "Missing required QC value 'mean_coverage' for ${id}"
+			}
+
+			tuple(group, id, qc)
+		}
 	IDSNP_CALL(ch_bam_bai, params.idsnps)
 	IDSNP_VCF_TO_JSON(IDSNP_CALL.out.vcf)
 	ch_versions = ch_versions.mix(IDSNP_CALL.out.versions.first())
@@ -680,7 +701,10 @@ workflow NEXTFLOW_WGS {
 		// MELT //
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
 		if (params.run_melt) {
-            MELT(ch_bam_bai, sentieon_qc_postprocess.out.qc_json)
+            MELT(
+				ch_bam_bai,
+				ch_qc_vals,
+			)
 			ch_versions = ch_versions.mix(MELT.out.versions)
 		}
 		
@@ -695,7 +719,7 @@ workflow NEXTFLOW_WGS {
                 ch_bam_bai,
                 SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
                     .map { group, vcf, _tbi -> [ group, vcf ] },
-                ch_melt_qc_vals
+                ch_qc_vals
             )
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
 			ch_cnvkit_cns_cnr = ch_cnvkit_cns_cnr.mix(cnvkit_panel.out.cns_cnr)
@@ -3381,7 +3405,7 @@ process cnvkit_panel {
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
 		tuple val(group2), path(intersected_vcf)
-		tuple val(group3), val(id3), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV)
+		tuple val(group3), val(id3), val(qc)
 
 	output:
 		tuple val(group), val(id), path("${id}.cnvkit_filtered.vcf"), emit: cnvkit_calls
@@ -3397,7 +3421,7 @@ process cnvkit_panel {
 		mv results/\${bam_base}.cns ${id}.cns
 		mv results/\${bam_base}.cnr ${id}.cnr
 		cnvkit.py call ${id}.cns -v $intersected_vcf -o ${id}.call.cns
-		filter_cnvkit.pl ${id}.call.cns $MEAN_DEPTH > ${id}.filtered
+		filter_cnvkit.pl ${id}.call.cns ${qc.mean_depth} > ${id}.filtered
 		cnvkit.py export vcf ${id}.filtered -i "$id" > ${id}.cnvkit_filtered.vcf
 
 		${cnvkit_panel_version(task)}
