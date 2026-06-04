@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### 3.26.3
+* Use boolean values for `publishDir overwrite`
+
 ### 3.26.2
 * Convert all instances of .set{} to direct channel assingment
 * Emit and publish the ExpansionHunter STR VCF together with its tabix index
