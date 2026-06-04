@@ -44,7 +44,7 @@ process melt {
 	input:
 		tuple val(group), val(id), path(bam), path(bai), val(mean_depth), val(ins_size)
 		path(fasta)
-		path(fasta_fai)
+		path(fai)
 		path(mei_list)
     
 	output:
