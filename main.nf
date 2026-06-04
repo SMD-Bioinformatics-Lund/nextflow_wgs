@@ -240,19 +240,7 @@ workflow NEXTFLOW_WGS {
 	ch_bam_bai = ch_bam_bai.mix(copy_bam.out.bam_bai)
 
 	// PED //
-	ch_ped_input = ch_samplesheet
-		.filter { row -> row.type == "proband" }
-		.map { row ->
-			def group = row.group
-			def id = row.id
-			def type = row.type
-			def sex = row.sex
-			def father = row.father
-			def mother = row.mother
-			tuple(group, id, type, sex, mother, father)
-		}
-
-	create_ped(ch_ped_input)
+	create_ped(ch_proband_meta)
 	ch_ped_base = create_ped.out.ped_base
 
 	ch_ped_trio_affected_permutations = channel.empty()  // channel for base ped + father and mother set as affected peds
@@ -748,7 +736,6 @@ workflow NEXTFLOW_WGS {
 		}
 
 		// ANNOTATE SVs //
-		ch_proband_meta = ch_split_normalize_meta
 		filter_proband_null_calls(ch_panel_svs_present,ch_proband_meta)
 		tdup_to_dup(filter_proband_null_calls.out.filtered_vcf)
 		annotsv(tdup_to_dup.out.renamed_vcf)
@@ -2030,30 +2017,32 @@ def gvcf_combine_version(task) {
 
 // Create ped
 process create_ped {
-	tag "$group"
+	tag "${meta.group}"
 	time '20m'
 	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: 'true'
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(id), val(type), val(sex), val(mother), val(father)
+		tuple val(meta)
 
 	output:
-		tuple val(group), val(type), path("${group}_base.ped"), emit: ped_base
-		tuple val(group), val(type_ma), path("${group}_ma.ped"), emit: ped_ma, optional: true
-		tuple val(group), val(type_fa), path("${group}_fa.ped"), emit: ped_fa, optional: true
+		tuple val({meta.group}), val({meta.type}), path("${meta.group}_base.ped"), emit: ped_base
+		tuple val({meta.group}), val(type_ma), path("${meta.group}_ma.ped"), emit: ped_ma, optional: true
+		tuple val({meta.group}), val(type_fa), path("${meta.group}_fa.ped"), emit: ped_fa, optional: true
 
 	script:
-		if ( father == "" ) {
+		if ( {meta.father} == "" ) {
 			father = "0"
 		}
-		if ( mother == "" ) {
+		else { father = {meta.father }}
+		if ( {meta.mother} == "" ) {
 			mother = "0"
 		}
+		else { mother = {meta.mother }}
 		type_fa = "fa"
 		type_ma = "ma"
 		"""
-		create_ped.pl --mother $mother --father $father --group $group --id $id --sex $sex
+		create_ped.pl --mother $mother --father $father --group ${meta.group} --id ${meta.id} --sex ${meta.sex}
 		"""
 
 	stub:
@@ -2062,9 +2051,9 @@ process create_ped {
 		type_fa = "fa"
 		type_ma = "ma"
 		"""
-		touch "${group}_base.ped"
-		touch "${group}_ma.ped"
-		touch "${group}_fa.ped"
+		touch "${meta.group}_base.ped"
+		touch "${meta.group}_ma.ped"
+		touch "${meta.group}_fa.ped"
 
         echo $type_fa $type_ma > type.val
 		"""
@@ -3971,14 +3960,14 @@ process filter_proband_null_calls {
 
 	input:
 		tuple val(group), val(id), path(sv_vcf)
-		tuple val(group2), val(proband_id), val(sex), val(type)
+		tuple val(meta)
 	
 	output:
 		tuple val(group), val(id), path("${group}.proband.calls.vcf"), emit: filtered_vcf
 
 	script:
 		"""
-		SAMPLE_INDEX=\$(bcftools query -l $sv_vcf | grep $proband_id -n | cut -f 1 -d ':' | awk '{print \$1 - 1}')
+		SAMPLE_INDEX=\$(bcftools query -l $sv_vcf | grep ${meta.id} -n | cut -f 1 -d ':' | awk '{print \$1 - 1}')
     	bcftools view -e \"GT[\$SAMPLE_INDEX]='./.'\" -o ${group}.proband.calls.vcf -O v $sv_vcf
 		"""
 
