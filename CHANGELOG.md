@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### 3.26.3
+* Move MELT into a subworkflow with separate MELT, merge, and intersect processes
+* Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
+* Parse Sentieon QC once and pass mean depth and insert size through keyed channels
+
 ### 3.26.2
 * Convert all instances of .set{} to direct channel assingment
 * Emit and publish the ExpansionHunter STR VCF together with its tabix index
