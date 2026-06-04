@@ -138,7 +138,7 @@ process intersect_melt {
 	memory '2 GB'
 	time '1h'
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf'
-    container "${params.container_bedtools"}
+    container "${params.container_bedtools}"
 
 	input:
 		tuple val(group), val(id), path(vcf)
