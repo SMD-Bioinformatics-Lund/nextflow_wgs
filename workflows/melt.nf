@@ -148,9 +148,6 @@ process intersect_melt {
 		tuple val(group), val(id), path("${id}.melt.merged.intersected.vcf"), emit: merged_intersected_vcf
 		path "*versions.yml", emit: versions
 
-	when:
-		params.run_melt
-
 	script:
 		"""
 		bedtools intersect -a $vcf -b $bed_intersect -header > ${id}.melt.merged.intersected.vcf
