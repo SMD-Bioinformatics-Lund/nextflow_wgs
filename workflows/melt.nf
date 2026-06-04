@@ -17,7 +17,7 @@ workflow MELT {
         .join(ch_mean_depth, by: [0, 1])
         .join(ch_ins_size, by: [0, 1])
 
-    melt(ch_melt_in)
+    melt(ch_melt_in, fasta, mei_list)
     merge_melt(melt.out.melt_vcfs, vcf_header)
     intersect_melt(merge_melt.out.melt_vcf_nonfiltered, bed_intersect)
 
