@@ -374,6 +374,7 @@ workflow NEXTFLOW_WGS {
 
 			tuple(group, id, qc)
 		}
+
 	IDSNP_CALL(ch_bam_bai, params.idsnps)
 	IDSNP_VCF_TO_JSON(IDSNP_CALL.out.vcf)
 	ch_versions = ch_versions.mix(IDSNP_CALL.out.versions.first())
@@ -700,11 +701,15 @@ workflow NEXTFLOW_WGS {
 
 		// MELT //
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
+		ch_melt_intersect_vcf = channel.empty()
 		if (params.run_melt) {
             MELT(
 				ch_bam_bai,
 				ch_qc_vals,
+				params.meltheader,
+				params.intersect_bed
 			)
+			ch_melt_intersect_vcf = ch_melt_intersect_vcf.mix(MELT.out.melt_intersect_vcf)
 			ch_versions = ch_versions.mix(MELT.out.versions)
 		}
 		
@@ -736,7 +741,7 @@ workflow NEXTFLOW_WGS {
 
 			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge_panel.out.loqusdb_vcf)
 
-			postprocess_merged_panel_sv_vcf(svdb_merge_panel.out.merged_vcf, intersect_melt.out.merged_intersected_vcf)
+			postprocess_merged_panel_sv_vcf(svdb_merge_panel.out.merged_vcf, ch_melt_intersect_vcf)
 			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(
 				postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf
 			)

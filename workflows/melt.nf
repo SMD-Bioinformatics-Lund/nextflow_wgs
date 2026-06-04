@@ -15,9 +15,11 @@ workflow MELT {
         .set{ ch_melt_in }
 
     melt(ch_melt_in)
-    intersect_melt(melt.out.melt_vcf_nonfiltered)
+    merge_melt(melt.out.melt_vcfs, vcf_header)
+    intersect_melt(merge_melt.out.melt_vcf_nonfiltered, bed_intersect)
 
     ch_versions = ch_versions.mix(melt.out.versions.first())
+    ch_versions = ch_versions.mix(merge_melt.out.versions.first())
     ch_versions = ch_versions.mix(intersect_melt.out.versions.first())
 
     emit:
@@ -26,10 +28,6 @@ workflow MELT {
     
 }
 
-// MELT always give VCFs for each type of element defined in mei_list
-// If none found -> 0 byte vcf. merge_melt.pl merges the three, if all empty
-// it creates a vcf with only header
-// merge_melt.pl gives output ${id}.melt.merged.vcf
 process melt {
 	cpus 3
 	errorStrategy 'retry'
@@ -43,7 +41,7 @@ process melt {
 		tuple val(group), val(id), path(bam), path(bai), val(qc)
 
 	output:
-		tuple val(group), val(id), path("${id}.melt.merged.vcf"), emit: melt_vcf_nonfiltered
+		tuple val(group), val(id), path("ALU.final_comp.vcf"), path("LINE1.final_comp.vcf"), path("SVA.final_comp.vcf"), emit: melt_vcfs
 		path "*versions.yml", emit: versions
 
 	script:
@@ -60,14 +58,15 @@ process melt {
 			-c ${qc.mean_depth} \\
 			-e ${qc.ins_size} \\
 			-exome
-		merge_melt.pl $params.meltheader $id
 
 		${melt_version(task)}
 		"""
 
 	stub:
 		"""
-		touch "${id}.melt.merged.vcf"
+		touch ALU.final_comp.vcf
+		touch LINE1.final_comp.vcf
+		touch SVA.final_comp.vcf
 		${melt_version(task)}
 		"""
 }
@@ -76,6 +75,52 @@ def melt_version(task) {
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
 	    melt: \$(echo \$(java -jar /opt/MELTv2.2.2/MELT.jar -h | grep "^MELTv" | cut -f1 -d" " | sed "s/MELTv//" ) )
+	END_VERSIONS
+	"""
+}
+
+// MELT always gives VCFs for each type of element defined in mei_list.
+// If none are found, merge_melt.pl creates a VCF with only header.
+process merge_melt {
+	cpus 1
+	container  "${params.container_melt}"
+	tag "$id"
+	memory '2 GB'
+	time '1h'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf'
+
+	input:
+		tuple val(group), val(id), path(alu_vcf), path(line1_vcf), path(sva_vcf)
+		path vcf_header
+
+	output:
+		tuple val(group), val(id), path("${id}.melt.merged.vcf"), emit: melt_vcf_nonfiltered
+		path "*versions.yml", emit: versions
+
+	script:
+		"""
+		merge_melt.pl \\
+			--vcf-header $vcf_header \\
+			--id $id \\
+			--alu $alu_vcf \\
+			--line1 $line1_vcf \\
+			--sva $sva_vcf \\
+			--out ${id}.melt.merged.vcf
+
+		${merge_melt_version(task)}
+		"""
+
+	stub:
+		"""
+		touch "${id}.melt.merged.vcf"
+		${merge_melt_version(task)}
+		"""
+}
+def merge_melt_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    vcftools: \$(vcf-concat --version 2>&1 | head -n 1 | sed 's/^.*vcf-concat //')
 	END_VERSIONS
 	"""
 }
@@ -89,6 +134,7 @@ process intersect_melt {
 
 	input:
 		tuple val(group), val(id), path(vcf)
+		path bed_intersect
 
 	output:
 		tuple val(group), val(id), path("${id}.melt.merged.intersected.vcf"), emit: merged_intersected_vcf
@@ -99,7 +145,7 @@ process intersect_melt {
 
 	script:
 		"""
-		bedtools intersect -a $vcf -b $params.intersect_bed -header > ${id}.melt.merged.intersected.vcf
+		bedtools intersect -a $vcf -b $bed_intersect -header > ${id}.melt.merged.intersected.vcf
 		${intersect_melt_version(task)}
 		"""
 
