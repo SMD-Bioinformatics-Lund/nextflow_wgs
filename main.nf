@@ -372,11 +372,7 @@ workflow NEXTFLOW_WGS {
 		
 		// bam channel for SNV annotate, special case //
 		ch_bam_snv_annotate = ch_bam_bai
-			.join(
-				ch_proband_meta.map { meta ->
-					tuple(meta.group,meta.id, meta)
-				}, by: [0,1]
-			)
+			.join(ch_proband_meta, by: [0,1])
 			.map { group, id, bam, bai, meta ->
 				tuple(group, bam, bai)
 		}
