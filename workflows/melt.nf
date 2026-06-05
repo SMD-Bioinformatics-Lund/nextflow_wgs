@@ -12,6 +12,10 @@ workflow MELT {
     bed_intersect    // value: path(bed_intersect)
 
     main:
+    // TODO: Define these better so these two params so they do not have to be redefined here:
+	params.results_output_dir = params.outdir + '/' + params.subdir
+	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
+    
     ch_versions = channel.empty()
 
     ch_melt_in = ch_bam_bai
