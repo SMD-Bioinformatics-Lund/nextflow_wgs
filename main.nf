@@ -1488,6 +1488,18 @@ process sentieon_qc_postprocess {
 			> ${id}_qc.json
 
 		"""
+
+    // This stub is to test the qc value JSON parsing used for melt and cnvkit in
+    // the panel analysis paths 
+	stub:
+		"""
+		cat > ${id}_qc.json <<-EOF
+		{
+		  "ins_size": "350",
+		  "mean_coverage": "30"
+		}
+		EOF
+		"""
 }
 
 process verifybamid2 {
