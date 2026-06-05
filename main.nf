@@ -154,32 +154,6 @@ workflow NEXTFLOW_WGS {
 		.splitCsv(header:true)
 		.map{ row-> tuple(row.i, row.refpart) }
 
-	// TODO: all the meta channels below should be consolidated into some meta object?
-
-	// meta sent to split_normalize_mito, eklipse, bgzip_scored_genmod and used
-	// to trigger loqusdb sv dummy
-	ch_meta = ch_samplesheet.map{ row ->
-		tuple(
-			row.group,
-			row.id,
-			row.sex,
-			row.type)
-	}
-
-	ch_gatkcov_meta = ch_meta
-
-	// meta sent to qc_to_cdm
-	ch_runfolder = ch_samplesheet
-		.map { row ->
-			def group = row.group
-			def id = row.id
-			def lims_id = row.clarity_sample_id
-			def diagnosis = row.diagnosis
-			def sequencing_run = row.sequencing_run
-			def n_reads = row.n_reads
-			tuple(group, id, lims_id, diagnosis, sequencing_run, n_reads)		
-		}
-
 	genes_analyzed(ch_proband_meta)
 	rename_bam(ch_bam_start) // See process for more info about why this is needed.
 	copy_bam(rename_bam.out.bam_bai)
@@ -257,7 +231,7 @@ workflow NEXTFLOW_WGS {
 	// COVERAGE //
 
 	if (params.gatkcov) {
-		gatkcov(ch_gatkcov_meta.join(ch_bam_bai, by: [0, 1]))
+		gatkcov(ch_sample_meta.join(ch_bam_bai, by: [0, 1]))
 		ch_versions = ch_versions.mix(gatkcov.out.versions.first())
 	}
 
@@ -349,7 +323,7 @@ workflow NEXTFLOW_WGS {
 		ch_output_info = ch_output_info.mix(run_haplogrep.out.haplogrep_INFO)
 
 		// SVs
-		run_eklipse(ch_meta.join(fetch_MTseqs.out.bam_bai, by : [0, 1]))
+		run_eklipse(ch_sample_meta.join(fetch_MTseqs.out.bam_bai, by : [0, 1]))
 		ch_output_info = ch_output_info.mix(run_eklipse.out.eklipse_INFO)
 
 		// MITO VERSIONS
@@ -762,14 +736,8 @@ workflow NEXTFLOW_WGS {
 		// TODO: streamline if-conditions:
 		if(params.antype == "wgs" && params.trio && params.mode == "family") {
 			plot_pod(
-				fastgnomad.out.vcf,
-				bgzip_scored_genmod.out.sv_rescore_vcf.join(ch_ped_base, by: 0),
-				ch_meta.filter { row ->
-					def type = row[3]
-					type == "proband"
-				}
+				fastgnomad.out.vcf.join(bgzip_scored_genmod.out.sv_rescore_vcf).join(ch_ped_base)
 			)
-		}
 
 	} else {
 		// TODO: move the entire else-block to top w/ if-not at the beginning
@@ -818,7 +786,7 @@ workflow NEXTFLOW_WGS {
 
 	// MERGE QC JSONs AND OUTPUT TO CDM //
 	merge_qc_json(ch_qc_json.groupTuple(by: [0,1]))
-	ch_qc_to_cdm = merge_qc_json.out.qc_cdm_merged.join(ch_runfolder, by: [0,1])
+	ch_qc_to_cdm = merge_qc_json.out.qc_cdm_merged.join(ch_sample_meta, by: [0,1])
 	qc_to_cdm(ch_qc_to_cdm)
 
 	// OUTPUT INFO
@@ -2433,7 +2401,7 @@ process run_eklipse {
 	publishDir "${params.results_output_dir}/plots/mito", mode: 'copy', overwrite: 'true', pattern: '*.png'
 
 	input:
-		tuple val(group), val(id), val(sex), val(type), path(bam), path(bai)
+		tuple val(group), val(id), val(meta), path(bam), path(bai)
 
 	output:
 		tuple path("*.png"), path("${id}.hetplasmid_frequency.txt")
@@ -2442,7 +2410,7 @@ process run_eklipse {
 
 	script:
 		yml_info_command = ""
-		if (type == "proband") {
+		if (meta.type == "proband") {
 			yml_info_command = "echo 'IMG eklipse ${params.accessdir}/plots/mito/${id}_eklipse.png' > ${id}_eklipse.INFO"
 		}
 		"""
@@ -2463,7 +2431,7 @@ process run_eklipse {
 
 	stub:
 		yml_info_command = ""
-		if (type == "proband") {
+		if (meta.type == "proband") {
 			yml_info_command = "echo 'IMG eklipse ${params.accessdir}/plots/mito/${id}_eklipse.png' > ${id}_eklipse.INFO"
 		}
 		"""
@@ -2566,7 +2534,7 @@ process qc_to_cdm {
 	time '1h'
 
 	input:
-		tuple val(group), val(id), path(qc_json), val(lims_id), val(diagnosis), val(sequencing_run), val(n_reads)
+		tuple val(group), val(id), path(qc_json), val(meta)
 
 	output:
 		path("${id}.cdmpy"), emit: cdm_done
@@ -2578,7 +2546,7 @@ process qc_to_cdm {
 
 	script:
 		"""
-		echo "--sequencing-run ${sequencing_run} --sample-id ${id} --assay $params.cdm_assay --subassay ${diagnosis} --qc ${params.results_output_dir}/qc/${id}.QC --lims-id ${lims_id}" > ${id}.cdmpy
+		echo "--sequencing-run ${meta.sequencing_run} --sample-id ${id} --assay $params.cdm_assay --subassay ${meta.diagnosis} --qc ${params.results_output_dir}/qc/${id}.QC --lims-id ${meta.clarity_sample_id}" > ${id}.cdmpy
 		"""
 }
 
@@ -2826,10 +2794,10 @@ process gatkcov {
 	time '5h'
 
 	input:
-		tuple val(group), val(id), val(sex), val(type), path(bam), path(bai)
+		tuple val(group), val(id), val(meta), path(bam), path(bai)
 
 	output:
-		tuple val(group), val(id), val(type), val(sex), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_plot
+		tuple val(group), val(id), val({meta.type}), val({meta.sex}), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_plot
 		tuple val(group), val(id), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_gens
 		path "*versions.yml", emit: versions
 
@@ -2845,7 +2813,7 @@ process gatkcov {
 			--interval-merging-rule OVERLAPPING_ONLY -O ${bam}.hdf5
 
 		gatk --java-options "-Xmx30g" DenoiseReadCounts \\
-			-I ${bam}.hdf5 --count-panel-of-normals ${PON[sex]} \\
+			-I ${bam}.hdf5 --count-panel-of-normals ${PON[meta.sex]} \\
 			--standardized-copy-ratios ${id}.standardizedCR.tsv \\
 			--denoised-copy-ratios ${id}.denoisedCR.tsv
 
@@ -4515,23 +4483,21 @@ process plot_pod {
 	cpus 2
 
 	input:
-		tuple val(group), path(snv)
-		tuple val(group2), path(cnv), val(type), path(ped)
-		tuple val(group3), val(id), val(sex), val(type3)
+		tuple val(group), path(snv), path(cnv), val(meta), val(id)
 
 	output:
-		tuple path("${id}_POD_karyotype.pdf"), path("${id}_POD_results.html")
+		tuple path("${meta.id}_POD_karyotype.pdf"), path("${meta.id}_POD_results.html")
 
 
 	script:
 		"""
-		parental_origin_of_duplication.pl --snv $snv --cnv $cnv --proband $id --ped $ped
+		parental_origin_of_duplication.pl --snv $snv --cnv $cnv --proband ${meta.id} --ped $ped
 		"""
 
 	stub:
 		"""
-		touch "${id}_POD_karyotype.pdf"
-		touch "${id}_POD_results.html"
+		touch "${meta.id}_POD_karyotype.pdf"
+		touch "${meta.id}_POD_results.html"
 		"""
 }
 
