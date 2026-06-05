@@ -738,7 +738,7 @@ workflow NEXTFLOW_WGS {
 			plot_pod(
 				fastgnomad.out.vcf.join(bgzip_scored_genmod.out.sv_rescore_vcf).join(ch_ped_base)
 			)
-
+		}
 	} else {
 		// TODO: move the entire else-block to top w/ if-not at the beginning
 
