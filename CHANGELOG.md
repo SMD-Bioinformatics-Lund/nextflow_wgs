@@ -4,6 +4,7 @@
 * Move MELT into a subworkflow with separate MELT, merge, and intersect processes
 * Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
 * Parse Sentieon QC once and pass mean depth and insert size through keyed channels
+* Use boolean values for `publishDir overwrite`
 
 ### 3.26.2
 * Convert all instances of .set{} to direct channel assingment
