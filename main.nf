@@ -142,37 +142,11 @@ workflow NEXTFLOW_WGS {
 
 	PREPARE_META_CHANNELS(ch_samplesheet)
 
-	ch_sample_meta  = PREPARE_META_CHANNELS.out.sample_meta
-	ch_proband_meta = PREPARE_META_CHANNELS.out.proband_meta
-	ch_case_meta    = PREPARE_META_CHANNELS.out.case_meta
-	ch_fastq_meta   = PREPARE_META_CHANNELS.out.fastq
-	ch_bam_meta     = PREPARE_META_CHANNELS.out.bam
-	ch_vcf_meta     = PREPARE_META_CHANNELS.out.vcf
-
-	// CHANNEL PREP //
-	// TODO: Better solution for this. Assume shomehow that everything non-bam/non-vcf is fq.
-	ch_fastq = ch_samplesheet
-		.filter {
-			row -> row.read1.endsWith("q.gz") && row.read2.endsWith("q.gz")
-		}
-		.map { row ->
-			def group = row.group
-			def id = row.id
-			def fastq_r1 = row.read1
-			def fastq_r2 = row.read2
-			tuple(group, id, fastq_r1, fastq_r2) // TODO: filter non fq
-	}
-
-
-	ch_vcf_annotation_only = ch_samplesheet
-		.filter {
-			row -> row.read1.endsWith(".vcf") || row.read1.endsWith(".vcf.gz")
-		}
-		.map { row ->
-			def group = row.group
-			def vcf = row.read1
-			[ group, vcf ]
-		}
+	ch_sample_meta   = PREPARE_META_CHANNELS.out.sample_meta   // group, id, meta[:]
+	ch_proband_meta  = PREPARE_META_CHANNELS.out.proband_meta  // group, id(proband), meta[:] contains priority
+	ch_fastq_start   = PREPARE_META_CHANNELS.out.fastq         // group, id, read1, read2
+	ch_bam_start     = PREPARE_META_CHANNELS.out.bam           // group, id, read1, read2
+	ch_vcf_start     = PREPARE_META_CHANNELS.out.vcf           // group, vcf
 
 	// GATK Ref:
 	ch_gatk_ref = channel
@@ -194,22 +168,6 @@ workflow NEXTFLOW_WGS {
 
 	ch_gatkcov_meta = ch_meta
 
-	ch_split_normalize_meta = ch_samplesheet
-		.filter { row ->
-			row.type == "proband"
-		}
-		.map{ row ->
-			tuple(
-				row.group,
-				row.id,
-				row.sex,
-				row.type
-			)
-		}
-
-	ch_expansionhunter_meta = ch_split_normalize_meta
-	ch_svvcf_to_bed_meta  = ch_split_normalize_meta
-
 	// meta sent to qc_to_cdm
 	ch_runfolder = ch_samplesheet
 		.map { row ->
@@ -221,66 +179,8 @@ workflow NEXTFLOW_WGS {
 			def n_reads = row.n_reads
 			tuple(group, id, lims_id, diagnosis, sequencing_run, n_reads)		
 		}
-	// meta sent to stranger
-	ch_stranger_meta = ch_samplesheet
-		.filter { row ->
-			row.type == "proband"
-		}
-		.map { row -> // TODO: Rename this channel
-			tuple(
-				row.group,
-				row.id,
-				row.sex,
-				row.mother,
-				row.father,
-				row.phenotype,
-				row.diagnosis,
-				row.type,
-				row.assay,
-				row.clarity_sample_id,
-				(row.containsKey("ffpe") ? row.ffpe : false),
-				(row.containsKey("analysis") ? row.analysis : false)
-			)
-		}
 
-	// meta sent to create_yml
-	ch_scout_yaml_meta = ch_samplesheet
-		.filter { row ->
-			row.type == "proband"
-		}
-		.map { row ->
-
-			def scout_case_status = row.containsKey("priority") && row.priority == "highest" ? "prioritized" : ""
-
-			tuple(
-				row.group,
-				row.id,
-				row.diagnosis,
-				row.assay,
-				row.type,
-				row.clarity_sample_id,
-				(row.containsKey("analysis") ? row.analysis : false),
-				scout_case_status
-			)
-		}
-
-	// BAM-start
-	// Check for .bam files in read1 and start from bam if any found.
-	ch_bam_start = ch_samplesheet
-		.filter {
-			row -> row.read1.endsWith("bam")
-		}
-		.map {
-			row ->
-			def group = row.group
-			def id = row.id
-			def bam = row.read1
-			def bai = row.read2
-			tuple(group, id, bam, bai)
-		}
-
-
-	genes_analyzed(ch_scout_yaml_meta)
+	genes_analyzed(ch_proband_meta)
 	rename_bam(ch_bam_start) // See process for more info about why this is needed.
 	copy_bam(rename_bam.out.bam_bai)
 	bamtoyaml(ch_bam_start)
@@ -316,8 +216,8 @@ workflow NEXTFLOW_WGS {
 
 	// FASTQ //
 	if (params.umi) {
-		fastp(ch_fastq)
-		ch_fastq = fastp.out.fastq_trimmed_reads
+		fastp(ch_fastq_start)
+		ch_fastq_start = fastp.out.fastq_trimmed_reads
 		ch_versions = ch_versions.mix(fastp.out.versions.first())
 	}
 
@@ -325,7 +225,7 @@ workflow NEXTFLOW_WGS {
 	//TODO: why do we have a params.align conditional anyway?
 	ch_dedup_stats = channel.empty()
 	if (params.align) {
-		bwa_align(ch_fastq)
+		bwa_align(ch_fastq_start)
 		markdup(bwa_align.out.bam_bai)
 		ch_dedup_stats = ch_dedup_stats.mix(markdup.out.dedup_metrics)
 		ch_output_info = ch_output_info.mix(markdup.out.dedup_bam_INFO)
@@ -429,10 +329,7 @@ workflow NEXTFLOW_WGS {
 		ch_mutect2_input = fetch_MTseqs.out.bam_bai.groupTuple()
 		run_mutect2(ch_mutect2_input)
 
-		split_normalize_mito(
-			run_mutect2.out.vcf,
-			ch_split_normalize_meta
-			)
+		split_normalize_mito(run_mutect2.out.vcf.join(ch_proband_meta, by:[0,1]))
         
 		run_hmtnote(split_normalize_mito.out.vcf) 
 
@@ -484,7 +381,7 @@ workflow NEXTFLOW_WGS {
 				tuple(group, bam, bai)
 		}
 
-        ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_annotation_only)
+        ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_start)
         
 		SNV_ANNOTATE(ch_bam_snv_annotate, ch_snv_annotate_in, ch_ped_trio_affected_permutations)
 		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
@@ -602,12 +499,9 @@ workflow NEXTFLOW_WGS {
 
 			// CALL REPEATS //
 
-			expansionhunter(ch_bam_bai.join(ch_expansionhunter_meta, by: [0,1]))
+			expansionhunter(ch_bam_bai.join(ch_proband_meta, by: [0,1]))
 			stranger(expansionhunter.out.expansionhunter_vcf)
-			vcfbreakmulti_expansionhunter(
-				stranger.out.vcf_annotated,
-				ch_stranger_meta
-			)
+			vcfbreakmulti_expansionhunter(stranger.out.vcf_annotated.join(ch_proband_meta, by:[0,1]))
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
 
 			reviewer_loci = new groovy.json.JsonSlurper()
@@ -796,7 +690,7 @@ workflow NEXTFLOW_WGS {
 		}
 
 		// ANNOTATE SVs //
-		filter_proband_null_calls(ch_panel_svs_present,ch_proband_meta)
+		filter_proband_null_calls(ch_panel_svs_present.join(ch_proband_meta, by:[0,1]))
 		tdup_to_dup(filter_proband_null_calls.out.filtered_vcf)
 		annotsv(tdup_to_dup.out.renamed_vcf)
 		vep_sv(tdup_to_dup.out.renamed_vcf)
@@ -829,7 +723,7 @@ workflow NEXTFLOW_WGS {
 		bgzip_scored_genmod(score_sv.out.scored_vcf.mix(ch_panel_svs_absent))
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
 
-		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf, ch_svvcf_to_bed_meta)
+		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf.join(ch_proband_meta, by:[0,1]))
 
         ch_cnvkit_plot_snvs = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
             .map { group, vcf, _tbi -> [ group, vcf ] }
@@ -919,7 +813,7 @@ workflow NEXTFLOW_WGS {
 	// OUTPUT INFO
 	output_files(ch_output_info.groupTuple())
 	// SCOUT YAML
-	create_yaml(ch_scout_yaml_meta, ch_ped_base, output_files.out.yaml_INFO)
+	create_yaml(ch_proband_meta.join(ch_ped_base).join(output_files.out.yaml_INFO))
 	emit:
 		versions = ch_versions
 }
@@ -989,13 +883,13 @@ process genes_analyzed {
 	container "${params.container_cnvkit}"
 
 	input:
-		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis), val(scout_status)
+		tuple val(group), val(id), val(meta)
 
 	output:
 		tuple val(group), val(id), file("${group}.genes"), emit: genes_of_interest
 
 	script:
-		def panels = diagnosis
+		def panels = {meta.diagnosis}
 			.split(/\+/)
 			.collect { it.trim() }
 			.findAll { it }
@@ -1655,7 +1549,7 @@ process expansionhunter {
 	memory '40 GB'
 
 	input:
-		tuple val(group), val(id), path(bam), path(bai), val(sex), val(type) // TODO: sex + type are not needed here
+		tuple val(group), val(id), path(bam), path(bai), val(meta)
 
 	output:
 		tuple val(group), val(id), path("${group}.eh.vcf"), emit: expansionhunter_vcf
@@ -1794,8 +1688,7 @@ process vcfbreakmulti_expansionhunter {
 	memory '50 GB'
 
 	input:
-		tuple val(group), val(id), path(eh_vcf_anno)
-		tuple val(group2), val(id2), val(sex), val(mother), val(father), val(phenotype), val(diagnosis), val(type), val(assay), val(clarity_sample_id), val(ffpe), val(analysis)
+		tuple val(group), val(id), path(eh_vcf_anno), val(meta)
 
 	output:
 	    tuple val(group), path("${group}.expansionhunter.vcf.gz"), emit: vcf
@@ -1804,8 +1697,10 @@ process vcfbreakmulti_expansionhunter {
 		path "*versions.yml", emit: versions
 
 	script:
-		if (father == "") { father = "null" }
-		if (mother == "") { mother = "null" }
+		if ({meta.father} == "") { father = "null" }
+		else { father = {meta.father} }
+		if ({meta.mother} == "") { mother = "null" }
+		else { mother = {meta.mother} }
 		if (params.mode == "family") {
 			"""
 			java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf INPUT=${eh_vcf_anno} OUTPUT=${eh_vcf_anno}.rename.vcf NEW_SAMPLE_NAME=${id}
@@ -2026,7 +1921,7 @@ process create_ped {
 	memory '1 GB'
 
 	input:
-		val(meta)
+		tuple val(group), val(id), val(meta)
 
 	output:
 		tuple val({meta.group}), val({meta.type}), path("${meta.group}_base.ped"), emit: ped_base
@@ -2378,8 +2273,7 @@ process split_normalize_mito {
 	time '1h'
 
 	input:
-		tuple val(group), val(id), path(mito_snv_vcf)
-		tuple val(group2), val(proband_id), val(sex), val(type)
+		tuple val(group), val(id), path(mito_snv_vcf), val(meta)
 
 	output:
 		tuple val(group), path("${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"), emit: vcf
@@ -2397,14 +2291,14 @@ process split_normalize_mito {
 		bcftools norm -f $params.rCRS_fasta -o ${mito_snv_vcf.baseName}.adjusted.vcf ${mito_snv_vcf}.breakmulti.fix
 		bcftools view -i 'FMT/AF[*]>0.05' ${mito_snv_vcf.baseName}.adjusted.vcf -o ${group}.mutect2.breakmulti.filtered5p.vcf
 		bcftools filter -S 0 --exclude 'FMT/AF[*]<0.05' ${group}.mutect2.breakmulti.filtered5p.vcf -o ${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf
-		filter_mutect2_mito.pl ${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf ${proband_id} > ${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf
+		filter_mutect2_mito.pl ${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf ${meta.id} > ${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf
 
 		${split_normalize_mito_version(task)}
 		"""
 
 	stub:
 		"""
-		echo "${proband_id}" > proband.id
+		echo "${meta.id}" > proband.id
 		touch "${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"
 		${split_normalize_mito_version(task)}
 		"""
@@ -3962,8 +3856,7 @@ process filter_proband_null_calls {
 	container  "${params.container_bcftools}"
 
 	input:
-		tuple val(group), val(id), path(sv_vcf)
-		val(meta)
+		tuple val(group), val(id), path(sv_vcf), val(meta)
 	
 	output:
 		tuple val(group), val(id), path("${group}.proband.calls.vcf"), emit: filtered_vcf
@@ -4582,8 +4475,7 @@ process svvcf_to_bed {
 	cpus 2
 
 	input:
-		tuple val(group), path(vcf)
-		tuple val(group2), val(proband_id), val(sex), val(type)
+		tuple val(group), path(vcf), val(meta)
 
 	output:
 		path("${group}.sv.bed")
@@ -4594,7 +4486,7 @@ process svvcf_to_bed {
 
 	script:
 		"""
-		cnv2bed.pl --cnv ${vcf} --pb ${proband_id} > ${group}.sv.bed
+		cnv2bed.pl --cnv ${vcf} --pb ${meta.id} > ${group}.sv.bed
 		"""
 
 	stub:
@@ -4643,26 +4535,24 @@ process create_yaml {
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis), val(scout_status)
-		tuple val(group2), val(type2), path(ped)
-		tuple val(group3), path(INFO)
+		tuple val(group), val(id), val(meta), val(type), path(ped), path(INFO)
 
 	output:
 		tuple val(group), path("${group}.yaml*"), emit: scout_yaml
 
 	script:
-		assay = params.dev ? "dev,${analysis}" : "${assay},${analysis}"
+		assay = params.dev ? "dev,${meta.analysis}" : "${meta.assay},${meta.analysis}"
 		"""
 		create_yml.pl \\
-			--g "${group},${clarity_sample_id}" \\
-			--d "$diagnosis" \\
+			--g "${group},${meta.clarity_sample_id}" \\
+			--d "${meta.diagnosis}" \\
 			--panelsdef "$params.panelsdef" \\
 			--out "${group}.yaml" \\
 			--ped "$ped" \\
 			--files "$INFO" \\
 			--assay "$assay" \\
 			--antype "$params.antype" \\
-			--status "$scout_status" \\
+			--status "${meta.priority}" \\
 			--extra_panels "$params.extra_panels"
 		"""
 
