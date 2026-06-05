@@ -736,7 +736,7 @@ workflow NEXTFLOW_WGS {
 		// TODO: streamline if-conditions:
 		if(params.antype == "wgs" && params.trio && params.mode == "family") {
 			plot_pod(
-				fastgnomad.out.vcf.join(bgzip_scored_genmod.out.sv_rescore_vcf).join(ch_ped_base)
+				fastgnomad.out.vcf.join(bgzip_scored_genmod.out.sv_rescore_vcf).join(ch_ped_base).join(ch_proband_meta)
 			)
 		}
 	} else {
@@ -4483,7 +4483,7 @@ process plot_pod {
 	cpus 2
 
 	input:
-		tuple val(group), path(snv), path(cnv), val(meta), val(id)
+		tuple val(group), path(snv), path(cnv), val(ped), val(meta), val(id)
 
 	output:
 		tuple path("${meta.id}_POD_karyotype.pdf"), path("${meta.id}_POD_results.html")
