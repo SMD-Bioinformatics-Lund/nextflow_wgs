@@ -23,7 +23,6 @@ workflow MELT {
     intersect_melt(merge_melt.out.melt_vcf_nonfiltered, bed_intersect)
 
     ch_versions = ch_versions.mix(melt.out.versions.first())
-    ch_versions = ch_versions.mix(merge_melt.out.versions.first())
     ch_versions = ch_versions.mix(intersect_melt.out.versions.first())
 
     emit:
@@ -102,7 +101,6 @@ process merge_melt {
 
 	output:
 		tuple val(group), val(id), path("${id}.melt.merged.vcf"), emit: melt_vcf_nonfiltered
-		path "*versions.yml", emit: versions
 
 	script:
 		"""
@@ -113,23 +111,12 @@ process merge_melt {
 			--line1 $line1_vcf \\
 			--sva $sva_vcf \\
 			--out ${id}.melt.merged.vcf
-
-		${merge_melt_version(task)}
 		"""
 
 	stub:
 		"""
 		touch "${id}.melt.merged.vcf"
-		${merge_melt_version(task)}
 		"""
-}
-def merge_melt_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    vcftools: \$(vcf-concat --version 2>&1 | head -n 1 | sed 's/^.*vcf-concat //')
-	END_VERSIONS
-	"""
 }
 
 process intersect_melt {
