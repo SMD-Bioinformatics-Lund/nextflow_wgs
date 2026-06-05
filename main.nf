@@ -329,7 +329,12 @@ workflow NEXTFLOW_WGS {
 		ch_mutect2_input = fetch_MTseqs.out.bam_bai.groupTuple()
 		run_mutect2(ch_mutect2_input)
 
-		split_normalize_mito(run_mutect2.out.vcf.join(ch_proband_meta, by:[0,1]))
+		ch_split_normalize_mito_in = run_mutect2.out.vcf
+			.join(ch_proband_meta, by:[0])
+			.map { group, _id, mito_snv_vcf, proband_id, meta ->
+				tuple(group, proband_id, mito_snv_vcf, meta)
+			}
+		split_normalize_mito(ch_split_normalize_mito_in)
         
 		run_hmtnote(split_normalize_mito.out.vcf) 
 
@@ -686,7 +691,12 @@ workflow NEXTFLOW_WGS {
 		}
 
 		// ANNOTATE SVs //
-		filter_proband_null_calls(ch_panel_svs_present.join(ch_proband_meta, by:[0,1]))
+		ch_filter_proband_null_calls_in = ch_panel_svs_present
+			.join(ch_proband_meta, by:[0])
+			.map { group, _id, sv_vcf, proband_id, meta ->
+				tuple(group, proband_id, sv_vcf, meta)
+			}
+		filter_proband_null_calls(ch_filter_proband_null_calls_in)
 		tdup_to_dup(filter_proband_null_calls.out.filtered_vcf)
 		annotsv(tdup_to_dup.out.renamed_vcf)
 		vep_sv(tdup_to_dup.out.renamed_vcf)
@@ -719,7 +729,12 @@ workflow NEXTFLOW_WGS {
 		bgzip_scored_genmod(score_sv.out.scored_vcf.mix(ch_panel_svs_absent))
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
 
-		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf.join(ch_proband_meta, by:[0,1]))
+		ch_svvcf_to_bed_in = bgzip_scored_genmod.out.sv_rescore_vcf
+			.join(ch_proband_meta, by:[0])
+			.map { group, sv_vcf, _proband_id, meta ->
+				tuple(group, sv_vcf, meta)
+			}
+		svvcf_to_bed(ch_svvcf_to_bed_in)
 
         ch_cnvkit_plot_snvs = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
             .map { group, vcf, _tbi -> [ group, vcf ] }
