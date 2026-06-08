@@ -30,7 +30,7 @@ workflow MELT {
     ch_versions = ch_versions.mix(intersect_melt.out.versions.first())
 
     emit:
-    vcf_merged       = merge_melt.out.melt_vcf_nonfiltered
+    vcf              = merge_melt.out.melt_vcf_nonfiltered
     vcf_intersected  = intersect_melt.out.merged_intersected_vcf
     versions         = ch_versions
     

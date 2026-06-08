@@ -714,7 +714,7 @@ workflow NEXTFLOW_WGS {
 				channel.value(file(params.meltheader)),
 				channel.value(file(params.intersect_bed))
 			)
-			ch_melt_intersect_vcf = ch_melt_intersect_vcf.mix(MELT.out.melt_intersect_vcf)
+			ch_melt_intersect_vcf = ch_melt_intersect_vcf.mix(MELT.out.vcf_intersected)
 			ch_versions = ch_versions.mix(MELT.out.versions)
 		}
 		
