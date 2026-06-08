@@ -873,7 +873,7 @@ process genes_analyzed {
 		tuple val(group), val(id), file("${group}.genes"), emit: genes_of_interest
 
 	script:
-		def panels = {meta.diagnosis}
+		def panels = (meta.diagnosis ?: '')
 			.split(/\+/)
 			.collect { it.trim() }
 			.findAll { it }
