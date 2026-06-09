@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### [Unreleased]
+
+#### Changed
+* Pass analysis mode and trio status through workflow/process inputs instead of redefining `params.mode` and `params.trio`
+
 ### 3.26.3
 * Use boolean values for `publishDir overwrite`
 
