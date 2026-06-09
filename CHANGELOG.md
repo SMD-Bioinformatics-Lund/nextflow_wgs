@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### 3.26.4
+* code style change
+* changed all input-channels to a standardized format
+* joined channels properly so that batch starts should be further supported
+
 ### 3.26.3
 * Move MELT code into own subworkflow with separate MELT, merge, and intersect processes
 * Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
