@@ -1,10 +1,14 @@
 # CHANGELOG
 
+### [Unreleased]
+* Move QC-to-CDM steps into a dedicated `QC_TO_CDM` workflow
+* Pass QC-to-CDM script configuration explicitly through workflow inputs
+* Replace QC-to-CDM `when:` guard with workflow-level CDM cron skipping
+
 ### 3.26.4
 * code style change
 * changed all input-channels to a standardized format
 * joined channels properly so that batch starts should be further supported
-
 ### 3.26.3
 * Use boolean values for `publishDir overwrite`
 

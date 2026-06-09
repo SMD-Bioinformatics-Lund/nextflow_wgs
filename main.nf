@@ -2,14 +2,16 @@
 
 import groovy.json.JsonSlurper
 
-include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
-include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
-include { VALIDATE_PARAMETERS } from './workflows/validate_params.nf'
-include { SPLIT_NORMALIZE_SNVS } from './workflows/split_normalize_snvs.nf'
-include { vcfHasVariants } from './workflows/util.nf'
 include { PREPARE_INPUT_AND_META_CHANNELS } from './workflows/prepare_input_and_meta_channels.nf'
+include { QC_TO_CDM } from './workflows/qc_to_cdm.nf'
+include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
+include { SPLIT_NORMALIZE_SNVS } from './workflows/split_normalize_snvs.nf'
+include { VALIDATE_PARAMETERS } from './workflows/validate_params.nf'
+include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
+
+include { vcfHasVariants } from './workflows/util.nf'
 
 nextflow.enable.dsl=2
 
@@ -60,7 +62,12 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet)
+	NEXTFLOW_WGS(
+		ch_samplesheet,
+		params.results_output_dir,
+		params.cdm_assay,
+		params.noupload
+	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -132,7 +139,10 @@ workflow.onError {
 workflow NEXTFLOW_WGS {
 
 	take:
-	ch_samplesheet
+	ch_samplesheet         // ch:     [map(sample_metadata)]
+	val_results_output_dir // string: Full result base directory under which pipeline results are published.
+	val_cdm_assay          // string: CDM assay name used when creating QC cron files.
+	val_skip_cdm_cron      // bool:   Whether to skip creating CDM QC cron files.
 
 	main:
 	// Output channels:
@@ -787,12 +797,16 @@ workflow NEXTFLOW_WGS {
 	    add_to_loqusdb(
 		    ch_loqusdb_input
 	    )
-    }
+	}
 
 	// MERGE QC JSONs AND OUTPUT TO CDM //
-	merge_qc_json(ch_qc_json.groupTuple(by: [0,1]))
-	ch_qc_to_cdm = merge_qc_json.out.qc_cdm_merged.join(ch_sample_meta, by: [0,1])
-	qc_to_cdm(ch_qc_to_cdm)
+	QC_TO_CDM(
+		ch_qc_json.groupTuple(by: [0,1]),
+		ch_sample_meta,
+		val_results_output_dir,
+		val_cdm_assay,
+		val_skip_cdm_cron
+	)
 
 	// OUTPUT INFO
 	output_files(ch_output_info.groupTuple())
@@ -2499,62 +2513,6 @@ def rename_mito_contigs_version(task) {
 	END_VERSIONS
 	"""
 }
-
-/////////////// Collect QC, emit: single file ///////////////
-
-process merge_qc_json {
-    cpus 2
-    errorStrategy 'retry'
-    maxErrors 5
-    publishDir "${params.results_output_dir}/qc", mode: 'copy' , overwrite: true, pattern: '*.QC'
-    tag "$id"
-    time '1h'
-	memory '1 GB'
-
-    input:
-        tuple val(group), val(id), path(qc)
-
-    output:
-    	tuple val(group), val(id), path("${id}.QC"), emit: qc_cdm_merged
-
-    script:
-        qc_json_files = qc.join(' ')
-		"""
-		merge_json_files.py ${qc_json_files} > ${id}.QC
-		"""
-
-	stub:
-		"""
-		touch "${id}.QC"
-		"""
-}
-
-// Load QC data, emit: CDM (via middleman)
-process qc_to_cdm {
-	cpus 2
-	errorStrategy 'retry'
-	maxErrors 5
-	publishDir "${params.crondir}/qc", mode: 'copy' , overwrite: true
-	tag "$id"
-	time '1h'
-
-	input:
-		tuple val(group), val(id), path(qc_json), val(meta)
-
-	output:
-		path("${id}.cdmpy"), emit: cdm_done
-
-
-	when:
-		!params.noupload
-
-
-	script:
-		"""
-		echo "--sequencing-run ${meta.sequencing_run} --sample-id ${id} --assay $params.cdm_assay --subassay ${meta.diagnosis} --qc ${params.results_output_dir}/qc/${id}.QC --lims-id ${meta.clarity_sample_id}" > ${id}.cdmpy
-		"""
-}
-
 
 process peddy {
 
