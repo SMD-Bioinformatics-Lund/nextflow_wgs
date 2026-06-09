@@ -43,7 +43,7 @@ workflow {
 	// Count lines of input csv, if more than 2(header + 1 ind) then mode is set to family //
 	log.info("Input CSV: " + params.csv)
 	log.info("mode: " + val_analysis_mode)
-	log.info("trio analysis: " + params.trio)
+	log.info("trio analysis: " + val_is_trio)
 	log.info("Results output dir: " + params.results_output_dir)
 	log.info("Results subdir: " + params.subdir)
 	log.info("CRON output dir: " + params.crondir)
