@@ -2802,7 +2802,7 @@ process gatkcov {
 		tuple val(group), val(id), val(meta), path(bam), path(bai)
 
 	output:
-		tuple val(group), val(id), val({meta.type}), val({meta.sex}), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_plot
+		tuple val(group), val(id), val(meta.type), val(meta.sex), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_plot
 		tuple val(group), val(id), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_gens
 		path "*versions.yml", emit: versions
 
