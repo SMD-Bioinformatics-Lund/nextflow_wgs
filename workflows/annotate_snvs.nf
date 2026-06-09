@@ -490,6 +490,8 @@ process genmodscore {
 	script:
 		group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
 
+        // TODO: Break up this process into subprocesses
+        // TODO: Add a more specific bool-flag for whatever params.antype == wgs does.
 		if ( analysis_mode == "family" && params.antype == "wgs" ) {
 			"""
 			genmod score -i $group_score -c $params.rank_model -r $vcf -o ${group_score}.only_rankscore.vcf
