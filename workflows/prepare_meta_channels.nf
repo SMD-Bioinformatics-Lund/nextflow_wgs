@@ -17,7 +17,7 @@ def sampleMeta(row) {
 		n_reads: row.containsKey("n_reads") ? row.n_reads : null,
 		analysis: row.containsKey("analysis") ? row.analysis : false,
 		ffpe: row.containsKey("ffpe") ? row.ffpe : false,
-		priority: row.containsKey("priority") ? (row.priority == "highest" ? "prioritized" : null) : null
+		priority: row.containsKey("priority") ? (row.priority == "highest" ? "prioritized" : "") : ""
 	]
 }
 
