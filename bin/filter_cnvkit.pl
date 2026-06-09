@@ -1,10 +1,9 @@
 #!/usr/bin/env perl
 use strict;
-
 use warnings;
+
 my $tsv = $ARGV[0];
 my $cov = $ARGV[1];
-
 
 open (TSV, $tsv) or die $!;
 
@@ -24,9 +23,7 @@ while (<TSV>) {
         if ($row[9]/$cov <= 0.10) {
             next;
         }
-        
     }
     print join("\t",@row);
-    
 }
 
