@@ -4514,7 +4514,7 @@ def bgzip_score_sv_version(task) {
 
 process compound_finder {
 	cpus 2
-	tag "$group ${params.mode}"
+	tag "$group"
 	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
 	memory '10 GB'
 	time '2h'
