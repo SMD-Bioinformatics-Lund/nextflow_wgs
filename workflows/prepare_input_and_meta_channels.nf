@@ -21,7 +21,7 @@ def sampleMeta(row) {
 	]
 }
 
-workflow PREPARE_META_CHANNELS {
+workflow PREPARE_INPUT_AND_META_CHANNELS {
 
 	take:
 	ch_samplesheet
