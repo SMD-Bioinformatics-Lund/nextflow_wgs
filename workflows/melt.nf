@@ -11,10 +11,7 @@ workflow MELT {
     vcf_header       // value: path(vcf_header)
     bed_intersect    // value: path(bed_intersect)
 
-    main:
-    // TODO: Do not redefine param here:
-	params.results_output_dir = params.outdir + '/' + params.subdir
-    
+    main:    
     ch_versions = channel.empty()
 
     ch_melt_in = ch_bam_bai
