@@ -617,7 +617,8 @@ workflow NEXTFLOW_WGS {
 			stranger(expansionhunter.out.expansionhunter_vcf)
 			vcfbreakmulti_expansionhunter(
 				stranger.out.vcf_annotated,
-				ch_stranger_meta
+				ch_stranger_meta,
+				val_analysis_mode
 			)
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
 
@@ -1811,6 +1812,7 @@ process vcfbreakmulti_expansionhunter {
 	input:
 		tuple val(group), val(id), path(eh_vcf_anno)
 		tuple val(group2), val(id2), val(sex), val(mother), val(father), val(phenotype), val(diagnosis), val(type), val(assay), val(clarity_sample_id), val(ffpe), val(analysis)
+		val analysis_mode
 
 	output:
 	    tuple val(group), path("${group}.expansionhunter.vcf.gz"), emit: vcf
@@ -1821,7 +1823,7 @@ process vcfbreakmulti_expansionhunter {
 	script:
 		if (father == "") { father = "null" }
 		if (mother == "") { mother = "null" }
-		if (params.mode == "family") {
+		if (analysis_mode == "family") {
 			"""
 			java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf INPUT=${eh_vcf_anno} OUTPUT=${eh_vcf_anno}.rename.vcf NEW_SAMPLE_NAME=${id}
 			vcfbreakmulti ${eh_vcf_anno}.rename.vcf > ${group}.expansionhunter.vcf.tmp
