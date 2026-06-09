@@ -1,13 +1,13 @@
 #!/usr/bin/env nextflow
 
-import groovy.json.JsonSlurper
-
-include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
-include { IDSNP_CALL } from './modules/idsnp.nf'
-include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
-include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
-include { VALIDATE_PARAMETERS } from './workflows/validate_params.nf'
+include { IDSNP_CALL           } from './modules/idsnp.nf'
+include { IDSNP_VCF_TO_JSON    } from './modules/idsnp.nf'
+include { MELT                 } from './workflows/melt.nf'
+include { SNV_ANNOTATE         } from './workflows/annotate_snvs.nf'
 include { SPLIT_NORMALIZE_SNVS } from './workflows/split_normalize_snvs.nf'
+include { VALIDATE_PARAMETERS  } from './workflows/validate_params.nf'
+include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
+
 include { vcfHasVariants } from './workflows/util.nf'
 include { PREPARE_INPUT_AND_META_CHANNELS } from './workflows/prepare_input_and_meta_channels.nf'
 
@@ -223,6 +223,29 @@ workflow NEXTFLOW_WGS {
 	)
 
 	ch_qc_json = ch_qc_json.mix(sentieon_qc_postprocess.out.qc_json)
+
+    // TODO: Move into some future QC workflow:
+	ch_qc_parsed = sentieon_qc_postprocess.out.qc_json
+		.map { group, id, qc_json ->
+			def qc = [:]
+
+			if (qc_json.exists() && qc_json.size() > 0) {
+				def parsed_qc = new groovy.json.JsonSlurper().parseText(qc_json.text)
+				qc.ins_size = parsed_qc.ins_size
+				qc.mean_depth = parsed_qc.mean_coverage
+			}
+
+			if (params.run_melt && !qc.ins_size) {
+				error "Missing required MELT QC value 'ins_size' for ${id}"
+			}
+			if ((params.run_melt || params.antype == "panel") && !qc.mean_depth) {
+				error "Missing required QC value 'mean_coverage' for ${id}"
+			}
+
+			tuple(group, id, qc)
+		}
+	ch_qc_mean_depth = ch_qc_parsed.map { group, id, qc -> tuple(group, id, qc.mean_depth) }
+	ch_qc_ins_size = ch_qc_parsed.map { group, id, qc -> tuple(group, id, qc.ins_size) }
 
 	IDSNP_CALL(ch_bam_bai, params.idsnps)
 	IDSNP_VCF_TO_JSON(IDSNP_CALL.out.vcf)
@@ -549,56 +572,20 @@ workflow NEXTFLOW_WGS {
 
 		// MELT //
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
+		ch_melt_intersect_vcf = channel.empty()
 		if (params.run_melt) {
-
-		    ch_melt_qc_vals = sentieon_qc_postprocess.out.qc_json.map { item ->
-				def group = item[0]
-				def id = item[1]
-				def qc_json = item[2]
-
-				println "qc_json from tuple: ${qc_json}"
-
-				def ins_dev = "NA"   // Default value for stub runs
-				def coverage = "NA"
-				def ins_size = "NA"
-
-				def INS_SIZE
-				def MEAN_DEPTH
-				def COV_DEV
-
-				if (qc_json.exists() && qc_json.size() > 0) {
-					println "Reading qc_json file: ${qc_json}"
-
-					qc_json.readLines().each { line ->
-						if (line =~ /\"(ins_size_dev)\" : \"(\S+)\"/) {
-							ins_dev = (line =~ /\"(ins_size_dev)\" : \"(\S+)\"/)[0][2]  // Extract matched value
-						}
-						if (line =~ /\"(mean_coverage)\" : \"(\S+)\"/) {
-							coverage = (line =~ /\"(mean_coverage)\" : \"(\S+)\"/)[0][2]
-						}
-						if (line =~ /\"(ins_size)\" : \"(\S+)\"/) {
-							ins_size = (line =~ /\"(ins_size)\" : \"(\S+)\"/)[0][2]
-						}
-					}
-
-					INS_SIZE = ins_size ?: "NA"  // Default to "NA" if not present
-					MEAN_DEPTH = coverage ?: "NA"
-					COV_DEV = ins_dev ?: "NA"
-
-				} else {
-					println "Warning: Empty or missing qc_json file for ${id}. Using default stub values."
-					INS_SIZE = "NA"
-					MEAN_DEPTH = "NA"
-					COV_DEV = "NA"
-				}
-				tuple(group, id, INS_SIZE, MEAN_DEPTH, COV_DEV)
-			}
-
-			melt(ch_bam_bai, ch_melt_qc_vals)
-			intersect_melt(melt.out.melt_vcf_nonfiltered)
-
-			ch_versions = ch_versions.mix(melt.out.versions.first())
-			ch_versions = ch_versions.mix(intersect_melt.out.versions.first())
+            MELT(
+				ch_bam_bai,
+				ch_qc_mean_depth,
+				ch_qc_ins_size,
+				channel.value(file(params.genome_file)),
+				channel.value(file("${params.genome_file}.fai")),
+				channel.value(file(params.mei_list)),
+				channel.value(file(params.meltheader)),
+				channel.value(file(params.intersect_bed))
+			)
+			ch_melt_intersect_vcf = ch_melt_intersect_vcf.mix(MELT.out.vcf_intersected)
+			ch_versions = ch_versions.mix(MELT.out.versions)
 		}
 		
 		ch_cnvkit_cns_cnr = channel.empty()
@@ -608,12 +595,15 @@ workflow NEXTFLOW_WGS {
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
 
-			cnvkit_panel(
-                ch_bam_bai,
-                SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
-                    .map { group, vcf, _tbi -> [ group, vcf ] },
-                ch_melt_qc_vals
-            )
+			ch_cnvkit_panel_in = ch_bam_bai
+				.combine(
+					SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+						.map { group, vcf, _tbi -> [ group, vcf ] },
+					by: 0
+				)
+				.join(ch_qc_mean_depth, by: [0, 1])
+
+			cnvkit_panel(ch_cnvkit_panel_in)
 			ch_cnvkit_out = cnvkit_panel.out.cnvkit_calls
 			ch_cnvkit_cns_cnr = ch_cnvkit_cns_cnr.mix(cnvkit_panel.out.cns_cnr)
 
@@ -629,7 +619,7 @@ workflow NEXTFLOW_WGS {
 
 			ch_loqusdb_sv = ch_loqusdb_sv.mix(svdb_merge_panel.out.loqusdb_vcf)
 
-			postprocess_merged_panel_sv_vcf(svdb_merge_panel.out.merged_vcf, intersect_melt.out.merged_intersected_vcf)
+			postprocess_merged_panel_sv_vcf(svdb_merge_panel.out.merged_vcf, ch_melt_intersect_vcf)
 			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(
 				postprocess_merged_panel_sv_vcf.out.merged_postprocessed_vcf
 			)
@@ -1375,6 +1365,18 @@ process sentieon_qc_postprocess {
 			> ${id}_qc.json
 
 		"""
+
+    // This stub is to test the qc value JSON parsing used for melt and cnvkit in
+    // the panel analysis paths 
+	stub:
+		"""
+		cat > ${id}_qc.json <<-EOF
+		{
+		  "ins_size": "350",
+		  "mean_coverage": "30"
+		}
+		EOF
+		"""
 }
 
 process verifybamid2 {
@@ -1726,105 +1728,6 @@ def vcfbreakmulti_expansionhunter_version(task) {
 	    vcflib: 1.0.9
 	    rename-sample-in-vcf: \$(echo \$(java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf --version 2>&1) | sed 's/-SNAPSHOT//')
 	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
-	END_VERSIONS
-	"""
-}
-
-//////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////
-
-
-// MELT always give VCFs for each type of element defined in mei_list
-// If none found -> 0 byte vcf. merge_melt.pl merges the three, if all empty
-// it creates a vcf with only header
-// merge_melt.pl gives output ${id}.melt.merged.vcf
-process melt {
-	cpus 3
-	errorStrategy 'retry'
-	container  "${params.container_melt}"
-	tag "$id"
-	// memory seems to scale with less number of reads?
-	memory '70 GB'
-	time '3h'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf'
-
-	input:
-		tuple val(group), val(id), path(bam), path(bai)
-		tuple val(group1), val(id1), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV)
-
-	output:
-		tuple val(group), val(id), path("${id}.melt.merged.vcf"), emit: melt_vcf_nonfiltered
-		path "*versions.yml", emit: versions
-
-	script:
-		"""
-		java -jar /opt/MELTv2.2.2/MELT.jar Single \\
-			-bamfile $bam \\
-			-r 150 \\
-			-h ${params.genome_file} \\
-			-n /opt/MELTv2.2.2/add_bed_files/Hg38/Hg38.genes.bed \\
-			-z 500000 \\
-			-d 50 \\
-			-t $params.mei_list \\
-			-w . \\
-			-c $MEAN_DEPTH \\
-			-e $INS_SIZE \\
-			-exome
-		merge_melt.pl $params.meltheader $id
-
-		${melt_version(task)}
-		"""
-
-	stub:
-		"""
-		touch "${id}.melt.merged.vcf"
-		${melt_version(task)}
-		"""
-}
-def melt_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    melt: \$(echo \$(java -jar /opt/MELTv2.2.2/MELT.jar -h | grep "^MELTv" | cut -f1 -d" " | sed "s/MELTv//" ) )
-	END_VERSIONS
-	"""
-}
-
-process intersect_melt {
-	cpus 2
-	tag "$id"
-	memory '2 GB'
-	time '1h'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf'
-
-	input:
-		tuple val(group), val(id), path(vcf)
-
-	output:
-		tuple val(group), val(id), path("${id}.melt.merged.intersected.vcf"), emit: merged_intersected_vcf
-		path "*versions.yml", emit: versions
-
-	when:
-		params.run_melt
-
-	script:
-		"""
-		bedtools intersect -a $vcf -b $params.intersect_bed -header > ${id}.melt.merged.intersected.vcf
-		${intersect_melt_version(task)}
-		"""
-
-	stub:
-		"""
-		touch "${id}.melt.merged.intersected.vcf"
-		${intersect_melt_version(task)}
-		"""
-}
-def intersect_melt_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    bedtools: \$(echo \$(bedtools --version 2>&1) | sed -e "s/^.*bedtools v//" )
 	END_VERSIONS
 	"""
 }
@@ -3404,9 +3307,7 @@ process cnvkit_panel {
 	time '1h'
 	memory '20 GB'
 	input:
-		tuple val(group), val(id), path(bam), path(bai)
-		tuple val(group2), path(intersected_vcf)
-		tuple val(group3), val(id3), val(INS_SIZE), val(MEAN_DEPTH), val(COV_DEV)
+		tuple val(group), val(id), path(bam), path(bai), path(intersected_vcf), val(mean_depth)
 
 	output:
 		tuple val(group), val(id), path("${id}.cnvkit_filtered.vcf"), emit: cnvkit_calls
@@ -3422,7 +3323,7 @@ process cnvkit_panel {
 		mv results/\${bam_base}.cns ${id}.cns
 		mv results/\${bam_base}.cnr ${id}.cnr
 		cnvkit.py call ${id}.cns -v $intersected_vcf -o ${id}.call.cns
-		filter_cnvkit.pl ${id}.call.cns $MEAN_DEPTH > ${id}.filtered
+		filter_cnvkit.pl ${id}.call.cns $mean_depth > ${id}.filtered
 		cnvkit.py export vcf ${id}.filtered -i "$id" > ${id}.cnvkit_filtered.vcf
 
 		${cnvkit_panel_version(task)}
