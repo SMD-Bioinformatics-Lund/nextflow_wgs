@@ -9,7 +9,7 @@ include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
 include { VALIDATE_PARAMETERS } from './workflows/validate_params.nf'
 include { SPLIT_NORMALIZE_SNVS } from './workflows/split_normalize_snvs.nf'
 include { vcfHasVariants } from './workflows/util.nf'
-include { PREPARE_META_CHANNELS } from './workflows/prepare_meta_channels.nf'
+include { PREPARE_INPUT_AND_META_CHANNELS } from './workflows/prepare_input_and_meta_channels.nf'
 
 nextflow.enable.dsl=2
 
@@ -140,13 +140,13 @@ workflow NEXTFLOW_WGS {
 	ch_output_info = channel.empty() // Gather data for .INFO
 	ch_qc_json     = channel.empty() // Gather and merge QC JSONs per sample
 
-	PREPARE_META_CHANNELS(ch_samplesheet)
+	PREPARE_INPUT_AND_META_CHANNELS(ch_samplesheet)
 
-	ch_sample_meta   = PREPARE_META_CHANNELS.out.sample_meta   // group, id, meta[:]
-	ch_proband_meta  = PREPARE_META_CHANNELS.out.proband_meta  // group, id(proband), meta[:] contains priority
-	ch_fastq_start   = PREPARE_META_CHANNELS.out.fastq         // group, id, read1, read2
-	ch_bam_start     = PREPARE_META_CHANNELS.out.bam           // group, id, read1, read2
-	ch_vcf_start     = PREPARE_META_CHANNELS.out.vcf           // group, vcf
+	ch_sample_meta   = PREPARE_INPUT_AND_META_CHANNELS.out.sample_meta   // group, id, meta[:]
+	ch_proband_meta  = PREPARE_INPUT_AND_META_CHANNELS.out.proband_meta  // group, id(proband), meta[:] contains priority
+	ch_fastq_start   = PREPARE_INPUT_AND_META_CHANNELS.out.fastq         // group, id, read1, read2
+	ch_bam_start     = PREPARE_INPUT_AND_META_CHANNELS.out.bam           // group, id, read1, read2
+	ch_vcf_start     = PREPARE_INPUT_AND_META_CHANNELS.out.vcf           // group, vcf
 
 	// GATK Ref:
 	ch_gatk_ref = channel
@@ -306,7 +306,7 @@ workflow NEXTFLOW_WGS {
 		ch_split_normalize_mito_in = run_mutect2.out.vcf
 			.join(ch_proband_meta, by:[0])
 			.map { group, _id, mito_snv_vcf, proband_id, meta ->
-				tuple(group, proband_id, mito_snv_vcf, meta)
+				tuple(group, proband_id, meta, mito_snv_vcf)
 			}
 		split_normalize_mito(ch_split_normalize_mito_in)
         
@@ -1908,9 +1908,9 @@ process create_ped {
 		tuple val(group), val(id), val(meta)
 
 	output:
-		tuple val({meta.group}), val({meta.type}), path("${meta.group}_base.ped"), emit: ped_base
-		tuple val({meta.group}), val(type_ma), path("${meta.group}_ma.ped"), emit: ped_ma, optional: true
-		tuple val({meta.group}), val(type_fa), path("${meta.group}_fa.ped"), emit: ped_fa, optional: true
+		tuple val(meta.group), val(meta.type), path("${meta.group}_base.ped"), emit: ped_base
+		tuple val(meta.group), val(type_ma), path("${meta.group}_ma.ped"), emit: ped_ma, optional: true
+		tuple val(meta.group), val(type_fa), path("${meta.group}_fa.ped"), emit: ped_fa, optional: true
 
 	script:
 		if ( meta.father == "" ) {
@@ -2257,7 +2257,7 @@ process split_normalize_mito {
 	time '1h'
 
 	input:
-		tuple val(group), val(id), path(mito_snv_vcf), val(meta)
+		tuple val(group), val(id), val(meta), path(mito_snv_vcf)
 
 	output:
 		tuple val(group), path("${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"), emit: vcf
