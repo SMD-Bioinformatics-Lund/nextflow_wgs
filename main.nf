@@ -679,7 +679,8 @@ workflow NEXTFLOW_WGS {
 			svdb_merge(
 				ch_manta_out.groupTuple(),
 				tiddit.out.vcf.groupTuple(),
-				ch_filtered_merged_gatk_calls.groupTuple()
+				ch_filtered_merged_gatk_calls.groupTuple(),
+				val_analysis_mode
 			)
 			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(svdb_merge.out.merged_bndless_vcf)
 			ch_panel_svs_present = ch_postprocessed_merged_sv_vcf
@@ -3836,6 +3837,7 @@ process svdb_merge {
 		tuple val(group), val(id), path(mantaV)
 		tuple val(group2), val(id2), path(tidditV)
 		tuple val(group3), val(id3), path(gatkV)
+		val analysis_mode
 
 	output:
 		tuple val(group), val(id), path("${group}.merged.bndless.vcf"), emit: merged_bndless_vcf
@@ -3843,7 +3845,7 @@ process svdb_merge {
 		path "*versions.yml", emit: versions
 
 	script:
-		if (params.mode == "family") {
+		if (analysis_mode == "family") {
 			def vcfs = []
 			def manta = []
 			def tiddit = []
