@@ -28,10 +28,6 @@ workflow {
 	val_analysis_mode = input_csv_line_count > 2 ? "family" : "single"
 	val_is_trio = input_csv_line_count > 3 ? true : false
 
-	// TODO: Migrate existing readers to analysis_mode/is_trio and remove these param assignments.
-	params.mode = val_analysis_mode
-	params.trio = val_is_trio
-
 	// Check whether genome assembly is indexed //
 	// TODO: Move to some pre-processing workflow:
 	if(params.genome_file) {
