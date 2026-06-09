@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### 3.26.4
+* code style change
+* changed all input-channels to a standardized format
+* joined channels properly so that batch starts should be further supported
+
 ### 3.26.3
 * Use boolean values for `publishDir overwrite`
 
