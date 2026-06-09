@@ -94,7 +94,7 @@ process merge_melt {
 	tag "$id"
 	memory '2 GB'
 	time '1h'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf'
 
 	input:
 		tuple val(group), val(id), path(alu_vcf), path(line1_vcf), path(sva_vcf)
@@ -125,7 +125,7 @@ process intersect_melt {
 	tag "$id"
 	memory '2 GB'
 	time '1h'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf'
     container "${params.container_bedtools}"
 
 	input:

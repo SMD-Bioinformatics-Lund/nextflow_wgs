@@ -71,7 +71,7 @@ process bcftools_norm_sort {
 	memory '10 GB'
 	time '1h'
     container "${params.container_bcftools}"
-    publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
+    publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
     
     input:
 		tuple val(group), path(vcf), path(idx)
@@ -144,7 +144,7 @@ def vcflib_vcfuniq_version(task) {
 
 process wgs_dpaf_filter {
     cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	tag "$group"
 	memory '10 GB'
 	time '1h'
@@ -221,7 +221,7 @@ def bedtool_intersect_version(task) {
 }
 process bgzip_tabix {
 	cpus 2
-    publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
+    publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	tag "$group"
 	memory '10 GB'
 	time '1h'
