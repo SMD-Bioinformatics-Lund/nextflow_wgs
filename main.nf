@@ -539,7 +539,7 @@ workflow NEXTFLOW_WGS {
 				}
 
 			// upd
-			if (params.mode == "family" && val_is_trio) {
+            if (val_analysis_mode == "family" && val_is_trio) {
 			    upd(fastgnomad.out.vcf, ch_upd_meta)
 				upd_table(upd.out.upd_sites)
 			}
