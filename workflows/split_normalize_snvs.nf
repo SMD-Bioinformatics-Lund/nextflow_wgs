@@ -24,9 +24,10 @@ workflow SPLIT_NORMALIZE_SNVS {
     ch_versions = ch_versions.mix(bgzip_tabix.out.versions.first())
 
     emit:
-    vcf_tbi_full            = wgs_dpaf_filter.out.vcf_tbi // channel: [ val(group), path(vcf), path(tbi)]
-    vcf_tbi_intersected     = bgzip_tabix.out.vcf_tbi     // channel: [ val(group), path(vcf), path(tbi)]
-    versions                = ch_versions                 // channel: [ path(versions) ]
+    vcf_multi_nonfiltered   = bcftools_norm_sort.out.vcf_tbi // channel: [ val(group), path(vcf), path(tbi)]
+    vcf_tbi_full            = wgs_dpaf_filter.out.vcf_tbi    // channel: [ val(group), path(vcf), path(tbi)]
+    vcf_tbi_intersected     = bgzip_tabix.out.vcf_tbi        // channel: [ val(group), path(vcf), path(tbi)]
+    versions                = ch_versions                    // channel: [ path(versions) ]
 }
 
 process vcflib_vcfbreakmulti {
@@ -72,7 +73,7 @@ process bcftools_norm_sort {
 	memory '10 GB'
 	time '1h'
     container "${params.container_bcftools}"
-    publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
+    publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
     
     input:
 		tuple val(group), path(vcf), path(idx)
@@ -145,7 +146,7 @@ def vcflib_vcfuniq_version(task) {
 
 process wgs_dpaf_filter {
     cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	tag "$group"
 	memory '10 GB'
 	time '1h'
@@ -222,7 +223,7 @@ def bedtool_intersect_version(task) {
 }
 process bgzip_tabix {
 	cpus 2
-    publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
+    publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	tag "$group"
 	memory '10 GB'
 	time '1h'

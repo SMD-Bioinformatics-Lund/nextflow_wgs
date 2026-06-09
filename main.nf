@@ -1,5 +1,7 @@
 #!/usr/bin/env nextflow
 
+import groovy.json.JsonSlurper
+
 include { SNV_ANNOTATE } from './workflows/annotate_snvs.nf'
 include { IDSNP_CALL } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON } from './modules/idsnp.nf'
@@ -154,7 +156,7 @@ workflow NEXTFLOW_WGS {
 	}
 
 
-	ch_samplesheet
+	ch_vcf_annotation_only = ch_samplesheet
 		.filter {
 			row -> row.read1.endsWith(".vcf") || row.read1.endsWith(".vcf.gz")
 		}
@@ -163,7 +165,6 @@ workflow NEXTFLOW_WGS {
 			def vcf = row.read1
 			[ group, vcf ]
 		}
-        .set { ch_vcf_annotation_only }
 
 	// GATK Ref:
 	ch_gatk_ref = channel
@@ -202,16 +203,16 @@ workflow NEXTFLOW_WGS {
 	ch_svvcf_to_bed_meta  = ch_split_normalize_meta
 
 	// meta sent to qc_to_cdm
-	ch_qc_extra = ch_samplesheet
+	ch_runfolder = ch_samplesheet
 		.map { row ->
 			def group = row.group
 			def id = row.id
+			def lims_id = row.clarity_sample_id
 			def diagnosis = row.diagnosis
-			def fastq_r1 = row.read1
-			def fastq_r2 = row.read2
-			tuple(group, id, diagnosis, fastq_r1, fastq_r2)
+			def sequencing_run = row.sequencing_run
+			def n_reads = row.n_reads
+			tuple(group, id, lims_id, diagnosis, sequencing_run, n_reads)		
 		}
-
 	// meta sent to stranger
 	ch_stranger_meta = ch_samplesheet
 		.filter { row ->
@@ -240,6 +241,9 @@ workflow NEXTFLOW_WGS {
 			row.type == "proband"
 		}
 		.map { row ->
+
+			def scout_case_status = row.containsKey("priority") && row.priority == "highest" ? "prioritized" : ""
+
 			tuple(
 				row.group,
 				row.id,
@@ -247,7 +251,8 @@ workflow NEXTFLOW_WGS {
 				row.assay,
 				row.type,
 				row.clarity_sample_id,
-				(row.containsKey("analysis") ? row.analysis : false)
+				(row.containsKey("analysis") ? row.analysis : false),
+				scout_case_status
 			)
 		}
 
@@ -364,11 +369,6 @@ workflow NEXTFLOW_WGS {
 		depth_onco(ch_bam_bai)
 	}
 
-	// CONTAMINATION //
-	if (params.antype == "wgs") {
-		verifybamid2(ch_bam_bai)
-		ch_versions = ch_versions.mix(verifybamid2.out.versions.first())
-	}
 
 	// SNV CALLING //
 	dnascope(ch_bam_bai.join(bqsr.out.dnascope_bqsr, by: [0, 1]))
@@ -383,7 +383,7 @@ workflow NEXTFLOW_WGS {
 		freebayes(ch_bam_bai)
 		ch_versions = ch_versions.mix(freebayes.out.versions.first())
         
-        freebayes.out.freebayes_variants
+        ch_concat_gvcf_freebayes_in = freebayes.out.freebayes_variants
             .join(
                 gvcf_combine.out.combined_vcf
             )
@@ -391,16 +391,14 @@ workflow NEXTFLOW_WGS {
                 group, freebayes_vcf, _id, gvcf, _gvcf_tbi ->
                 [ group, gvcf, freebayes_vcf ]
             }
-            .set { ch_concat_gvcf_freebayes_in  }
 
         concat_gvcf_freebayes(ch_concat_gvcf_freebayes_in)
         ch_split_normalize_in = concat_gvcf_freebayes.out.vcf_tbi
         ch_versions = ch_versions.mix(concat_gvcf_freebayes.out.versions.first())
         
 	} else {
-        gvcf_combine.out.combined_vcf
+        ch_split_normalize_in = gvcf_combine.out.combined_vcf
             .map { group, _id, vcf, tbi -> [ group, vcf, tbi ] }
-            .set { ch_split_normalize_in }
     }
 
     
@@ -408,7 +406,14 @@ workflow NEXTFLOW_WGS {
     ch_versions = ch_versions.mix(SPLIT_NORMALIZE_SNVS.out.versions)
 
     ch_rename_mito_contigs_in = channel.empty() 
-    
+
+	// CONTAMINATION //
+	if (params.antype == "wgs") {
+		verifybamid2(ch_bam_bai)
+		ch_qc_json = ch_qc_json.mix(verifybamid2.out.contamination_json)
+		ch_versions = ch_versions.mix(verifybamid2.out.versions.first())
+	}
+ 
 	// MITO SNVS and SVs
     // TODO: Break up into workflow(s)
 	if (!params.skip_mito) { 
@@ -435,10 +440,9 @@ workflow NEXTFLOW_WGS {
         
 		run_hmtnote(split_normalize_mito.out.vcf) 
 
-        SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+        ch_picard_mergevcfs_in = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
             .join(run_hmtnote.out.vcf) 
             .map { group, snv_vcf, _tbi, mito_vcf -> [ group, snv_vcf, mito_vcf ] }
-            .set { ch_picard_mergevcfs_in }
 
         picard_mergevcfs(ch_picard_mergevcfs_in)
         ch_rename_mito_contigs_in = picard_mergevcfs.out.merged_vcf
@@ -460,24 +464,29 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(run_haplogrep.out.versions.first())
 		ch_versions = ch_versions.mix(run_eklipse.out.versions.first())
 	} else {
-        SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
-            .set { ch_rename_mito_contigs_in }                            
+        ch_rename_mito_contigs_in = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
     }
 
     // TODO: Do this inside mito snv workflow? 
     rename_mito_contigs(ch_rename_mito_contigs_in)
-    rename_mito_contigs.out.vcf_tbi
+    ch_snv_annotate_in = rename_mito_contigs.out.vcf_tbi
         .map { group, vcf, _tbi -> [ group, vcf ] }
-        .set { ch_snv_annotate_in }
 
     ch_versions = ch_versions.mix(rename_mito_contigs.out.versions.first())
         
 	// SNV ANNOTATION
 	if (params.annotate) {
+		
+		// bam channel for SNV annotate, special case //
+		ch_bam_snv_annotate = ch_bam_bai
+			.join(ch_ped_input, by: [0,1])
+			.map { group, id, bam, bai, type, sex, mother, father ->
+				tuple(group, bam, bai)
+		}
 
         ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_annotation_only)
         
-		SNV_ANNOTATE(ch_snv_annotate_in, ch_ped_trio_affected_permutations)
+		SNV_ANNOTATE(ch_bam_snv_annotate, ch_snv_annotate_in, ch_ped_trio_affected_permutations)
 		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
 		ch_output_info = ch_output_info.mix(SNV_ANNOTATE.out.output_info)
 
@@ -491,10 +500,20 @@ workflow NEXTFLOW_WGS {
 		// TODO: Move this guy to QC:
 		peddy(ch_peddy_input_vcf.join(ch_ped_base, by: [0,1]))
 		ch_output_info = ch_output_info.mix(peddy.out.peddy_INFO)
-
-
 		ch_versions = ch_versions.mix(peddy.out.versions.first())
 
+
+		ch_peddy2cdm_input = ch_samplesheet
+			.map { row ->
+				tuple(row.group, row.id, row.sequencing_run)
+			}.groupTuple()
+
+		// add peddy output to each trio case, make sure it is matched on group
+		// combine does not do this and join will only take first entry
+		ch_peddy2cdm = peddy.out.peddy_files.join(ch_peddy2cdm_input)
+			
+		peddy2cdm(ch_peddy2cdm)
+		
 		if (params.antype == "wgs") {
 			// fastgnomad
 			fastgnomad(
@@ -590,7 +609,21 @@ workflow NEXTFLOW_WGS {
 				ch_stranger_meta
 			)
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
-			reviewer(expansionhunter.out.bam_vcf)
+
+			reviewer_loci = new groovy.json.JsonSlurper()
+				.parseText(file(params.expansionhunter_catalog).text)
+				.collect { locus_definition -> locus_definition.LocusId }
+				.findAll { locus -> locus }
+
+			ch_reviewer_input = expansionhunter.out.bam_vcf
+				.flatMap { group, id, bam, bai, vcf ->
+					reviewer_loci.collect { locus ->
+						tuple(group, id, bam, bai, vcf, locus)
+					}
+				}
+
+			reviewer(ch_reviewer_input)
+			ch_output_info = ch_output_info.mix(reviewer.out.reviewer_INFO)
 
 			ch_versions = ch_versions.mix(SMNCopyNumberCaller.out.versions.first())
 			ch_versions = ch_versions.mix(reviewer.out.versions.first())
@@ -801,9 +834,8 @@ workflow NEXTFLOW_WGS {
 
 		svvcf_to_bed(bgzip_scored_genmod.out.sv_rescore_vcf, ch_svvcf_to_bed_meta)
 
-        SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+        ch_cnvkit_plot_snvs = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
             .map { group, vcf, _tbi -> [ group, vcf ] }
-            .set { ch_cnvkit_plot_snvs }
         
 		// plot cnvkit for panels
 		ch_cnvkit_plot = ch_cnvkit_cns_cnr
@@ -842,12 +874,10 @@ workflow NEXTFLOW_WGS {
 
 		// add_to_loqusb won't run if no svvcf is generated
 		// the code below creates dummy svvcf for no-SV runs
-		def dummy_file = file("NA")
 		ch_loqusdb_no_sv_dummy = ch_samplesheet
 			.map { row ->
 				def group = row.group
-				def sv_vcf_dummy = dummy_file
-				tuple(group, sv_vcf_dummy)
+				tuple(group, [])
 			}
 			.first()
 
@@ -856,16 +886,37 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// LOQUSDB //
+	ch_loqusdb_sv_for_load = ch_loqusdb_sv.map { group, svvcf ->
+		def svvcf_for_load = svvcf
+
+		if (svvcf) {
+			def svvcf_exists = svvcf.exists() && svvcf.size() > 0
+			def svvcf_has_variants = svvcf_exists && vcfHasVariants(svvcf)
+
+			if (!svvcf_has_variants) {
+				svvcf_for_load = []
+			}
+		}
+
+		tuple(group, svvcf_for_load)
+	}
+
+	ch_loqusdb_input = ch_ped_base
+		.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1])
+		.join(ch_loqusdb_sv_for_load, by: 0)
+		.map { group, type, ped, vcf_snvs, _tbi, vcf_svs ->
+			tuple(group, type, ped, vcf_snvs, vcf_svs)
+		}
+
     if(!params.skip_loqusdb) {
 	    add_to_loqusdb(
-		    ch_ped_base.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1]),
-		    ch_loqusdb_sv
+		    ch_loqusdb_input
 	    )
     }
 
 	// MERGE QC JSONs AND OUTPUT TO CDM //
 	merge_qc_json(ch_qc_json.groupTuple(by: [0,1]))
-	ch_qc_to_cdm = merge_qc_json.out.qc_cdm_merged.join(ch_qc_extra, by: [0,1])
+	ch_qc_to_cdm = merge_qc_json.out.qc_cdm_merged.join(ch_runfolder, by: [0,1])
 	qc_to_cdm(ch_qc_to_cdm)
 
 	// OUTPUT INFO
@@ -942,7 +993,7 @@ process genes_analyzed {
 	container "${params.container_cnvkit}"
 
 	input:
-		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis)
+		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis), val(scout_status)
 
 	output:
 		tuple val(group), val(id), file("${group}.genes"), emit: genes_of_interest
@@ -1085,7 +1136,7 @@ process markdup {
 	memory '50 GB' // 12GB peak GIAB
 	time '3h'
 	container  "${params.container_sentieon}"
-	publishDir "${params.results_output_dir}/bam", mode: 'copy' , overwrite: 'true', pattern: '*_dedup.bam*'
+	publishDir "${params.results_output_dir}/bam", mode: 'copy' , overwrite: true, pattern: '*_dedup.bam*'
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
@@ -1218,7 +1269,7 @@ process bqsr {
 	// 12gb peak giab //
 	time '5h'
 	container  "${params.container_sentieon}"
-	publishDir "${params.results_output_dir}/bqsr", mode: 'copy' , overwrite: 'true', pattern: '*.table'
+	publishDir "${params.results_output_dir}/bqsr", mode: 'copy' , overwrite: true, pattern: '*.table'
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
@@ -1456,7 +1507,7 @@ process sentieon_qc_postprocess {
 process verifybamid2 {
 	cpus 16
 	memory '10 GB'
-	publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: 'true', pattern: '*.selfSM'
+	publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: true, pattern: '*.selfSM'
 	tag "$id"
 	container  "${params.container_verifybamid2}"
 
@@ -1466,6 +1517,7 @@ process verifybamid2 {
 	output:
 		path("${id}.result.selfSM")
 		path("${id}.result.Ancestry")
+		tuple val(group), val(id), path("${id}.contamination.json"), emit: contamination_json
 		path "*versions.yml", emit: versions
 
 	script:
@@ -1476,6 +1528,9 @@ process verifybamid2 {
 			--BamFile ${bam}
 
 			mv result.selfSM ${id}.result.selfSM
+			tail -n 1 ${id}.result.selfSM | cut -f 7 > ${id}.contamination.value
+			value=\$(cat ${id}.contamination.value)
+			echo "{ \\"contamination\\": \\"\$value\\" }" > ${id}.contamination.json
 			mv result.Ancestry ${id}.result.Ancestry
 
 		${verifybamid2_version(task)}
@@ -1485,6 +1540,7 @@ process verifybamid2 {
 		"""
 		touch "${id}.result.selfSM"
 		touch "${id}.result.Ancestry"
+		touch ${id}.contamination.json
 
 		${verifybamid2_version(task)}
 		"""
@@ -1503,7 +1559,7 @@ process depth_onco {
 	cpus 2
 	time '1h'
 	memory '10 GB'
-	publishDir "${params.results_output_dir}/cov", mode: 'copy', overwrite: 'true'
+	publishDir "${params.results_output_dir}/cov", mode: 'copy', overwrite: true
 	tag "$id"
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
@@ -1527,7 +1583,7 @@ process SMNCopyNumberCaller {
 	cpus 10
 	memory '25GB'
 	time '2h'
-	publishDir "${params.results_output_dir}/plots/SMNcnc", mode: 'copy' , overwrite: 'true', pattern: '*.pdf*'
+	publishDir "${params.results_output_dir}/plots/SMNcnc", mode: 'copy' , overwrite: true, pattern: '*.pdf*'
 	tag "$id"
 
 	input:
@@ -1605,7 +1661,6 @@ process expansionhunter {
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai), val(sex), val(type) // TODO: sex + type are not needed here
-
 
 	output:
 		tuple val(group), val(id), path("${group}.eh.vcf"), emit: expansionhunter_vcf
@@ -1690,31 +1745,32 @@ def stranger_version(task) {
 
 
 process reviewer {
-	tag "$group"
+	tag "$group:$locus"
 	cpus 2
 	time '1h'
 	memory '1 GB'
 	errorStrategy 'ignore'
 	container  "${params.container_reviewer}"
-	publishDir "${params.results_output_dir}/plots/reviewer/${group}", mode: 'copy' , overwrite: 'true', pattern: '*.svg'
+	publishDir "${params.results_output_dir}/plots/reviewer/${group}", mode: 'copy' , overwrite: true, pattern: '*.svg'
 
 	input:
-		tuple val(group), val(id), path(bam), path(bai), path(vcf)
+		tuple val(group), val(id), path(bam), path(bai), path(vcf), val(locus)
 
 	output:
 		path("*svg")
+		tuple val(group), path("${group}_reviewer.INFO"), emit: reviewer_INFO
 		path "*versions.yml", emit: versions
 
 	script:
 		version_str = reviewer_version(task)
 		"""
-		grep LocusId ${params.expansionhunter_catalog} | sed 's/[",^ ]//g' | cut -d':' -f2 | perl -na -e 'chomp; \
-		system("REViewer --reads ${bam} \
-			--vcf ${vcf} \
-			--reference ${params.genome_file} \
-			--catalog ${params.expansionhunter_catalog} \
-			--locus \$_ \
-			--output-prefix ${id}");'
+		REViewer --reads ${bam} \\
+			--vcf ${vcf} \\
+			--reference ${params.genome_file} \\
+			--catalog ${params.expansionhunter_catalog} \\
+			--locus "${locus}" \\
+			--output-prefix ${id}
+		echo "STR_VARIANTS_IMG	${locus}	${params.accessdir}/plots/reviewer/${group}/${id}.${locus}.svg" > ${group}_reviewer.INFO
 
 		echo "${version_str}" > "${task.process}_versions.yml"
 		"""
@@ -1722,7 +1778,8 @@ process reviewer {
 	stub:
 		version_str = reviewer_version(task)
 		"""
-		touch "${id}.svg"
+		touch "${id}.${locus}.svg"
+		echo "STR_VARIANTS_IMG	${locus}	${params.accessdir}/plots/reviewer/${group}/${id}.${locus}.svg" > "${group}_reviewer.INFO"
 		echo "${version_str}" > "${task.process}_versions.yml"
 		"""
 }
@@ -1735,7 +1792,8 @@ def reviewer_version(task) {
 // split multiallelic sites in expansionhunter vcf
 // FIXME: Use env variable for picard path...
 process vcfbreakmulti_expansionhunter {
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: 'true', pattern: '*.vcf.gz'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz'
+    publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz.tbi'
 	tag "$group"
 	time '1h'
 	memory '50 GB'
@@ -1745,7 +1803,8 @@ process vcfbreakmulti_expansionhunter {
 		tuple val(group2), val(id2), val(sex), val(mother), val(father), val(phenotype), val(diagnosis), val(type), val(assay), val(clarity_sample_id), val(ffpe), val(analysis)
 
 	output:
-		path("${group}.expansionhunter.vcf.gz"), emit: expansionhunter_scout
+	    tuple val(group), path("${group}.expansionhunter.vcf.gz"), emit: vcf
+        tuple val(group), path("${group}.expansionhunter.vcf.gz.tbi"), emit: tbi
 		tuple val(group), path("${group}_str.INFO"), emit: str_INFO
 		path "*versions.yml", emit: versions
 
@@ -1779,7 +1838,8 @@ process vcfbreakmulti_expansionhunter {
 
 	stub:
 		"""
-		touch "${group}.expansionhunter.vcf.gz"
+	    touch "${group}.expansionhunter.vcf.gz"
+        touch "${group}.expansionhunter.vcf.gz.tbi"
 		touch "${group}_str.INFO"
 
 		${vcfbreakmulti_expansionhunter_version(task)}
@@ -1813,7 +1873,7 @@ process melt {
 	// memory seems to scale with less number of reads?
 	memory '70 GB'
 	time '3h'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: 'true', pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf'
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
@@ -1862,7 +1922,7 @@ process intersect_melt {
 	tag "$id"
 	memory '2 GB'
 	time '1h'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: 'true', pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf'
 
 	input:
 		tuple val(group), val(id), path(vcf)
@@ -1967,7 +2027,7 @@ def gvcf_combine_version(task) {
 process create_ped {
 	tag "$group"
 	time '20m'
-	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: 'true'
+	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: true
 	memory '1 GB'
 	container "${params.container_perl}"
 
@@ -2008,7 +2068,7 @@ process create_ped {
 
 //madeline ped, run if family mode
 process madeline {
-	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: 'true', pattern: '*.xml'
+	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: true, pattern: '*.xml'
 	memory '1 GB'
 	time '1h'
 	cpus 2
@@ -2149,7 +2209,7 @@ process fetch_MTseqs {
 	memory '10GB'
 	time '1h'
 	tag "$id"
-	publishDir "${params.results_output_dir}/bam", mode: 'copy', overwrite: 'true', pattern: '*.bam*'
+	publishDir "${params.results_output_dir}/bam", mode: 'copy', overwrite: true, pattern: '*.bam*'
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
@@ -2270,7 +2330,7 @@ process run_mutect2 {
 	memory '50 GB'
 	time '1h'
 	tag "$group"
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf'
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
@@ -2411,7 +2471,7 @@ process run_haplogrep {
 	time '1h'
 	memory '50 GB'
 	cpus 2
-	publishDir "${params.results_output_dir}/plots/mito", mode: 'copy', overwrite: 'true', pattern: '*.png'
+	publishDir "${params.results_output_dir}/plots/mito", mode: 'copy', overwrite: true, pattern: '*.png'
 
 	input:
 		tuple val(group), val(id), path(mito_snv_vcf)
@@ -2468,8 +2528,8 @@ process run_eklipse {
 	// in rare cases with samples above 50 000x this can peak at 500+ GB of VMEM. Add downsampling!
 	memory '100GB'
 	time '60m'
-	publishDir "${params.results_output_dir}/plots/mito", mode: 'copy', overwrite: 'true', pattern: '*.txt'
-	publishDir "${params.results_output_dir}/plots/mito", mode: 'copy', overwrite: 'true', pattern: '*.png'
+	publishDir "${params.results_output_dir}/plots/mito", mode: 'copy', overwrite: true, pattern: '*.txt'
+	publishDir "${params.results_output_dir}/plots/mito", mode: 'copy', overwrite: true, pattern: '*.png'
 
 	input:
 		tuple val(group), val(id), val(sex), val(type), path(bam), path(bai)
@@ -2525,7 +2585,7 @@ def run_eklipse_version(task) {
 
 process rename_mito_contigs {
     cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf'
 	tag "$group"
 	memory '5 GB'
 	time '1h'
@@ -2572,7 +2632,7 @@ process merge_qc_json {
     cpus 2
     errorStrategy 'retry'
     maxErrors 5
-    publishDir "${params.results_output_dir}/qc", mode: 'copy' , overwrite: 'true', pattern: '*.QC'
+    publishDir "${params.results_output_dir}/qc", mode: 'copy' , overwrite: true, pattern: '*.QC'
     tag "$id"
     time '1h'
 	memory '1 GB'
@@ -2600,15 +2660,15 @@ process qc_to_cdm {
 	cpus 2
 	errorStrategy 'retry'
 	maxErrors 5
-	publishDir "${params.crondir}/qc", mode: 'copy' , overwrite: 'true'
+	publishDir "${params.crondir}/qc", mode: 'copy' , overwrite: true
 	tag "$id"
 	time '1h'
 
 	input:
-		tuple val(group), val(id), path(qc_json), val(diagnosis), val(r1), val(r2)
+		tuple val(group), val(id), path(qc_json), val(lims_id), val(diagnosis), val(sequencing_run), val(n_reads)
 
 	output:
-		path("${id}.cdm"), emit: cdm_done
+		path("${id}.cdmpy"), emit: cdm_done
 
 
 	when:
@@ -2616,19 +2676,16 @@ process qc_to_cdm {
 
 
 	script:
-		parts = r1.split('/')
-		idx =  parts.findIndexOf {run_path_part -> run_path_part  ==~ /......_......_...._........../}
-		rundir = parts[0..idx].join("/")
 		"""
-	    echo "--run-folder ${rundir} --sample-id ${id} --subassay ${diagnosis} --assay ${params.cdm_assay} --qc ${params.results_output_dir}/qc/${id}.QC" > ${id}.cdm
+		echo "--sequencing-run ${sequencing_run} --sample-id ${id} --assay $params.cdm_assay --subassay ${diagnosis} --qc ${params.results_output_dir}/qc/${id}.QC --lims-id ${lims_id}" > ${id}.cdmpy
 		"""
 }
 
 
 process peddy {
 
-	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: 'true', pattern: '*.ped'
-	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: 'true', pattern: '*.csv'
+	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: true, pattern: '*.ped'
+	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: true, pattern: '*.csv'
 
 	cpus 4
 	tag "$group"
@@ -2639,7 +2696,7 @@ process peddy {
 		tuple val(group), val(type), path(vcf), path(idx), path(ped)
 
 	output:
-		tuple path("${group}.ped_check.csv"),path("${group}.peddy.ped"), path("${group}.sex_check.csv"), emit: peddy_files
+		tuple val(group), path("${group}.ped_check.csv"),path("${group}.peddy.ped"), path("${group}.sex_check.csv"), emit: peddy_files
 		tuple val(group), path("${group}_peddy.INFO"), emit: peddy_INFO
 		path "*versions.yml", emit: versions
 
@@ -2675,12 +2732,52 @@ def peddy_version(task) {
 	"""
 }
 
+process peddy2cdm {
+	cpus 2
+	memory '20 MB'
+	tag "$group"
+	publishDir "${params.results_output_dir}/qc", mode: 'copy', overwrite: true, pattern: '*.json'
+	publishDir "${params.crondir}/peddy", mode: 'copy' , overwrite: true, pattern: '*.peddy2cdm'
+	container "${params.container_pysam_cmdvcf}"
+	time '20m'
+
+	input:
+		tuple val(group), path(ped_check),path(peddy_ped), path(sex_check), val(id), val(sequencing_run)
+
+	output:
+		tuple val(group), path("*peddy.json"), emit: json
+		tuple val(group), path("*peddy2cdm"), emit: cdm
+
+	script:
+		def sample_arg = [id, sequencing_run]
+			.transpose()
+			.collect { sample_id, run_id -> "${sample_id}:${run_id}" }
+			.join(' --sample ')
+			
+		"""
+		peddy2cdm.py \
+		--ped $ped_check \
+		--sex $sex_check \
+		--sample $sample_arg \
+		--cdmassay $params.cdm_assay \
+		--results_dir ${params.results_output_dir}/qc
+		"""
+		
+
+	stub:
+		"""
+		touch "${group}_peddy.json"
+		touch "${group}.peddy2cdm"
+	    """
+
+}
+
 // Extract all variants (
 process fastgnomad {
 	cpus 2
 	memory '40 GB'
 	tag "$group"
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	time '2h'
 
 	input:
@@ -2757,7 +2854,7 @@ def upd_version(task) {
 
 
 process upd_table {
-	publishDir "${params.results_output_dir}/plots", mode: 'copy' , overwrite: 'true'
+	publishDir "${params.results_output_dir}/plots", mode: 'copy' , overwrite: true
 	tag "$group"
 	time '1h'
 	memory '1 GB'
@@ -2822,7 +2919,7 @@ def roh_version(task) {
 
 // // Create coverage profile using GATK
 process gatkcov {
-	publishDir "${params.results_output_dir}/cov", mode: 'copy' , overwrite: 'true', pattern: '*.tsv'
+	publishDir "${params.results_output_dir}/cov", mode: 'copy' , overwrite: true, pattern: '*.tsv'
 	tag "$group"
 	cpus 2
 	memory '80 GB'
@@ -2887,7 +2984,7 @@ process overview_plot {
 	tag "$group"
 	time '1h'
 	memory '5 GB'
-	publishDir "${params.results_output_dir}/plots", mode: 'copy' , overwrite: 'true', pattern: "*.png"
+	publishDir "${params.results_output_dir}/plots", mode: 'copy' , overwrite: true, pattern: "*.png"
 	container "${params.container_perl}"
 
 	input:
@@ -2919,8 +3016,8 @@ process overview_plot {
 }
 
 process generate_gens_data {
-	publishDir "${params.results_output_dir}/plot_data", mode: 'copy' , overwrite: 'true', pattern: "*.gz*"
-	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: 'true', pattern: "*.gens"
+	publishDir "${params.results_output_dir}/plot_data", mode: 'copy' , overwrite: true, pattern: "*.gz*"
+	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: true, pattern: "*.gens"
 	tag "$group"
 	cpus 1
 	time '3h'
@@ -2956,8 +3053,8 @@ process generate_gens_data {
 }
 
 process generate_gens_v4_meta {
-	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: 'true', pattern: "*.tsv"
-	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: 'true', pattern: "*.bed"
+	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: true, pattern: "*.tsv"
+	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: true, pattern: "*.bed"
 	tag "$id"
 	cpus 1
 	time '1h'
@@ -3008,7 +3105,7 @@ process generate_gens_v4_meta {
 }
 
 process gens_v4_cron {
-	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: 'true', pattern: "*.gens_const.yaml"
+	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: true, pattern: "*.gens_const.yaml"
 	tag "$group"
 	cpus 1
 	time '10m'
@@ -3231,7 +3328,7 @@ process postprocessgatk {
 	memory '50GB'
 	time '3h'
 	container  "${params.container_gatk}"
-	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
+	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	tag "$id"
 
 	input:
@@ -3324,8 +3421,8 @@ process filter_gatk {
 	tag "$group"
 	time '2h'
 	memory '1 GB'
-	publishDir "${params.results_output_dir}/sv_vcf", mode: 'copy', overwrite: 'true'
-    
+	publishDir "${params.results_output_dir}/sv_vcf", mode: 'copy', overwrite: true
+
 	input:
 		tuple val(group), val(id), path(genotyped_segments)
 
@@ -3372,7 +3469,7 @@ process merge_gatk {
 
 process manta {
 	cpus  56
-	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
+	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	tag "$id"
 	time '15h'
 	memory '150 GB'
@@ -3412,7 +3509,7 @@ def manta_version(task) {
 
 process manta_panel {
 	cpus  20
-	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
+	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	tag "$id"
 	time '1h'
 	memory '50 GB'
@@ -3457,8 +3554,8 @@ def manta_panel_version(task) {
 process cnvkit_panel {
 	cpus  5
 	container  "${params.container_cnvkit}"
-	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
-	publishDir "${params.results_output_dir}/plots/", mode: 'copy', overwrite: 'true', pattern: '*.png'
+	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/plots/", mode: 'copy', overwrite: true, pattern: '*.png'
 	tag "$id"
 	time '1h'
 	memory '20 GB'
@@ -3512,7 +3609,7 @@ def cnvkit_panel_version(task) {
 process cnvkit_scatter {
 	cpus  2
 	container  "${params.container_cnvkit}"
-	publishDir "${params.results_output_dir}/plots/", mode: 'copy', overwrite: 'true', pattern: '*.png'
+	publishDir "${params.results_output_dir}/plots/", mode: 'copy', overwrite: true, pattern: '*.png'
 	tag "$id"
 	time '1h'
 	memory '2 GB'
@@ -3569,7 +3666,7 @@ process svdb_merge_panel {
 	cpus 2
 	cache 'deep'
 	tag "$group"
-	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: true, pattern: '*.vcf'
 	time '1h'
 	memory '1 GB'
 	input:
@@ -3655,7 +3752,7 @@ def svdb_merge_panel_version(task) {
 process postprocess_merged_panel_sv_vcf {
 	cpus 2
 	tag "$group"
-	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: true, pattern: '*.vcf'
 	time '1h'
 	memory '1 GB'
 
@@ -3707,7 +3804,7 @@ def postprocess_merged_panel_sv_version(task) {
 
 process tiddit {
 	cpus  2
-	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf'
 	time '10h'
 	tag "$id"
 	memory '15 GB'
@@ -3749,7 +3846,7 @@ process svdb_merge {
 	cpus 2
 	container  "${params.container_svdb}"
 	tag "$group"
-	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: 'true', pattern: '*.vcf'
+	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: true, pattern: '*.vcf'
 	time '2h'
 	memory '1 GB'
 
@@ -3863,13 +3960,12 @@ def svdb_merge_version(task) {
 
 process add_to_loqusdb {
 	cpus 1
-	publishDir "${params.crondir}/loqus", mode: 'copy' , overwrite: 'true'
+	publishDir "${params.crondir}/loqus", mode: 'copy' , overwrite: true
 	tag "$group"
 	memory '100 MB'
 	time '25m'
 	input:
-		tuple val(group), val(type), path(ped), path(vcf), path(tbi)
-		tuple val(group2), path(svvcf)
+		tuple val(group), val(type), path(ped), path(vcf_snvs), path(vcf_svs)
 
 	output:
 		path("${group}*.loqus"), emit: loqusdb_done
@@ -3879,15 +3975,11 @@ process add_to_loqusdb {
 
 	script:
 
-		def sv_variants_arg=""
+		def sv_variants_arg = vcf_svs ?  "--sv-variants ${params.accessdir}/sv_vcf/merged/${vcf_svs}" : ""
 
-		// Handle missing svvcf:
-		if(svvcf.baseName != "NA") {
-			sv_variants_arg="--sv-variants ${params.accessdir}/sv_vcf/merged/${svvcf}"
-		}
 
 		"""
-		echo "-db $params.loqusdb load -f ${params.accessdir}/ped/${ped} --variant-file ${params.accessdir}/vcf/${vcf} ${sv_variants_arg}" > "${group}.loqus"
+		echo "-db $params.loqusdb load -f ${params.accessdir}/ped/${ped} --variant-file ${params.accessdir}/vcf/${vcf_snvs} ${sv_variants_arg}" > "${group}.loqus"
 		"""
 
 	stub:
@@ -3952,7 +4044,7 @@ process annotsv {
 	container  "${params.container_annotsv}"
 	cpus 2
 	tag "$group"
-	publishDir "${params.results_output_dir}/annotsv/", mode: 'copy', overwrite: 'true', pattern: '*.tsv'
+	publishDir "${params.results_output_dir}/annotsv/", mode: 'copy', overwrite: true, pattern: '*.tsv'
 	time '5h'
 	memory '20 GB'
 
@@ -4392,8 +4484,8 @@ process bgzip_scored_genmod {
 	cpus 4
 	memory '1 GB'
 	time '5m'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz.tbi'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz.tbi'
 	container  "${params.container_bcftools}"
 
 	input:
@@ -4438,7 +4530,7 @@ def bgzip_score_sv_version(task) {
 process compound_finder {
 	cpus 2
 	tag "$group ${params.mode}"
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: 'true', pattern: '*.vcf.gz*'
+	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
 	memory '10 GB'
 	time '2h'
 
@@ -4517,7 +4609,7 @@ process output_files {
 
 
 process svvcf_to_bed {
-	publishDir "${params.results_output_dir}/bed", mode: 'copy' , overwrite: 'true'
+	publishDir "${params.results_output_dir}/bed", mode: 'copy' , overwrite: true
 	tag "group"
 	memory '1 GB'
 	time '1h'
@@ -4548,7 +4640,7 @@ process svvcf_to_bed {
 
 process plot_pod {
 	container  "${params.container_pod}"
-	publishDir "${params.results_output_dir}/pod", mode: 'copy' , overwrite: 'true'
+	publishDir "${params.results_output_dir}/pod", mode: 'copy' , overwrite: true
 	tag "$group"
 	time '1h'
 	memory '1 GB'
@@ -4576,9 +4668,9 @@ process plot_pod {
 }
 
 process create_yaml {
-	publishDir "${params.results_output_dir}/yaml", mode: 'copy' , overwrite: 'true', pattern: '*.yaml'
-	publishDir "${params.results_output_dir}/yaml/alt_affect", mode: 'copy' , overwrite: 'true', pattern: '*.yaml.*a'
-	publishDir "${params.crondir}/scout", mode: 'copy' , overwrite: 'true', pattern: '*.yaml'
+	publishDir "${params.results_output_dir}/yaml", mode: 'copy' , overwrite: true, pattern: '*.yaml'
+	publishDir "${params.results_output_dir}/yaml/alt_affect", mode: 'copy' , overwrite: true, pattern: '*.yaml.*a'
+	publishDir "${params.crondir}/scout", mode: 'copy' , overwrite: true, pattern: '*.yaml'
 	errorStrategy 'retry'
 	maxErrors 5
 	tag "$group"
@@ -4587,7 +4679,7 @@ process create_yaml {
 	container "${params.container_perl}"
 
 	input:
-		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis)
+		tuple val(group), val(id), val(diagnosis), val(assay), val(type), val(clarity_sample_id), val(analysis), val(scout_status)
 		tuple val(group2), val(type2), path(ped)
 		tuple val(group3), path(INFO)
 
@@ -4606,6 +4698,7 @@ process create_yaml {
 			--files "$INFO" \\
 			--assay "$assay" \\
 			--antype "$params.antype" \\
+			--status "$scout_status" \\
 			--extra_panels "$params.extra_panels"
 		"""
 
@@ -4616,7 +4709,7 @@ process create_yaml {
 }
 
 process combine_versions {
-	publishDir "${params.results_output_dir}/versions", mode: 'copy', overwrite: 'true', pattern: '*.versions.yml'
+	publishDir "${params.results_output_dir}/versions", mode: 'copy', overwrite: true, pattern: '*.versions.yml'
 
 	input:
 		val(group)

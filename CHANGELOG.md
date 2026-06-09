@@ -1,13 +1,63 @@
 # CHANGELOG
 
 ### Unreleased
+
+#### Added
+
 * Add `container_perl` to Perl-driven processes:
   * `sentieon_qc_postprocess`, `create_ped`, `upd_table`, `overview_plot`, `generate_gens_data`, `svvcf_to_bed`, `create_yaml`
   * `modify_vcf`, `mark_splice`
+  
+#### Changed 
 * Update `mark_splice` to call `mark_spliceindels.pl` from `bin/` (instead of `/opt/bin/`).
 * Standardize Perl script portability in `bin/` by migrating shebangs from `#!/usr/bin/perl -w` to `#!/usr/bin/env perl` and enabling warnings via `use warnings;`.
 * Set `bin/cnv2bed.pl` shebang to `#!/usr/bin/env perl`.
 * Keep `bin/mergeGATK.pl` on `#!/usr/bin/perl -w` intentionally.
+
+### 3.26.3
+* Use boolean values for `publishDir overwrite`
+
+### 3.26.2
+* Convert all instances of .set{} to direct channel assingment
+* Emit and publish the ExpansionHunter STR VCF together with its tabix index
+
+### 3.26.1
+* Set Scout case status to `prioritized` when the proband CSV priority is `highest`
+* Do not load empty SV VCFs into loqusdb
+
+### 3.26.0
+* Split up reviewer loci to one process per locus
+* Add `.codex` and `.agent-shell/` to gitignore 
+
+### 3.25.2
+* CFTR to constitutional institute...
+
+### 3.25.1
+* CFTR create_yml missmatch to scout institute
+
+### 3.25.0
+* CFTR goes live. Extra caller to check for 5T variants.
+* Fix create_yml.pl line endings
+* Load reviewer plots into scout 
+
+### 3.24.1
+* Added peddy sex-check and ped-check as a CDM output
+* changed json for ID-SNPs to be in the same format as somatic unpaired samples
+
+### 3.24.0
+* Update vep to 114.2
+* Update bed intersect with ensembl/114 and clinvar/20260226 
+
+### 3.23.2
+* append OMIM-AUTO+panelapp-green as default panels for trios in bin/create_yml.pl
+
+### 3.23.1
+* Replace sentieon with new version, v202503.02.
+
+### 3.23.0
+* pass contamination check for WGS into CDM json
+* use python-script nomenclature for CDM load
+* require sequencing_run from CSV instead of regex from fastq-files (breaks old CSVs for panels)
 
 ### 3.22.1
 * Remove D4 coverage generation and `d4_file` Scout YAML output from the workflow.

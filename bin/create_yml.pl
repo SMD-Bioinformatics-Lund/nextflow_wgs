@@ -1,5 +1,5 @@
-#!/usr/bin/env perl
-#use MongoDB;
+#! /usr/bin/env perl
+
 use strict;
 use warnings;
 use Data::Dumper;
@@ -20,10 +20,13 @@ GetOptions(
     'assay=s',
     'files=s',
     'panelsdef=s',
+    'status=s',
     'extra_panels=s'
 ) or usage();
 
 my @required = ('g', 'd', 'out', 'files', 'ped', 'panelsdef', 'assay', 'antype');
+
+my $DEFAULT_PANELS_TRIO = '+OMIM-AUTO+panelapp-green'; # choose deafault panels for trios
 
 my @missing;
 foreach my $param (@required) {
@@ -190,11 +193,11 @@ my %assays = (
             'institute_owner' => 'hemofili'
         },
         'cf' => {
-            'institute' => 'cystic-fibrosis',
-            'institute_owner' => 'cystic-fibrosis',
+            'institute' => 'constitutional',
+            'institute_owner' => 'constitutional',
         }
     }
-    
+
 );
 
 
@@ -219,7 +222,7 @@ if ($opt{assay}) {
         $analysis = 'ahus';
     }
     else { $analysis = 'ph';}
-    
+
 }
 print STDERR "assay: $assay analysis: $analysis\n";
 ### Group ###
@@ -230,12 +233,12 @@ if (defined $opt{g}) {
     @g_c = split/,/,$opt{g};
     unless (scalar(@g_c) == 2) {
         print STDERR "need group-id,clarity-id\n";
-        exit; 
+        exit;
     }
 }
 else {
     print STDERR "need group-id,clarity-id\n";
-    exit;       
+    exit;
 }
 my $group = $g_c[0];
 my $clarity_id = $g_c[1];
@@ -268,6 +271,9 @@ while ( <INFO> ) {
     elsif ($category eq "STR_IMG") {
         $INFO{STR_IMG}->{$subcat} = $filepath;
     }
+    elsif ($category eq "STR_VARIANTS_IMG") {
+        $INFO{STR_VARIANTS_IMG}->{$subcat} = $filepath;
+    }
     elsif ($category eq "SV" or $category eq "SVc" or $category eq "SNV" or $category eq "MADDE") {
         if ($category eq "SNV") {
             push @inher_patterns,$subcat;
@@ -286,7 +292,6 @@ close INFO;
 
 my $kit = "Intersected WGS"; ## placeholder, does not change for panels
 my $diagnosis = $opt{d};
-
 ### Read ped, save individuals ####################
 my $PED = $opt{ped};
 open (PED, $PED) or die "Cannot open $PED\n";
@@ -295,6 +300,9 @@ while ( <PED> ) {
     push @ped, $_;
 }
 close PED;
+
+if (@ped == 3 and $assay eq 'wgs-hg38'){ $diagnosis .= $DEFAULT_PANELS_TRIO; } # change default panels if wgs-hg38 trio
+
 ####################################################
 
 ### get genlist ###
@@ -333,9 +341,9 @@ foreach my $ind (@inher_patterns) {
         $out = "$group.yaml".".".$ind;
         $family = $group."_".$ind;
     }
-    
+
     ### Open out, default $group.yaml, fix for ma and fa! ###
-    if ($opt{out}) { 
+    if ($opt{out}) {
         $out = $opt{out};
         unless ( $ind eq "proband") {
             $out = $out.".".$ind;
@@ -349,6 +357,9 @@ foreach my $ind (@inher_patterns) {
     print OUT "owner: $institute_owner\n";
     print OUT "family: '$family'\n";
     print OUT "lims_id: '$clarity_id'\n";
+    if ($opt{status}) {
+        print OUT "status: '$opt{status}'\n";
+    }
     print OUT "samples: \n";
 
     ### MATCH ped inidividuals with bams ###
@@ -371,7 +382,7 @@ foreach my $ind (@inher_patterns) {
             else {
                 print OUT "    phenotype: unaffected\n";
             }
-            
+
         }
         elsif ($pedline[5] == 2) {
             print OUT "    phenotype: affected\n";
@@ -407,7 +418,7 @@ foreach my $ind (@inher_patterns) {
         print OUT "vcf_snv: $INFO{SNV}{$ind}\n";
         if ($INFO{SV}) {
             print OUT "vcf_sv: $INFO{SV}{$ind}\n";
-        } 
+        }
     }
     ## If only SV calling
     elsif ($INFO{SV}) {
@@ -471,12 +482,12 @@ foreach my $ind (@inher_patterns) {
             'width' => '750',
             'height' => '750'
             },
-        'haplogrep' => {             
+        'haplogrep' => {
             'desc' => "Mitochondrial haplotypes, Haplogrep", 
             'width' => '750',
             'height' => '1000'
             },
-        'STR' => {             
+        'STR' => {
             'desc' => "Reviewer plot for STR loci", 
             'width' => '500',
             'height' => '100'
@@ -506,6 +517,15 @@ foreach my $ind (@inher_patterns) {
             print OUT "      width: $img{STR}{width}\n";
             print OUT "      height: $img{STR}{height}\n";
             print OUT "      path: $INFO{STR_IMG}{$img_type}\n";
+        }
+    }
+    if ($INFO{STR_VARIANTS_IMG}) {
+        print OUT "  str_variants_images:\n";
+        foreach my $locus_id (sort keys %{ $INFO{STR_VARIANTS_IMG} }) {
+            print OUT "    - title: \"Locus plot $locus_id\"\n";
+            print OUT "      str_repid: \"$locus_id\"\n";
+            print OUT "      description: \"Per-locus SVG for $locus_id\"\n";
+            print OUT "      path: $INFO{STR_VARIANTS_IMG}{$locus_id}\n";
         }
     }
 

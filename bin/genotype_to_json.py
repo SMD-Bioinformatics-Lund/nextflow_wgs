@@ -13,9 +13,13 @@ def main():
     args = parser.parse_args()
 
     genotype_data = parse_genotype_file(args.genotype_file)
+    idsnp_json_format = {
+        "is_paired_sample" : False,
+        "id_snp_genotypes" : genotype_data
+    }
     
     with open(args.output_file, 'w') as output_file:
-        json.dump(genotype_data, output_file, indent=4)
+        json.dump(idsnp_json_format, output_file, indent=4)
     
     
 def parse_genotype_file(genotype_file_path: str) -> Dict[str, str]:
