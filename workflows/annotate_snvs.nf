@@ -12,8 +12,6 @@ workflow SNV_ANNOTATE {
 
 	main:
 
-	// TODO: Better system so these two do not have to be redefined here.
-	params.results_output_dir = params.outdir + '/' + params.subdir
 	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
 
 	ch_versions = channel.empty()

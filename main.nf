@@ -19,11 +19,6 @@ workflow {
 	VALIDATE_PARAMETERS(parameters_to_validate)
 	// Print startup and conf output dirs and modes.
 
-	// TODO: Params assignment inside workflow block is a temp solution:
-	//       outdir and subdir need to be combined in new var, re-setting
-	//       params.outdir won't work.
-	params.results_output_dir = params.outdir + '/' + params.subdir
-
 	// TODO: Pass these to processes in meta?
 	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
 	params.trio = file(params.csv).countLines() > 3 ? true : false

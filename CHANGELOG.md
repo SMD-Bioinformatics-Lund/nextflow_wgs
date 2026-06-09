@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### [Unreleased]
+
+#### Changed
+* Define `params.results_output_dir` in profile config instead of workflow and subworkflow bodies
+
 ### 3.26.3
 * Use boolean values for `publishDir overwrite`
 
