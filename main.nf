@@ -24,9 +24,13 @@ workflow {
 	//       params.outdir won't work.
 	params.results_output_dir = params.outdir + '/' + params.subdir
 
-	// TODO: Pass these to processes in meta?
-	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
-	params.trio = file(params.csv).countLines() > 3 ? true : false
+	input_csv_line_count = file(params.csv).countLines()
+	val_analysis_mode = input_csv_line_count > 2 ? "family" : "single"
+	val_is_trio = input_csv_line_count > 3 ? true : false
+
+	// TODO: Migrate existing readers to analysis_mode/is_trio and remove these param assignments.
+	params.mode = val_analysis_mode
+	params.trio = val_is_trio
 
 	// Check whether genome assembly is indexed //
 	// TODO: Move to some pre-processing workflow:
@@ -60,7 +64,7 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet)
+	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -134,6 +138,8 @@ workflow NEXTFLOW_WGS {
 
 	take:
 	ch_samplesheet
+	val_analysis_mode
+	val_is_trio
 
 	main:
 	// Output channels:
