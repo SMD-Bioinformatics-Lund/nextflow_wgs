@@ -492,7 +492,7 @@ workflow NEXTFLOW_WGS {
 
         ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_annotation_only)
         
-		SNV_ANNOTATE(ch_bam_snv_annotate, ch_snv_annotate_in, ch_ped_trio_affected_permutations)
+		SNV_ANNOTATE(ch_bam_snv_annotate, ch_snv_annotate_in, ch_ped_trio_affected_permutations, val_analysis_mode)
 		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
 		ch_output_info = ch_output_info.mix(SNV_ANNOTATE.out.output_info)
 
