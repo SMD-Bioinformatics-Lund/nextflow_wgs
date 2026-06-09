@@ -539,8 +539,11 @@ workflow NEXTFLOW_WGS {
 				}
 
 			// upd
-            if (val_analysis_mode == "family" && val_is_trio) {
-			    upd(fastgnomad.out.vcf, ch_upd_meta)
+            // TODO: upd process creates dummy files is not in trio mode, used later in
+            //       a long gens input channel join. move upd into block below and find
+            //       better solution for skipping upd inputs to gens
+			upd(fastgnomad.out.vcf, ch_upd_meta, val_analysis_mode, val_is_trio)
+			if (val_analysis_mode == "family" && val_is_trio) {
 				upd_table(upd.out.upd_sites)
 			}
 
