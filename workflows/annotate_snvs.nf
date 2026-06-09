@@ -6,9 +6,10 @@ workflow SNV_ANNOTATE {
 
 
 	take:
-	ch_bam
-	ch_snv_indels_vcf
-	ch_ped
+	ch_bam_bai         // ch:   [ val(group), path(bam), path(bai) ]
+	ch_snv_indels_vcf  // ch:   [ val(group), path(vcf) ]
+	ch_ped             // ch:   [ val(group), val(type), path(ped) ]
+	val_run_cftr       // bool: Whether to rescore CFTR 5T/TG homopolymer variants.
 
 	main:
 
@@ -50,9 +51,9 @@ workflow SNV_ANNOTATE {
 	// SCORE VARIANTS //
 	genmodscore(inher_models.out.vcf)
 	vcf_completion_ch = channel.empty()
-	if (params.cftr) {
+	if (val_run_cftr) {
 		bgzip_index_vcf(genmodscore.out.scored_vcf)
-		cftr_ch = bgzip_index_vcf.out.compressed_indexed_vcf.join(ch_bam)
+		cftr_ch = bgzip_index_vcf.out.compressed_indexed_vcf.join(ch_bam_bai)
 
 		adjust_cftr_homopolymer_repeat_scores(cftr_ch)
 		vcf_completion_ch = adjust_cftr_homopolymer_repeat_scores.out.rescored

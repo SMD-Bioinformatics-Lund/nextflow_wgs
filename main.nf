@@ -60,7 +60,7 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet)
+	NEXTFLOW_WGS(ch_samplesheet,params.cftr)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -134,6 +134,7 @@ workflow NEXTFLOW_WGS {
 
 	take:
 	ch_samplesheet
+	val_run_cftr // bool: Whether to rescore CFTR 5T/TG homopolymer variants.
 
 	main:
 	// Output channels:
@@ -478,15 +479,23 @@ workflow NEXTFLOW_WGS {
 	if (params.annotate) {
 		
 		// bam channel for SNV annotate, special case //
-		ch_bam_snv_annotate = ch_bam_bai
+		ch_bam_bai_snv_annotate_in = ch_bam_bai
 			.join(ch_ped_input, by: [0,1])
-			.map { group, id, bam, bai, type, sex, mother, father ->
+            .filter { _group, _id, _bam, _bai, type, _sex, _mother, _father ->
+                type == "proband"
+            }
+			.map { group, _id, bam, bai, type, _sex, _mother, _father ->
 				tuple(group, bam, bai)
-		}
+		    }
 
         ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_annotation_only)
         
-		SNV_ANNOTATE(ch_bam_snv_annotate, ch_snv_annotate_in, ch_ped_trio_affected_permutations)
+		SNV_ANNOTATE(
+            ch_bam_bai_snv_annotate_in,
+            ch_snv_annotate_in,
+            ch_ped_trio_affected_permutations,
+            val_run_cftr
+        )
 		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
 		ch_output_info = ch_output_info.mix(SNV_ANNOTATE.out.output_info)
 
