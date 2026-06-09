@@ -740,7 +740,7 @@ workflow NEXTFLOW_WGS {
 				.join(ch_ped_base, by: [0])
 				.join(ch_proband_meta, by: [0])
 				.map { group, snv, cnv, _type, ped, _proband_id, meta ->
-					tuple(group, snv, cnv, ped, meta)
+					tuple(group, meta, snv, cnv, ped)
 				}
 			plot_pod(ch_plot_pod_in)
 		}
@@ -4488,7 +4488,7 @@ process plot_pod {
 	cpus 2
 
 	input:
-		tuple val(group), path(snv), path(cnv), path(ped), val(meta)
+		tuple val(group), val(meta), path(snv), path(cnv), path(ped)
 
 	output:
 		tuple path("${meta.id}_POD_karyotype.pdf"), path("${meta.id}_POD_results.html")
