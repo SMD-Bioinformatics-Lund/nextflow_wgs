@@ -539,8 +539,10 @@ workflow NEXTFLOW_WGS {
 				}
 
 			// upd
-			upd(fastgnomad.out.vcf, ch_upd_meta)
-			upd_table(upd.out.upd_sites)
+			if (params.mode == "family" && val_is_trio) {
+			    upd(fastgnomad.out.vcf, ch_upd_meta)
+				upd_table(upd.out.upd_sites)
+			}
 
 			// roh
 			roh(fastgnomad.out.vcf)
@@ -854,15 +856,17 @@ workflow NEXTFLOW_WGS {
 			.join(ch_ped_trio_affected_permutations, by: [0,1])        // join with correct ped on group, type
 			.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1])               // join with final SNV VCF + index on group, type
 
-		compound_finder(ch_compound_finder_input)
-		ch_output_info = ch_output_info.mix(compound_finder.out.svcompound_INFO)
+		if (val_analysis_mode == "family" && params.assay == "wgs") {
+			compound_finder(ch_compound_finder_input)
+			ch_output_info = ch_output_info.mix(compound_finder.out.svcompound_INFO)
+			ch_versions = ch_versions.mix(compound_finder.out.versions.first())
+		}
 
 		ch_versions = ch_versions.mix(score_sv.out.versions.first())
 		ch_versions = ch_versions.mix(bgzip_scored_genmod.out.versions.first())
-		ch_versions = ch_versions.mix(compound_finder.out.versions.first())
 
 		// TODO: streamline if-conditions:
-		if(params.antype == "wgs" && params.trio && params.mode == "family") {
+		if(params.antype == "wgs" && val_is_trio && val_analysis_mode == "family") {
 			plot_pod(
 				fastgnomad.out.vcf,
 				bgzip_scored_genmod.out.sv_rescore_vcf.join(ch_ped_base, by: 0),
@@ -2868,9 +2872,6 @@ process upd_table {
 	output:
 		path("${group}.UPDtable.xls")
 
-	when:
-		params.mode == "family" && params.trio
-
 	script:
 		"""
 		upd_table.pl $upd_sites > ${group}.UPDtable.xls
@@ -4513,11 +4514,6 @@ process compound_finder {
 		tuple val(group), path("${group_score}.snv.rescored.sorted.vcf.gz"), path("${group_score}.snv.rescored.sorted.vcf.gz.tbi"), emit: vcf
 		tuple val(group), path("${group}_svp.INFO"), emit: svcompound_INFO
 		path "*versions.yml", emit: versions
-
-
-	when:
-		params.mode == "family" && params.assay == "wgs"
-
 
 	script:
 		group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
