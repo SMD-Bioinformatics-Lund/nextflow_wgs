@@ -1913,14 +1913,14 @@ process create_ped {
 		tuple val({meta.group}), val(type_fa), path("${meta.group}_fa.ped"), emit: ped_fa, optional: true
 
 	script:
-		if ( {meta.father} == "" ) {
+		if ( meta.father == "" ) {
 			father = "0"
 		}
-		else { father = {meta.father }}
-		if ( {meta.mother} == "" ) {
+		else { father = meta.father }
+		if ( meta.mother == "" ) {
 			mother = "0"
 		}
-		else { mother = {meta.mother }}
+		else { mother = meta.mother }
 		type_fa = "fa"
 		type_ma = "ma"
 		"""
