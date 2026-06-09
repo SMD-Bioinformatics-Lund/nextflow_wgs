@@ -8,13 +8,30 @@ use vcf2;
 use strict;
 use Data::Dumper;
 
-my $vcfheader = $ARGV[0];
-my $id = $ARGV[1];
+my ($vcfheader, $id, $alu, $line1, $sva, $out);
+GetOptions(
+    'vcf-header=s' => \$vcfheader,
+    'id=s'         => \$id,
+    'alu=s'        => \$alu,
+    'line1=s'      => \$line1,
+    'sva=s'        => \$sva,
+    'out=s'        => \$out,
+) or die "Usage: $0 --vcf-header <header> --id <sample_id> --alu <ALU.vcf> --line1 <LINE1.vcf> --sva <SVA.vcf> [--out <merged.vcf>]\n";
 
+if (!$vcfheader && @ARGV >= 2) {
+    ($vcfheader, $id) = @ARGV[0, 1];
+}
 
-my $alu = "ALU.final_comp.vcf";
-my $line1 = "LINE1.final_comp.vcf";
-my $sva = "SVA.final_comp.vcf";
+$alu   ||= "ALU.final_comp.vcf";
+$line1 ||= "LINE1.final_comp.vcf";
+$sva   ||= "SVA.final_comp.vcf";
+$out   ||= "$id.melt.merged.vcf";
+
+die "Missing --vcf-header\n" unless $vcfheader;
+die "Missing --id\n" unless $id;
+die "Missing --alu\n" unless $alu;
+die "Missing --line1\n" unless $line1;
+die "Missing --sva\n" unless $sva;
 
 my %qcval = (
     'lc' => 'Low Complex Region',
@@ -129,11 +146,11 @@ foreach my $file (@files) {
 
 ## If no variants in either of three VCFs, print empty VCF with only header
 if (scalar(@non_empty) == 0) { 
-    my $command = `cat $vcfheader > $id\.melt.merged.vcf`;
-    my $sed = `sed -i 's/FORMAT/FORMAT\t$id/' $id\.melt.merged.vcf`;
+    my $command = `cat $vcfheader > $out`;
+    my $sed = `sed -i 's/FORMAT/FORMAT\t$id/' $out`;
 }
 ## Concat all with values
 else {
     my $vcfs = join(' ',@non_empty);
-    my $command = `vcf-concat $vcfs | vcf-sort -c > $id\.melt.merged.vcf`;
+    my $command = `vcf-concat $vcfs | vcf-sort -c > $out`;
 }

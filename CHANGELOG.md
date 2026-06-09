@@ -4,13 +4,19 @@
 
 #### Added
 
-* Add `container_perl` to Perl-driven processes:
-  * `sentieon_qc_postprocess`, `create_ped`, `upd_table`, `overview_plot`, `generate_gens_data`, `svvcf_to_bed`, `create_yaml`
-  * `modify_vcf`, `mark_splice`
+* Add `container_perl` to Perl-driven processes: `sentieon_qc_postprocess`, `create_ped`, `upd_table`, `overview_plot`, `generate_gens_data`, `svvcf_to_bed`, `create_yaml`,  `modify_vcf`, `mark_splice`
   
 #### Changed 
 * Update `mark_splice` to call `mark_spliceindels.pl` from `bin/` (instead of `/opt/bin/`).
 * Standardize Perl script portability in `bin/` by migrating shebangs from `#!/usr/bin/perl -w` to `#!/usr/bin/env perl` and enabling warnings via `use warnings;`.
+* Move MELT code into own subworkflow with separate MELT, merge, and intersect processes
+* Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
+* Parse Sentieon QC once and pass mean depth and insert size through keyed channels
+
+### 3.26.4
+* code style change
+* changed all input-channels to a standardized format
+* joined channels properly so that batch starts should be further supported
 
 ### 3.26.3
 * Use boolean values for `publishDir overwrite`
