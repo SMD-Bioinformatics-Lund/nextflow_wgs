@@ -564,7 +564,7 @@ workflow NEXTFLOW_WGS {
 				.combine(upd.out.upd_bed)
 				.combine(upd.out.upd_sites.map { it -> it[1] })
 
-			generate_gens_v4_meta(ch_gens_v4_meta)
+			generate_gens_v4_meta(ch_gens_v4_meta, val_analysis_mode)
 
 			ch_cron_meta = generate_gens_v4_meta.out.meta
 				.join(generate_gens_data.out.is_done, by: [0,1])
@@ -582,7 +582,7 @@ workflow NEXTFLOW_WGS {
 				}
 				.groupTuple(by: [0])
 
-			gens_v4_cron(ch_cron_meta)
+			gens_v4_cron(ch_cron_meta, val_is_trio)
 
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 
@@ -3065,6 +3065,7 @@ process generate_gens_v4_meta {
 
 	input:
 		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoise), path(roh), path(upd_bed), path(upd_sites)
+	    val analysis_mode // value: [single, family]
 
 	output:
 		tuple val(group), val(id), val(type), val(sex), path("${id}.gens_track.roh.bed"), path("${id}.gens_track.upd.bed"), path("${id}.meta.tsv"), path("${id}.chrom_meta.tsv"), emit: meta
@@ -3087,7 +3088,7 @@ process generate_gens_v4_meta {
 				--out_gens_track_upd "${id}.gens_track.upd.bed" \\
 				--out_meta "${id}.meta.tsv" \\
 				--out_chrom_meta "${id}.chrom_meta.tsv" \\
-				--analysis_mode "${params.mode}"
+				--analysis_mode "${analysis_mode}"
 		else
 			touch "${id}.gens_track.roh.bed"
 			touch "${id}.gens_track.upd.bed"
@@ -3117,6 +3118,7 @@ process gens_v4_cron {
 
 	input:
 		tuple val(group), val(ids), val(types), val(sexes), val(track_rohs), val(track_upds), val(meta_tsvs), val(chrom_meta_tsvs)
+		val is_trio
 	
 	output:
 		path("${group}.gens_const.yaml"), emit: gens_v4_middleman
@@ -3132,7 +3134,7 @@ process gens_v4_cron {
 		def updTrackArgs = track_upds.join(' ')
 		def metaArgs = meta_tsvs.join(' ')
 		def chromMetaArgs = chrom_meta_tsvs.join(' ')
-		def trioFlag = params.trio ? "--trio" : ""
+		def trioFlag = is_trio ? "--trio" : ""
 		"""
 		create_gens_case_yaml.py \\
 		  --case_id "${group}" \\
