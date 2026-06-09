@@ -2823,6 +2823,8 @@ process upd {
 	input:
 		tuple val(group), path(vcf)
 		tuple val(group2), val(id), val(mother), val(father)
+		val analysis_mode
+		val is_trio
 
 	output:
 		path("upd.bed"), emit: upd_bed
@@ -2830,7 +2832,7 @@ process upd {
 		path "*versions.yml", emit: versions
 
 	script:
-		if( params.mode == "family" && params.trio ) {
+		if( analysis_mode == "family" && is_trio ) {
 			"""
 			upd --vcf $vcf --proband $id --mother $mother --father $father --af-tag GNOMADAF regions > upd.bed
 			upd --vcf $vcf --proband $id --mother $mother --father $father --af-tag GNOMADAF sites > upd.sites.bed
