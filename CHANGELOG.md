@@ -11,14 +11,12 @@
 #### Changed 
 * Update `mark_splice` to call `mark_spliceindels.pl` from `bin/` (instead of `/opt/bin/`).
 * Standardize Perl script portability in `bin/` by migrating shebangs from `#!/usr/bin/perl -w` to `#!/usr/bin/env perl` and enabling warnings via `use warnings;`.
-* Set `bin/cnv2bed.pl` shebang to `#!/usr/bin/env perl`.
-* Keep `bin/mergeGATK.pl` on `#!/usr/bin/perl -w` intentionally.
 
 ### 3.26.3
 * Use boolean values for `publishDir overwrite`
 
 ### 3.26.2
-* Convert all instances of .set{} to direct channel assingment
+* Convert all instances of .set{} to direct channel assignment
 * Emit and publish the ExpansionHunter STR VCF together with its tabix index
 
 ### 3.26.1
