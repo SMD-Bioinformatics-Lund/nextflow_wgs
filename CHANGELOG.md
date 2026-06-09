@@ -4,6 +4,14 @@
 
 #### Changed
 * Pass analysis mode and trio status through workflow/process inputs instead of redefining `params.mode` and `params.trio`
+* Move MELT code into own subworkflow with separate MELT, merge, and intersect processes
+* Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
+* Parse Sentieon QC once and pass mean depth and insert size through keyed channels
+
+### 3.26.4
+* code style change
+* changed all input-channels to a standardized format
+* joined channels properly so that batch starts should be further supported
 
 ### 3.26.3
 * Use boolean values for `publishDir overwrite`
