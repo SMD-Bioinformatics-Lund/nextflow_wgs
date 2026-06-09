@@ -91,7 +91,8 @@ workflow {
 		params.skip_loqusdb,
 		params.cdm_assay,
 		"${params.outdir}/${params.subdir}",
-		params.noupload
+		params.noupload,
+        params.cftr
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
@@ -191,6 +192,7 @@ workflow NEXTFLOW_WGS {
 	val_cdm_assay                              // string:  CDM assay name used when creating QC cron files.
 	val_results_output_dir                     // string:  Full result base directory under which pipeline results are published.
 	val_skip_cdm_cron                          // bool:    Whether to skip creating CDM QC cron files.        
+	val_run_cftr                               // bool:    Whether to rescore CFTR 5T/TG homopolymer variant.sw
 
 	main:
 	// Output channels:
@@ -423,15 +425,21 @@ workflow NEXTFLOW_WGS {
 	if (val_annotate) {
 		
 		// bam channel for SNV annotate, special case //
-		ch_bam_snv_annotate = ch_bam_bai
+		ch_bam_bai_snv_annotate_in = ch_bam_bai
 			.join(ch_proband_meta, by: [0,1])
 			.map { group, id, bam, bai, meta ->
 				tuple(group, bam, bai)
-		}
+		    }
 
         ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_start)
         
-		SNV_ANNOTATE(ch_bam_snv_annotate, ch_snv_annotate_in, ch_ped_trio_affected_permutations, val_analysis_mode)
+		SNV_ANNOTATE(
+            ch_bam_bai_snv_annotate_in,
+            ch_snv_annotate_in,
+            ch_ped_trio_affected_permutations,
+            val_analysis_mode,
+            val_run_cftr
+        )
 		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
 		ch_output_info = ch_output_info.mix(SNV_ANNOTATE.out.output_info)
 
