@@ -19,9 +19,12 @@ workflow {
 	VALIDATE_PARAMETERS(parameters_to_validate)
 	// Print startup and conf output dirs and modes.
 
-	// TODO: Pass these to processes in meta?
-	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
-	params.trio = file(params.csv).countLines() > 3 ? true : false
+	// TODO: Params assignment inside workflow block is a temp solution:
+	//       outdir and subdir need to be combined in new var, re-setting
+	//       params.outdir won't work.
+	input_csv_line_count = file(params.csv).countLines()
+	val_analysis_mode = input_csv_line_count > 2 ? "family" : "single"
+	val_is_trio = input_csv_line_count > 3 ? true : false
 
 	// Check whether genome assembly is indexed //
 	// TODO: Move to some pre-processing workflow:
@@ -33,8 +36,8 @@ workflow {
 
 	// Count lines of input csv, if more than 2(header + 1 ind) then mode is set to family //
 	log.info("Input CSV: " + params.csv)
-	log.info("mode: " + params.mode)
-	log.info("trio analysis: " + params.trio)
+	log.info("mode: " + val_analysis_mode)
+	log.info("trio analysis: " + val_is_trio)
 	log.info("Results output dir: ${params.outdir}/${params.subdir}")
 	log.info("Results subdir: " + params.subdir)
 	log.info("CRON output dir: " + params.crondir)
@@ -55,7 +58,7 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet)
+	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -127,7 +130,9 @@ workflow.onError {
 workflow NEXTFLOW_WGS {
 
 	take:
-	ch_samplesheet
+	ch_samplesheet     // channel: [ val(samplesheet_row) ]
+	val_analysis_mode  // string:  Analysis mode derived from sample count, either "single" or "family"
+	val_is_trio        // bool:    Whether the input CSV contains enough samples for trio analysis
 
 	main:
 	// Output channels:
@@ -170,7 +175,7 @@ workflow NEXTFLOW_WGS {
 
 	ch_ped_trio_affected_permutations = channel.empty()  // channel for base ped + father and mother set as affected peds
 	ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations.mix(ch_ped_base)
-	if(params.mode == "family" && params.assay == "wgs") {
+    if (val_analysis_mode == "family" && params.assay == "wgs") {
 
 		ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations
             .mix(create_ped.out.ped_fa)
@@ -376,7 +381,7 @@ workflow NEXTFLOW_WGS {
 
         ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_start)
         
-		SNV_ANNOTATE(ch_bam_snv_annotate, ch_snv_annotate_in, ch_ped_trio_affected_permutations)
+		SNV_ANNOTATE(ch_bam_snv_annotate, ch_snv_annotate_in, ch_ped_trio_affected_permutations, val_analysis_mode)
 		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
 		ch_output_info = ch_output_info.mix(SNV_ANNOTATE.out.output_info)
 
@@ -423,8 +428,13 @@ workflow NEXTFLOW_WGS {
 				}
 
 			// upd
-			upd(fastgnomad.out.vcf, ch_upd_meta)
-			upd_table(upd.out.upd_sites)
+            // TODO: upd process creates dummy files is not in trio mode, used later in
+            //       a long gens input channel join. move upd into block below and find
+            //       better solution for skipping upd inputs to gens
+			upd(fastgnomad.out.vcf, ch_upd_meta, val_analysis_mode, val_is_trio)
+			if (val_analysis_mode == "family" && val_is_trio) {
+				upd_table(upd.out.upd_sites)
+			}
 
 			// roh
 			roh(fastgnomad.out.vcf)
@@ -443,7 +453,7 @@ workflow NEXTFLOW_WGS {
 				.combine(upd.out.upd_bed)
 				.combine(upd.out.upd_sites.map { it -> it[1] })
 
-			generate_gens_v4_meta(ch_gens_v4_meta)
+			generate_gens_v4_meta(ch_gens_v4_meta, val_analysis_mode)
 
 			ch_cron_meta = generate_gens_v4_meta.out.meta
 				.join(generate_gens_data.out.is_done, by: [0,1])
@@ -461,7 +471,7 @@ workflow NEXTFLOW_WGS {
 				}
 				.groupTuple(by: [0])
 
-			gens_v4_cron(ch_cron_meta)
+			gens_v4_cron(ch_cron_meta, val_is_trio)
 
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 
@@ -494,7 +504,10 @@ workflow NEXTFLOW_WGS {
 
 			expansionhunter(ch_bam_bai.join(ch_proband_meta, by: [0,1]))
 			stranger(expansionhunter.out.expansionhunter_vcf)
-			vcfbreakmulti_expansionhunter(stranger.out.vcf_annotated.join(ch_proband_meta, by:[0,1]))
+			vcfbreakmulti_expansionhunter(
+                stranger.out.vcf_annotated.join(ch_proband_meta, by:[0,1]),
+                val_analysis_mode
+            )
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
 
 			reviewer_loci = new groovy.json.JsonSlurper()
@@ -554,7 +567,8 @@ workflow NEXTFLOW_WGS {
 			svdb_merge(
 				ch_manta_out.groupTuple(),
 				tiddit.out.vcf.groupTuple(),
-				ch_filtered_merged_gatk_calls.groupTuple()
+				ch_filtered_merged_gatk_calls.groupTuple(),
+				val_analysis_mode
 			)
 			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(svdb_merge.out.merged_bndless_vcf)
 			ch_panel_svs_present = ch_postprocessed_merged_sv_vcf
@@ -684,7 +698,7 @@ workflow NEXTFLOW_WGS {
 				tuple(group, type, ped, penalty_vcf)
 			}
 		add_geneticmodels_to_svvcf(ch_add_geneticmodels_to_svvcf_input)
-		score_sv(add_geneticmodels_to_svvcf.out.annotated_sv_vcf)
+		score_sv(add_geneticmodels_to_svvcf.out.annotated_sv_vcf, val_analysis_mode)
 		bgzip_scored_genmod(score_sv.out.scored_vcf.mix(ch_panel_svs_absent))
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
 
@@ -711,15 +725,17 @@ workflow NEXTFLOW_WGS {
 			.join(ch_ped_trio_affected_permutations, by: [0,1])        // join with correct ped on group, type
 			.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1])               // join with final SNV VCF + index on group, type
 
-		compound_finder(ch_compound_finder_input)
-		ch_output_info = ch_output_info.mix(compound_finder.out.svcompound_INFO)
+		if (val_analysis_mode == "family" && params.assay == "wgs") {
+			compound_finder(ch_compound_finder_input)
+			ch_output_info = ch_output_info.mix(compound_finder.out.svcompound_INFO)
+			ch_versions = ch_versions.mix(compound_finder.out.versions.first())
+		}
 
 		ch_versions = ch_versions.mix(score_sv.out.versions.first())
 		ch_versions = ch_versions.mix(bgzip_scored_genmod.out.versions.first())
-		ch_versions = ch_versions.mix(compound_finder.out.versions.first())
 
 		// TODO: streamline if-conditions:
-		if(params.antype == "wgs" && params.trio && params.mode == "family") {
+		if(params.antype == "wgs" && val_is_trio && val_analysis_mode == "family") {
 			ch_plot_pod_in = fastgnomad.out.vcf
 				.join(bgzip_scored_genmod.out.sv_rescore_vcf, by: [0])
 				.join(ch_ped_base, by: [0])
@@ -1669,7 +1685,8 @@ process vcfbreakmulti_expansionhunter {
 	memory '50 GB'
 
 	input:
-		tuple val(group), val(id), path(eh_vcf_anno), val(meta)
+	    tuple val(group), val(id), path(eh_vcf_anno), val(meta)
+        val analysis_mode 
 
 	output:
 	    tuple val(group), path("${group}.expansionhunter.vcf.gz"), emit: vcf
@@ -1682,7 +1699,7 @@ process vcfbreakmulti_expansionhunter {
 		else { father = {meta.father} }
 		if ({meta.mother} == "") { mother = "null" }
 		else { mother = {meta.mother} }
-		if (params.mode == "family") {
+		if (analysis_mode == "family") {
 			"""
 			java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf INPUT=${eh_vcf_anno} OUTPUT=${eh_vcf_anno}.rename.vcf NEW_SAMPLE_NAME=${id}
 			vcfbreakmulti ${eh_vcf_anno}.rename.vcf > ${group}.expansionhunter.vcf.tmp
@@ -2583,6 +2600,8 @@ process upd {
 	input:
 		tuple val(group), path(vcf)
 		tuple val(group2), val(id), val(mother), val(father)
+		val analysis_mode
+		val is_trio
 
 	output:
 		path("upd.bed"), emit: upd_bed
@@ -2590,7 +2609,7 @@ process upd {
 		path "*versions.yml", emit: versions
 
 	script:
-		if( params.mode == "family" && params.trio ) {
+		if( analysis_mode == "family" && is_trio ) {
 			"""
 			upd --vcf $vcf --proband $id --mother $mother --father $father --af-tag GNOMADAF regions > upd.bed
 			upd --vcf $vcf --proband $id --mother $mother --father $father --af-tag GNOMADAF sites > upd.sites.bed
@@ -2637,9 +2656,6 @@ process upd_table {
 
 	output:
 		path("${group}.UPDtable.xls")
-
-	when:
-		params.mode == "family" && params.trio
 
 	script:
 		"""
@@ -2831,6 +2847,7 @@ process generate_gens_v4_meta {
 
 	input:
 		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoise), path(roh), path(upd_bed), path(upd_sites)
+	    val analysis_mode // value: [single, family]
 
 	output:
 		tuple val(group), val(id), val(type), val(sex), path("${id}.gens_track.roh.bed"), path("${id}.gens_track.upd.bed"), path("${id}.meta.tsv"), path("${id}.chrom_meta.tsv"), emit: meta
@@ -2853,7 +2870,7 @@ process generate_gens_v4_meta {
 				--out_gens_track_upd "${id}.gens_track.upd.bed" \\
 				--out_meta "${id}.meta.tsv" \\
 				--out_chrom_meta "${id}.chrom_meta.tsv" \\
-				--analysis_mode "${params.mode}"
+				--analysis_mode "${analysis_mode}"
 		else
 			touch "${id}.gens_track.roh.bed"
 			touch "${id}.gens_track.upd.bed"
@@ -2883,6 +2900,7 @@ process gens_v4_cron {
 
 	input:
 		tuple val(group), val(ids), val(types), val(sexes), val(track_rohs), val(track_upds), val(meta_tsvs), val(chrom_meta_tsvs)
+		val is_trio
 	
 	output:
 		path("${group}.gens_const.yaml"), emit: gens_v4_middleman
@@ -2898,7 +2916,7 @@ process gens_v4_cron {
 		def updTrackArgs = track_upds.join(' ')
 		def metaArgs = meta_tsvs.join(' ')
 		def chromMetaArgs = chrom_meta_tsvs.join(' ')
-		def trioFlag = params.trio ? "--trio" : ""
+		def trioFlag = is_trio ? "--trio" : ""
 		"""
 		create_gens_case_yaml.py \\
 		  --case_id "${group}" \\
@@ -3596,6 +3614,7 @@ process svdb_merge {
 		tuple val(group), val(id), path(mantaV)
 		tuple val(group2), val(id2), path(tidditV)
 		tuple val(group3), val(id3), path(gatkV)
+		val analysis_mode
 
 	output:
 		tuple val(group), val(id), path("${group}.merged.bndless.vcf"), emit: merged_bndless_vcf
@@ -3603,7 +3622,7 @@ process svdb_merge {
 		path "*versions.yml", emit: versions
 
 	script:
-		if (params.mode == "family") {
+		if (analysis_mode == "family") {
 			def vcfs = []
 			def manta = []
 			def tiddit = []
@@ -4179,7 +4198,7 @@ def add_geneticmodels_to_svvcf_version(task) {
 }
 
 process score_sv {
-	tag "$group $params.mode"
+	tag "$group $analysis_mode"
 	cpus 2
 	memory '10 GB'
 	time '2h'
@@ -4187,13 +4206,14 @@ process score_sv {
 
 	input:
 		tuple val(group), val(type), path(in_vcf)
+		val analysis_mode
 
 	output:
 		tuple val(group), val(type), path("*.sv.scored.vcf"), emit: scored_vcf
 		path "*versions.yml", emit: versions
 
 	script:
-		def model = (params.mode == "family" && params.antype == "wgs") ? params.svrank_model : params.svrank_model_s
+		def model = (analysis_mode == "family" && params.antype == "wgs") ? params.svrank_model : params.svrank_model_s
 		def group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
 		"""
 		genmod score --family_id ${group_score} --score_config ${model} --rank_results --outfile "${group_score}.sv.scored.vcf" ${in_vcf}
@@ -4268,7 +4288,7 @@ def bgzip_score_sv_version(task) {
 
 process compound_finder {
 	cpus 2
-	tag "$group ${params.mode}"
+	tag "$group"
 	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
 	memory '10 GB'
 	time '2h'
@@ -4280,11 +4300,6 @@ process compound_finder {
 		tuple val(group), path("${group_score}.snv.rescored.sorted.vcf.gz"), path("${group_score}.snv.rescored.sorted.vcf.gz.tbi"), emit: vcf
 		tuple val(group), path("${group}_svp.INFO"), emit: svcompound_INFO
 		path "*versions.yml", emit: versions
-
-
-	when:
-		params.mode == "family" && params.assay == "wgs"
-
 
 	script:
 		group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
