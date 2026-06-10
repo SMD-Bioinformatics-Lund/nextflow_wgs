@@ -49,6 +49,7 @@ process merge_qc_json {
 		"""
 
 	stub:
+        qc_json_files = qc.join(' ')
 		"""
 		touch "${id}.QC"
 		"""
