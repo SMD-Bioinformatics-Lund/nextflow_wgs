@@ -8,7 +8,7 @@ include { SPLIT_NORMALIZE_SNVS } from './workflows/split_normalize_snvs.nf'
 include { VALIDATE_PARAMETERS  } from './workflows/validate_params.nf'
 include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
 
-include { vcfHasVariants; gatkRefConfig; gatkRefShards } from './workflows/util.nf'
+include { vcfHasVariants; gatkRefConfig; gatkRefKey; gatkRefShards } from './workflows/util.nf'
 include { PREPARE_INPUT_AND_META_CHANNELS } from './workflows/prepare_input_and_meta_channels.nf'
 
 nextflow.enable.dsl=2
@@ -149,7 +149,16 @@ workflow NEXTFLOW_WGS {
 	ch_vcf_start     = PREPARE_INPUT_AND_META_CHANNELS.out.vcf           // group, vcf
 
 	// GATK Ref:
-	ch_gatk_ref = params.gatkcnv ? channel.fromList(gatkRefShards()) : channel.empty()
+	ch_gatk_ref_shards = params.gatkcnv ? channel.fromList(gatkRefShards()) : channel.empty()
+	ch_gatk_ref = params.gatkcnv ? ch_sample_meta
+			.map { group, id, meta ->
+					tuple(gatkRefKey(meta), group, id)
+			}
+			.combine(ch_gatk_ref_shards, by: 0)
+			.map { gatk_ref_key, group, id, i, refpart ->
+					tuple(gatk_ref_key, group, id, i, refpart)
+			} : channel.empty()
+	ch_gatk_ref.view()
 
 	genes_analyzed(ch_proband_meta)
 	rename_bam(ch_bam_start) // See process for more info about why this is needed.
@@ -546,9 +555,9 @@ workflow NEXTFLOW_WGS {
 		ch_gatk_call_cnv_input = ch_gatk_coverage
 			.join(ch_gatk_ploidy, by: [0, 1])
 			.map { group, id, meta, gatk_ref, tsv, _meta, _gatk_ref, ploidy ->
-				tuple(gatk_ref.key, group, id, meta, gatk_ref, tsv, ploidy)
+				tuple(gatkRefKey(meta), group, id, meta, gatk_ref, tsv, ploidy)
 			}
-			.join(ch_gatk_ref, by: 0)
+			.combine(ch_gatk_ref, by: [0, 1, 2])
 			.map { gatk_ref_key, group, id, meta, gatk_ref, tsv, ploidy, i, refpart ->
 				tuple(group, id, meta, gatk_ref, tsv, ploidy, i, refpart)
 			}
@@ -558,9 +567,9 @@ workflow NEXTFLOW_WGS {
 		ch_gatk_postprocess_input = gatk_call_cnv.out.gatk_calls
 			.groupTuple(by : [0, 1, 2])
 			.join(ch_gatk_ploidy.map { group, id, meta, gatk_ref, ploidy ->
-				tuple(gatk_ref.key, group, id, ploidy)
+				tuple(gatkRefKey(meta), group, id, ploidy)
 			}, by: [0, 1, 2])
-			.join(ch_gatk_ref.groupTuple(by : 0), by: 0)
+			.join(ch_gatk_ref.groupTuple(by : [0, 1, 2]), by: [0, 1, 2])
 			.map { gatk_ref_key, group, id, i, tar, ploidy, shard_no, shard ->
 				tuple(group, id, i, tar, ploidy, shard_no, shard)
 			}
@@ -3076,7 +3085,7 @@ process gatk_call_cnv {
 	tag "$id"
 
 	input:
-		tuple val(group), val(id), val(meta), val(gatk_ref), path(tsv), path(ploidy), val(ref_part), val(refpart) //TODO: is reffart a path or val
+		tuple val(group), val(id), val(meta), val(gatk_ref), path(tsv), path(ploidy), val(ref_part), path(refpart_folder)
 
 
 	output:
@@ -3097,7 +3106,7 @@ process gatk_call_cnv {
 			--run-mode CASE \\
 			-I $tsv \\
 			--contig-ploidy-calls ploidy/${group}-calls/ \\
-			--model ${refpart} \\
+			--model ${refpart_folder} \\
 			--output ${group}_${ref_part}/ \\
 			--output-prefix ${group}_${ref_part}
 		tar -cvf ${group}_${ref_part}.tar ${group}_${ref_part}/
