@@ -9,6 +9,8 @@
 * Parse Sentieon QC once and pass mean depth and insert size through keyed channels
 * Define `params.results_output_dir` in profile config instead of workflow and subworkflow bodies
 * Move PED creation and Madeline rendering into a dedicated `PED` workflow
+* Switch `create_ped.pl` from `wgs_active` to `perl_container`.
+* Add `params.create_alt_affect_ped` to control alternate affected-parent PED generation independently of assay name
 
 ### 3.26.4
 * code style change
