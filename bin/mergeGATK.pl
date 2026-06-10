@@ -23,7 +23,12 @@ sub merge {
     my( $type, $fn ) = @_;
     
     my $vcf;
+    if( is_gzipped($fn) ) {
 	open($vcf, "zcat $fn |" ) or die "Could not open file $fn";
+    }
+    else {
+	open($vcf, $fn ) or die "Could not open file $fn";;
+    }
     
     my @info_fields_to_comma_merge = ("gatkCN");
     
@@ -119,3 +124,11 @@ sub merge {
 }
 
 
+sub is_gzipped {
+    my $fn = shift;
+    
+    my $file_str = `file -L $fn`;
+    return 1 if $file_str =~ /gzip compressed/;
+    return 0;
+}
+     
