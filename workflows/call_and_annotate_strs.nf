@@ -260,7 +260,7 @@ def rename_sample_expansionhunter_vcf_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    picard: \$( echo \$(picard RenameSampleInVcf --version 2>&1 |grep -i version) | sed 's/-SNAPSHOT//' )
+	    picard: \$( echo \$(picard RenameSampleInVcf --version 2>&1 |grep -i version | cut -f 2 -d ':') | sed 's/-SNAPSHOT//' )
 	END_VERSIONS
 	"""
 }
