@@ -56,7 +56,7 @@ process create_ped {
         def father = meta.father == "" ? "0" : meta.father
         def mother = meta.mother == "" ? "0" : meta.mother
         """
-	    create_ped.pl --mother $mother --father $father --group ${meta.group} --id ${meta.id} --sex ${meta.sex}
+	    create_ped.pl --mother ${mother} --father ${father} --group ${meta.group} --id ${meta.id} --sex ${meta.sex}
 	    """
 
 	stub:
