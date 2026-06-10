@@ -1,5 +1,35 @@
 nextflow.enable.dsl=2
 
+def validatePathValue(label, value) {
+	if (value instanceof Map) {
+		value.each { key, nestedValue ->
+			validatePathValue("${label}.${key}", nestedValue)
+		}
+		return
+	}
+
+	if (value instanceof List) {
+		value.eachWithIndex { nestedValue, idx ->
+			validatePathValue("${label}[${idx}]", nestedValue)
+		}
+		return
+	}
+
+	if (!(value instanceof String)) {
+		error "ERROR: Parameter '${label}' : '${value}' is not a string path."
+	}
+
+	def f = file(value)
+
+	if (!f.exists()) {
+		error "ERROR: Param '${label}' points to missing path: ${value}"
+	}
+
+	if (f.isFile() && f.size() == 0) {
+		error "ERROR: Param '${label}' points to empty file: ${value}"
+	}
+}
+
 workflow VALIDATE_PARAMETERS {
 
 	take:
@@ -13,23 +43,9 @@ workflow VALIDATE_PARAMETERS {
 		
 		if (!params.containsKey(key)) {
 			log.info "Parameter '${key}' is listed in params_to_validate but is not defined in params."
+		} else {
+			validatePathValue(key, params[key])
 		}
-
-		def value = params[key]
-		
-		if (!(value instanceof String)) {
-			error "ERROR: Parameter '${key}' : '${value}' is not a string path."
-		}
-		
-		def f = file(value)
-
-		if (!f.exists()) {
-			error "ERROR: Param '${key}' points to missing path: ${value}"
-		}
-
-		if (f.isFile() && f.size() == 0) {
-			error "ERROR: Param '${key}' points to empty file: ${value}"
-	}
 
 	}
 
@@ -38,4 +54,3 @@ workflow VALIDATE_PARAMETERS {
 	emit:
 	params_to_validate = params_to_validate
 }
-
