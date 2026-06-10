@@ -155,8 +155,8 @@ workflow NEXTFLOW_WGS {
 					tuple(gatkRefKey(meta), group, id)
 			}
 			.combine(ch_gatk_ref_shards, by: 0)
-			.map { gatk_ref_key, group, id, i, refpart ->
-					tuple(gatk_ref_key, group, id, i, refpart)
+			.map { gatk_ref_key, group, id, ref_part, refpart_path ->
+					tuple(gatk_ref_key, group, id, ref_part, refpart_path)
 			} : channel.empty()
 	ch_gatk_ref.view()
 
