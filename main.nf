@@ -148,7 +148,11 @@ workflow NEXTFLOW_WGS {
 	ch_bam_start     = PREPARE_INPUT_AND_META_CHANNELS.out.bam           // group, id, read1, read2
 	ch_vcf_start     = PREPARE_INPUT_AND_META_CHANNELS.out.vcf           // group, vcf
 
-	// GATK Ref:
+	// GATK-CNV reference shards:
+	// gatkRefShards() normalizes both config styles into shard tuples:
+	//   - WGS: params.gatk_ref_map may contain several reference sets selected by sample metadata.
+	//   - Panels: flat params.gatk_intervals/ploidymodel/gatkreffolders become one 'illumina' set.
+	// The sample-derived ref key keeps each sample paired with only the shards from its selected reference.
 	ch_gatk_ref_shards = params.gatkcnv ? channel.fromList(gatkRefShards()) : channel.empty()
 	ch_gatk_ref = params.gatkcnv ? ch_sample_meta
 			.map { group, id, meta ->
@@ -541,6 +545,9 @@ workflow NEXTFLOW_WGS {
 
 		// BIG SV //
 
+		// Attach the selected GATK-CNV reference config before collecting read counts.
+		// gatk_ref.intervals is used by CollectReadCounts and gatk_ref.ploidy_model
+		// is carried forward to DetermineGermlineContigPloidy.
 		ch_gatk_coverage_input = ch_sample_meta
 			.join(ch_bam_bai, by: [0, 1])
 			.map { group, id, meta, bam, bai ->
@@ -552,6 +559,9 @@ workflow NEXTFLOW_WGS {
 		gatk_call_ploidy(ch_gatk_coverage)
 		ch_gatk_ploidy = gatk_call_ploidy.out.call_ploidy
 
+		// Run GermlineCNVCaller once per selected model shard.
+		// The join key includes the GATK ref key so WGS samples using different
+		// platforms cannot be combined with shards from the wrong reference set.
 		ch_gatk_call_cnv_input = ch_gatk_coverage
 			.join(ch_gatk_ploidy, by: [0, 1])
 			.map { group, id, meta, gatk_ref, tsv, _meta, _gatk_ref, ploidy ->
@@ -564,6 +574,8 @@ workflow NEXTFLOW_WGS {
 
 		gatk_call_cnv(ch_gatk_call_cnv_input)
 
+		// Recombine all shard calls for one sample, add the matching ploidy calls
+		// and model shard paths, then postprocess them into the final GATK CNV VCFs.
 		ch_gatk_postprocess_input = gatk_call_cnv.out.gatk_calls
 			.groupTuple(by : [0, 1, 2])
 			.join(ch_gatk_ploidy.map { group, id, meta, gatk_ref, ploidy ->

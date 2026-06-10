@@ -32,6 +32,15 @@ def vcfHasVariants(Path vcf) {
     return found
 }
 
+/*
+ * Build a single GATK-CNV reference config from the legacy flat params.
+ *
+ * Panel profiles such as onco and constitutional only have one GATK-CNV
+ * reference setup, so their config defines params.gatk_intervals,
+ * params.ploidymodel and params.gatkreffolders directly. gatkRefConfigs()
+ * wraps this into the same map shape used by profiles with multiple
+ * reference sets.
+ */
 def gatkDefaultRefConfig() {
 	[
 		intervals: params.gatk_intervals,
@@ -44,6 +53,13 @@ def gatkDefaultRefConfig() {
 	]
 }
 
+/*
+ * Return all available GATK-CNV reference configs.
+ *
+ * WGS defines params.gatk_ref_map because it can select different references
+ * from sample metadata, for example illumina vs illuminax. Profiles without
+ * params.gatk_ref_map fall back to one default config keyed as 'illumina'.
+ */
 def gatkRefConfigs() {
 	if (params.containsKey('gatk_ref_map')) {
 		return params.gatk_ref_map
@@ -52,6 +68,13 @@ def gatkRefConfigs() {
 	return [illumina: gatkDefaultRefConfig()]
 }
 
+/*
+ * Choose which GATK-CNV reference config a sample should use.
+ *
+ * The lookup prefers explicit metadata-derived keys, then falls back to the
+ * default 'illumina' key. This lets WGS route samples by platform while keeping
+ * single-reference panel profiles compatible with the same downstream flow.
+ */
 def gatkRefKey(meta) {
 	def refs = gatkRefConfigs()
 	def platform = meta.platform?.toString()
@@ -76,12 +99,25 @@ def gatkRefKey(meta) {
 	return key
 }
 
+/*
+ * Return the selected GATK-CNV reference config and include the chosen key.
+ * The key is carried through channels so sharded CNV calls and postprocessing
+ * are joined only against reference shards from the same config.
+ */
 def gatkRefConfig(meta) {
 	def key = gatkRefKey(meta)
 	def ref = gatkRefConfigs()[key]
 	return ref + [key: key]
 }
 
+/*
+ * Expand each GATK-CNV reference config into model shards.
+ *
+ * params.gatkreffolders / ref_folders points to a small CSV-like file with at
+ * least columns 'i' and 'refpart'. Each row becomes one GermlineCNVCaller
+ * shard: 'i' is the shard label used in output names, and 'refpart' is the
+ * model shard folder passed to GATK with --model.
+ */
 def gatkRefShards() {
 	gatkRefConfigs().collectMany { key, ref ->
 		['intervals', 'ploidy_model', 'ref_folders'].each { field ->
