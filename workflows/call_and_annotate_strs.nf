@@ -232,15 +232,13 @@ process vcfbreakmulti_expansionhunter {
 		path "*versions.yml", emit: versions
 
 	script:
-		if ({meta.father} == "") { father = "null" }
-		else { father = {meta.father} }
-		if ({meta.mother} == "") { mother = "null" }
-		else { mother = {meta.mother} }
 		if (analysis_mode == "family") {
+			def father_arg = meta.father ? "--father '${meta.father}'" : ""
+			def mother_arg = meta.mother ? "--mother '${meta.mother}'" : ""
 			"""
 			java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf INPUT=${eh_vcf_anno} OUTPUT=${eh_vcf_anno}.rename.vcf NEW_SAMPLE_NAME=${id}
 			vcfbreakmulti ${eh_vcf_anno}.rename.vcf > ${group}.expansionhunter.vcf.tmp
-			familyfy_str.pl --vcf ${group}.expansionhunter.vcf.tmp --mother $mother --father $father --out ${group}.expansionhunter.vcf
+			familyfy_str.pl --vcf ${group}.expansionhunter.vcf.tmp ${mother_arg} ${father_arg} --out ${group}.expansionhunter.vcf
 			bgzip ${group}.expansionhunter.vcf
 			tabix ${group}.expansionhunter.vcf.gz
 			echo "STR	${accessdir}/vcf/${group}.expansionhunter.vcf.gz" > ${group}_str.INFO
