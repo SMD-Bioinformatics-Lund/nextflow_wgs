@@ -1,12 +1,13 @@
 #!/usr/bin/env nextflow
 
-include { IDSNP_CALL           } from './modules/idsnp.nf'
-include { IDSNP_VCF_TO_JSON    } from './modules/idsnp.nf'
-include { MELT                 } from './workflows/melt.nf'
-include { SNV_ANNOTATE         } from './workflows/annotate_snvs.nf'
-include { SPLIT_NORMALIZE_SNVS } from './workflows/split_normalize_snvs.nf'
-include { VALIDATE_PARAMETERS  } from './workflows/validate_params.nf'
-include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
+include { CALL_AND_ANNOTATE_STRS } from './workflows/call_and_annotate_strs.nf'
+include { IDSNP_CALL             } from './modules/idsnp.nf'
+include { IDSNP_VCF_TO_JSON      } from './modules/idsnp.nf'
+include { MELT                   } from './workflows/melt.nf'
+include { SNV_ANNOTATE           } from './workflows/annotate_snvs.nf'
+include { SPLIT_NORMALIZE_SNVS   } from './workflows/split_normalize_snvs.nf'
+include { VALIDATE_PARAMETERS    } from './workflows/validate_params.nf'
+include { VALIDATE_SAMPLES_CSV   } from './workflows/validate_csv.nf'
 
 include { vcfHasVariants } from './workflows/util.nf'
 include { PREPARE_INPUT_AND_META_CHANNELS } from './workflows/prepare_input_and_meta_channels.nf'
@@ -58,7 +59,15 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio)
+	NEXTFLOW_WGS(
+		ch_samplesheet,
+		val_analysis_mode,
+		val_is_trio,
+		file(params.genome_file),
+		file("${params.genome_file}.fai"),
+		file(params.expansionhunter_catalog),
+		params.accessdir
+	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -130,9 +139,13 @@ workflow.onError {
 workflow NEXTFLOW_WGS {
 
 	take:
-	ch_samplesheet     // channel: [ val(samplesheet_row) ]
-	val_analysis_mode  // string:  Analysis mode derived from sample count, either "single" or "family"
-	val_is_trio        // bool:    Whether the input CSV contains enough samples for trio analysis
+	ch_samplesheet                  // channel: [ val(samplesheet_row) ]
+	val_analysis_mode               // string:  Analysis mode derived from sample count, either "single" or "family"
+	val_is_trio                     // bool:    Whether the input CSV contains enough samples for trio analysis
+	val_genome_file                 // path:    Reference FASTA.
+	val_genome_fai                  // path:    Reference FASTA index.
+	val_expansionhunter_catalog     // path:    ExpansionHunter variant catalog JSON.
+	val_accessdir                   // string:  Base access path used in output metadata/INFO paths
 
 	main:
 	// Output channels:
@@ -504,7 +517,15 @@ workflow NEXTFLOW_WGS {
 
         if(params.str) {
 			// CALL REPEATS //
-			CALL_AND_ANNOTATE_STRS(ch_bam_bai, ch_proband_meta, val_analysis_mode)
+			CALL_AND_ANNOTATE_STRS(
+				ch_bam_bai,
+				ch_proband_meta,
+				val_analysis_mode,
+				val_genome_file,
+				val_genome_fai,
+				val_expansionhunter_catalog,
+				val_accessdir
+			)
 			ch_output_info = ch_output_info.mix(CALL_AND_ANNOTATE_STRS.out.output_info)
 			ch_versions = ch_versions.mix(CALL_AND_ANNOTATE_STRS.out.versions)
 		}
@@ -1509,218 +1530,6 @@ def smn_copy_number_caller_version(task) {
 	END_VERSIONS
 	"""
 }
-
-
-////////////////////////////////////////////////////////////////////////
-////////////////////////// EXPANSION HUNTER ////////////////////////////
-////////////////////////////////////////////////////////////////////////
-
-// call STRs using ExpansionHunter, and plot alignments with GraphAlignmentViewer
-process expansionhunter {
-	tag "$group"
-	cpus 2
-	time '10h'
-	memory '40 GB'
-
-	input:
-		tuple val(group), val(id), path(bam), path(bai), val(meta)
-
-	output:
-		tuple val(group), val(id), path("${group}.eh.vcf"), emit: expansionhunter_vcf
-		tuple val(group), val(id), path("${group}.eh_realigned.sort.bam"), path("${group}.eh_realigned.sort.bam.bai"), path("${group}.eh.vcf"), emit: bam_vcf
-		path "*versions.yml", emit: versions
-
-	when:
-		params.str
-
-	script:
-		"""
-		source activate htslib10
-		ExpansionHunter \
-			--reads $bam \
-			--reference ${params.genome_file} \
-			--variant-catalog $params.expansionhunter_catalog \
-			--output-prefix ${group}.eh
-		samtools sort ${group}.eh_realigned.bam -o ${group}.eh_realigned.sort.bam
-		samtools index ${group}.eh_realigned.sort.bam
-
-		${expansionhunter_version(task)}
-		"""
-
-	stub:
-		"""
-		source activate htslib10
-		touch "${group}.eh.vcf"
-		touch "${group}.eh_realigned.sort.bam"
-		touch "${group}.eh_realigned.sort.bam.bai"
-
-		${expansionhunter_version(task)}
-		"""
-}
-def expansionhunter_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    expansionhunter: \$(echo \$(ExpansionHunter --version 2>&1) | sed 's/.*ExpansionHunter v// ; s/]//')
-	    samtools: \$(echo \$(samtools --version 2>&1) | sed 's/^.*samtools //; s/Using.*\$//')
-	END_VERSIONS
-	"""
-}
-
-// annotate expansionhunter vcf
-process stranger {
-	tag "$group"
-	memory '1 GB'
-	time '10m'
-	cpus 2
-	container  "${params.container_stranger}"
-
-	input:
-		tuple val(group), val(id), path(eh_vcf)
-
-	output:
-		tuple val(group), val(id), path("${group}.fixinfo.eh.stranger.vcf"), emit: vcf_annotated
-		path "*versions.yml", emit: versions
-
-	script:
-		"""
-		stranger ${eh_vcf} -f $params.expansionhunter_catalog > ${group}.eh.stranger.vcf
-		grep ^# ${group}.eh.stranger.vcf > ${group}.fixinfo.eh.stranger.vcf
-		grep -v ^# ${group}.eh.stranger.vcf | sed 's/ /_/g' >> ${group}.fixinfo.eh.stranger.vcf
-
-		${stranger_version(task)}
-		"""
-
-	stub:
-		"""
-		touch "${group}.fixinfo.eh.stranger.vcf"
-		${stranger_version(task)}
-		"""
-}
-def stranger_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    stranger: \$( stranger --version )
-	END_VERSIONS
-	"""
-}
-
-
-process reviewer {
-	tag "$group:$locus"
-	cpus 2
-	time '1h'
-	memory '1 GB'
-	errorStrategy 'ignore'
-	container  "${params.container_reviewer}"
-	publishDir "${params.outdir}/${params.subdir}/plots/reviewer/${group}", mode: 'copy' , overwrite: true, pattern: '*.svg'
-
-	input:
-		tuple val(group), val(id), path(bam), path(bai), path(vcf), val(locus)
-
-	output:
-		path("*svg")
-		tuple val(group), path("${group}_reviewer.INFO"), emit: reviewer_INFO
-		path "*versions.yml", emit: versions
-
-	script:
-		version_str = reviewer_version(task)
-		"""
-		REViewer --reads ${bam} \\
-			--vcf ${vcf} \\
-			--reference ${params.genome_file} \\
-			--catalog ${params.expansionhunter_catalog} \\
-			--locus "${locus}" \\
-			--output-prefix ${id}
-		echo "STR_VARIANTS_IMG	${locus}	${params.accessdir}/plots/reviewer/${group}/${id}.${locus}.svg" > ${group}_reviewer.INFO
-
-		echo "${version_str}" > "${task.process}_versions.yml"
-		"""
-
-	stub:
-		version_str = reviewer_version(task)
-		"""
-		touch "${id}.${locus}.svg"
-		echo "STR_VARIANTS_IMG	${locus}	${params.accessdir}/plots/reviewer/${group}/${id}.${locus}.svg" > "${group}_reviewer.INFO"
-		echo "${version_str}" > "${task.process}_versions.yml"
-		"""
-}
-def reviewer_version(task) {
-	// TODO: Reconcile this version stub with others.
-	"""${task.process}:
-	    reviewer: \$(echo \$(REViewer --version 2>&1) | sed 's/^.*REViewer v//')"""
-}
-
-// split multiallelic sites in expansionhunter vcf
-// FIXME: Use env variable for picard path...
-process vcfbreakmulti_expansionhunter {
-	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz'
-    publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz.tbi'
-	tag "$group"
-	time '1h'
-	memory '50 GB'
-
-	input:
-	    tuple val(group), val(id), path(eh_vcf_anno), val(meta)
-        val analysis_mode 
-
-	output:
-	    tuple val(group), path("${group}.expansionhunter.vcf.gz"), emit: vcf
-        tuple val(group), path("${group}.expansionhunter.vcf.gz.tbi"), emit: tbi
-		tuple val(group), path("${group}_str.INFO"), emit: str_INFO
-		path "*versions.yml", emit: versions
-
-	script:
-		if ({meta.father} == "") { father = "null" }
-		else { father = {meta.father} }
-		if ({meta.mother} == "") { mother = "null" }
-		else { mother = {meta.mother} }
-		if (analysis_mode == "family") {
-			"""
-			java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf INPUT=${eh_vcf_anno} OUTPUT=${eh_vcf_anno}.rename.vcf NEW_SAMPLE_NAME=${id}
-			vcfbreakmulti ${eh_vcf_anno}.rename.vcf > ${group}.expansionhunter.vcf.tmp
-			familyfy_str.pl --vcf ${group}.expansionhunter.vcf.tmp --mother $mother --father $father --out ${group}.expansionhunter.vcf
-			bgzip ${group}.expansionhunter.vcf
-			tabix ${group}.expansionhunter.vcf.gz
-			echo "STR	${params.accessdir}/vcf/${group}.expansionhunter.vcf.gz" > ${group}_str.INFO
-
-			${vcfbreakmulti_expansionhunter_version(task)}
-			"""
-		}
-		else {
-			"""
-			java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf INPUT=${eh_vcf_anno} OUTPUT=${eh_vcf_anno}.rename.vcf NEW_SAMPLE_NAME=${id}
-			vcfbreakmulti ${eh_vcf_anno}.rename.vcf > ${group}.expansionhunter.vcf
-			bgzip ${group}.expansionhunter.vcf
-			tabix ${group}.expansionhunter.vcf.gz
-			echo "STR	${params.accessdir}/vcf/${group}.expansionhunter.vcf.gz" > ${group}_str.INFO
-
-			${vcfbreakmulti_expansionhunter_version(task)}
-			"""
-
-		}
-
-	stub:
-		"""
-	    touch "${group}.expansionhunter.vcf.gz"
-        touch "${group}.expansionhunter.vcf.gz.tbi"
-		touch "${group}_str.INFO"
-
-		${vcfbreakmulti_expansionhunter_version(task)}
-		"""
-}
-def vcfbreakmulti_expansionhunter_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    vcflib: 1.0.9
-	    rename-sample-in-vcf: \$(echo \$(java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf --version 2>&1) | sed 's/-SNAPSHOT//')
-	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
-	END_VERSIONS
-	"""
-}
-
 
 process bamtoyaml {
 	cpus 1
