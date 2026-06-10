@@ -27,6 +27,10 @@ workflow CALL_AND_ANNOTATE_STRS {
 	vcfbreakmulti_expansionhunter(rename_sample_expansionhunter_vcf.out.vcf)
 
 	ch_split_expansionhunter_vcf = vcfbreakmulti_expansionhunter.out.vcf
+
+    // Scout requires all individuals in a trio to be present in the STR VCF.
+    // Here we add dummy samples to the proband STR VCF so it can be loaded
+    // into scout without the actual parental calls.
 	if (val_analysis_mode == "family") {
 		familyfy_expansionhunter_vcf(ch_split_expansionhunter_vcf)
 		ch_expansionhunter_vcf = familyfy_expansionhunter_vcf.out.vcf
