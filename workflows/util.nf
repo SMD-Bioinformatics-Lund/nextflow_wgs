@@ -84,13 +84,13 @@ def gatkRefKey(meta) {
 		platform,
 		sex,
 		'illumina'
-	].findAll { it }
+	].findAll { candidate -> candidate }
 
-	def key = candidates.find { refs.containsKey(it) }
+	def key = candidates.find { candidate -> refs.containsKey(candidate) }
 	if (!key) {
 		key = candidates.collect { candidate ->
 			refs.keySet().find { refKey -> refKey.toString().equalsIgnoreCase(candidate) }
-		}.find { it }
+		}.find { matchedKey -> matchedKey }
 	}
 	if (!key) {
 		error "No GATK reference config found for sample ${meta.id} with platform='${platform}' and sex='${sex}'. Tried keys: ${candidates.join(', ')}"
@@ -127,7 +127,7 @@ def gatkRefShards() {
 		}
 
 		def refCsv = file(ref.ref_folders)
-		def lines = refCsv.readLines().findAll { it.trim() }
+		def lines = refCsv.readLines().findAll { line -> line.trim() }
 		if (!lines) {
 			error "GATK reference shard file is empty for config '${key}': ${ref.ref_folders}"
 		}
