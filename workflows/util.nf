@@ -34,7 +34,7 @@ def vcfHasVariants(Path vcf) {
 
 process bgzip_index_vcf {
 	cpus 16
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
 	tag "$group"
 	time '1h'
 	memory '5 GB'

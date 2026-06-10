@@ -12,8 +12,6 @@ workflow SNV_ANNOTATE {
 
 	main:
 
-	// TODO: Better system so these two do not have to be redefined here.
-	params.results_output_dir = params.outdir + '/' + params.subdir
 	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
 
 	ch_versions = channel.empty()
@@ -542,7 +540,7 @@ def genmodscore_version(task) {
 // Bgzipping and indexing VCF:
 process vcf_completion {
 	cpus 16
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
 	tag "$group"
 	time '1h'
 	memory '5 GB'
