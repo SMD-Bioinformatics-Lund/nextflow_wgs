@@ -59,7 +59,7 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio)
+	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio, params.accessdir, params.create_alt_affect_ped)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -131,9 +131,11 @@ workflow.onError {
 workflow NEXTFLOW_WGS {
 
 	take:
-	ch_samplesheet     // channel: [ val(samplesheet_row) ]
-	val_analysis_mode  // string:  Analysis mode derived from sample count, either "single" or "family"
-	val_is_trio        // bool:    Whether the input CSV contains enough samples for trio analysis
+	ch_samplesheet            // channel: [ val(samplesheet_row) ]
+	val_analysis_mode         // string:  Analysis mode derived from sample count, either "single" or "family"
+	val_is_trio               // bool:    Whether the input CSV contains enough samples for trio analysis
+	val_accessdir             // string:  Base access path used in output metadata/INFO paths
+	val_create_alt_affect_ped // bool:    Whether family runs should create alternate affected-parent PEDs
 
 	main:
 	// Output channels:
@@ -171,7 +173,7 @@ workflow NEXTFLOW_WGS {
 	ch_bam_bai = ch_bam_bai.mix(copy_bam.out.bam_bai)
 
 	// PED //
-	PED(ch_proband_meta, params.mode, params.assay, params.accessdir)
+	PED(ch_proband_meta, val_analysis_mode, val_create_alt_affect_ped, val_accessdir)
 	ch_ped_base = PED.out.ped_base
 	ch_ped_trio_affected_permutations = PED.out.ped_trio_affected_permutations
 	ch_versions = ch_versions.mix(PED.out.versions)

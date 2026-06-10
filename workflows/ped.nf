@@ -1,10 +1,10 @@
 workflow PED {
 
 	take:
-	ch_proband_meta // channel: [val(group), val(id), val(meta)]
-	val_mode        // string:  Analysis mode.
-	val_assay       // string:  Assay name.
-	val_accessdir   // string:  Access base directory used in Scout INFO outputs.
+	ch_proband_meta            // channel: [val(group), val(id), val(meta)]
+	val_mode                   // string:  Analysis mode.
+	val_create_alt_affect_ped  // bool:    Whether family runs should create alternate affected-parent PEDs.
+	val_accessdir              // string:  Access base directory used in Scout INFO outputs.
 
 	main:
 	ch_versions = channel.empty()
@@ -15,7 +15,8 @@ workflow PED {
 
 	ch_ped_trio_affected_permutations = channel.empty()
 	ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations.mix(ch_ped_base)
-	if (val_mode == "family" && val_assay == "wgs") {
+
+	if (val_mode == "family" && val_create_alt_affect_ped) {
 		ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations
 			.mix(create_ped.out.ped_fa)
 			.mix(create_ped.out.ped_ma)
