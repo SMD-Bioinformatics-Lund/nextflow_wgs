@@ -49,7 +49,7 @@ def gatkRefConfigs() {
 		return params.gatk_ref_map
 	}
 
-	return [default: gatkDefaultRefConfig()]
+	return ["default": gatkDefaultRefConfig()]
 }
 
 def gatkRefKey(meta) {
