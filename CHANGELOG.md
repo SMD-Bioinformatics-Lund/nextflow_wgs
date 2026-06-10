@@ -8,6 +8,7 @@
 * Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
 * Parse Sentieon QC once and pass mean depth and insert size through keyed channels
 * Define `params.results_output_dir` in profile config instead of workflow and subworkflow bodies
+* Move PED creation and Madeline rendering into a dedicated `PED` workflow
 
 ### 3.26.4
 * code style change
