@@ -78,6 +78,6 @@ process create_cdm_cron {
 	    """
     stub:
         """
-        echo "--sequencing-run ${meta.sequencing_run} --sample-id ${id} --assay ${cdm_assay} --subassay ${meta.diagnosis} --qc ${results_output_dir}/qc/${id}.QC --lims-id ${meta.clarity_sample_id}" > ${id}.cdmpy6
+        echo "--sequencing-run ${meta.sequencing_run} --sample-id ${id} --assay ${cdm_assay} --subassay ${meta.diagnosis} --qc ${results_output_dir}/qc/${id}.QC --lims-id ${meta.clarity_sample_id}" > ${id}.cdmpy
         """
 }
