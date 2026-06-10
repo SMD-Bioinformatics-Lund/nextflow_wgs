@@ -23,12 +23,23 @@ workflow CALL_AND_ANNOTATE_STRS {
 		expansionhunter.out.expansionhunter_vcf,
 		val_expansionhunter_catalog
 	)
-	vcfbreakmulti_expansionhunter(
-		stranger.out.vcf_annotated.join(ch_proband_meta, by:[0,1]),
-		val_analysis_mode,
-		val_accessdir
-	)
-	ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
+	rename_sample_expansionhunter_vcf(stranger.out.vcf_annotated.join(ch_proband_meta, by:[0,1]))
+	vcfbreakmulti_expansionhunter(rename_sample_expansionhunter_vcf.out.vcf)
+
+	ch_split_expansionhunter_vcf = vcfbreakmulti_expansionhunter.out.vcf
+	if (val_analysis_mode == "family") {
+		familyfy_expansionhunter_vcf(ch_split_expansionhunter_vcf)
+		ch_expansionhunter_vcf = familyfy_expansionhunter_vcf.out.vcf
+		ch_versions = ch_versions.mix(familyfy_expansionhunter_vcf.out.versions.first())
+	}
+	else {
+		ch_expansionhunter_vcf = ch_split_expansionhunter_vcf.map { group, id, vcf, _meta ->
+			tuple(group, id, vcf)
+		}
+	}
+
+	bgzip_index_expansionhunter_vcf(ch_expansionhunter_vcf, val_accessdir)
+	ch_output_info = ch_output_info.mix(bgzip_index_expansionhunter_vcf.out.str_INFO)
 
 	reviewer_loci = new groovy.json.JsonSlurper()
 		.parseText(val_expansionhunter_catalog.text)
@@ -54,14 +65,16 @@ workflow CALL_AND_ANNOTATE_STRS {
 	ch_versions = ch_versions.mix(reviewer.out.versions.first())
 	ch_versions = ch_versions.mix(expansionhunter.out.versions.first())
 	ch_versions = ch_versions.mix(vcfbreakmulti_expansionhunter.out.versions.first())
+	ch_versions = ch_versions.mix(rename_sample_expansionhunter_vcf.out.versions.first())
+	ch_versions = ch_versions.mix(bgzip_index_expansionhunter_vcf.out.versions.first())
 	ch_versions = ch_versions.mix(stranger.out.versions.first())
 
 	emit:
 	output_info       = ch_output_info
 	versions          = ch_versions
 	reviewer_plot_svg = reviewer.out.svg
-	vcf               = vcfbreakmulti_expansionhunter.out.vcf
-	tbi               = vcfbreakmulti_expansionhunter.out.tbi
+	vcf               = bgzip_index_expansionhunter_vcf.out.vcf
+	tbi               = bgzip_index_expansionhunter_vcf.out.tbi
 }
 
 
@@ -211,18 +224,125 @@ def reviewer_version(task) {
 	    reviewer: \$(echo \$(REViewer --version 2>&1) | sed 's/^.*REViewer v//')"""
 }
 
-// split multiallelic sites in expansionhunter vcf
-// FIXME: Use env variable for picard path...
-process vcfbreakmulti_expansionhunter {
-	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz'
-    publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz.tbi'
+process rename_sample_expansionhunter_vcf {
+	container "${params.container_picard}"
 	tag "$group"
 	time '1h'
-	memory '50 GB'
+	memory '5 GB'
 
 	input:
 		tuple val(group), val(id), path(eh_vcf_anno), val(meta)
-		val(analysis_mode)
+
+	output:
+		tuple val(group), val(id), path("${group}.eh.rename.vcf"), val(meta), emit: vcf
+		path "*versions.yml", emit: versions
+
+	script:
+		"""
+		picard RenameSampleInVcf \\
+			INPUT=${eh_vcf_anno} \\
+			OUTPUT=${group}.eh.rename.vcf \\
+			NEW_SAMPLE_NAME=${id}
+
+		${rename_sample_expansionhunter_vcf_version(task)}
+		"""
+
+	stub:
+		"""
+		touch "${group}.eh.rename.vcf"
+		${rename_sample_expansionhunter_vcf_version(task)}
+		"""
+}
+def rename_sample_expansionhunter_vcf_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    picard: \$( echo \$(picard RenameSampleInVcf --version 2>&1) | sed 's/-SNAPSHOT//' )
+	END_VERSIONS
+	"""
+}
+
+// split multiallelic sites in expansionhunter vcf
+process vcfbreakmulti_expansionhunter {
+	container "${params.container_vcflib}"
+	tag "$group"
+	time '1h'
+	memory '5 GB'
+
+	input:
+		tuple val(group), val(id), path(eh_vcf), val(meta)
+
+	output:
+		tuple val(group), val(id), path("${group}.expansionhunter.vcf"), val(meta), emit: vcf
+		path "*versions.yml", emit: versions
+
+	script:
+		"""
+		vcfbreakmulti ${eh_vcf} > ${group}.expansionhunter.vcf
+		${vcfbreakmulti_expansionhunter_version(task)}
+		"""
+
+	stub:
+		"""
+		touch "${group}.expansionhunter.vcf"
+		${vcfbreakmulti_expansionhunter_version(task)}
+		"""
+}
+def vcfbreakmulti_expansionhunter_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    vcflib: 1.0.9
+	END_VERSIONS
+	"""
+}
+
+process familyfy_expansionhunter_vcf {
+	container "${params.container_perl}"
+	tag "$group"
+	time '20m'
+	memory '1 GB'
+
+	input:
+		tuple val(group), val(id), path(eh_vcf), val(meta)
+
+	output:
+		tuple val(group), val(id), path("${group}.expansionhunter.family.vcf"), emit: vcf
+		path "*versions.yml", emit: versions
+
+	script:
+		def father_arg = meta.father ? "--father '${meta.father}'" : ""
+		def mother_arg = meta.mother ? "--mother '${meta.mother}'" : ""
+		"""
+		familyfy_str.pl --vcf ${eh_vcf} ${mother_arg} ${father_arg} --out ${group}.expansionhunter.family.vcf
+		${familyfy_expansionhunter_vcf_version(task)}
+		"""
+
+	stub:
+		"""
+		touch "${group}.expansionhunter.family.vcf"
+		${familyfy_expansionhunter_vcf_version(task)}
+		"""
+}
+def familyfy_expansionhunter_vcf_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    perl: \$(perl -e 'printf "%vd\\n", \$^V')
+	END_VERSIONS
+	"""
+}
+
+process bgzip_index_expansionhunter_vcf {
+	container "${params.container_bcftools}"
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz.tbi'
+	tag "$group"
+	time '1h'
+	memory '5 GB'
+
+	input:
+		tuple val(group), val(id), path(eh_vcf)
 		val(accessdir)
 
 	output:
@@ -232,48 +352,28 @@ process vcfbreakmulti_expansionhunter {
 		path "*versions.yml", emit: versions
 
 	script:
-		if (analysis_mode == "family") {
-			def father_arg = meta.father ? "--father '${meta.father}'" : ""
-			def mother_arg = meta.mother ? "--mother '${meta.mother}'" : ""
-			"""
-			java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf INPUT=${eh_vcf_anno} OUTPUT=${eh_vcf_anno}.rename.vcf NEW_SAMPLE_NAME=${id}
-			vcfbreakmulti ${eh_vcf_anno}.rename.vcf > ${group}.expansionhunter.vcf.tmp
-			familyfy_str.pl --vcf ${group}.expansionhunter.vcf.tmp ${mother_arg} ${father_arg} --out ${group}.expansionhunter.vcf
-			bgzip ${group}.expansionhunter.vcf
-			tabix ${group}.expansionhunter.vcf.gz
-			echo "STR	${accessdir}/vcf/${group}.expansionhunter.vcf.gz" > ${group}_str.INFO
+		"""
+		cp ${eh_vcf} ${group}.expansionhunter.vcf
+		bgzip ${group}.expansionhunter.vcf
+		tabix ${group}.expansionhunter.vcf.gz
+		echo "STR	${accessdir}/vcf/${group}.expansionhunter.vcf.gz" > ${group}_str.INFO
 
-			${vcfbreakmulti_expansionhunter_version(task)}
-			"""
-		}
-		else {
-			"""
-			java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf INPUT=${eh_vcf_anno} OUTPUT=${eh_vcf_anno}.rename.vcf NEW_SAMPLE_NAME=${id}
-			vcfbreakmulti ${eh_vcf_anno}.rename.vcf > ${group}.expansionhunter.vcf
-			bgzip ${group}.expansionhunter.vcf
-			tabix ${group}.expansionhunter.vcf.gz
-			echo "STR	${accessdir}/vcf/${group}.expansionhunter.vcf.gz" > ${group}_str.INFO
-
-			${vcfbreakmulti_expansionhunter_version(task)}
-			"""
-
-		}
+		${bgzip_index_expansionhunter_vcf_version(task)}
+		"""
 
 	stub:
 		"""
-	    touch "${group}.expansionhunter.vcf.gz"
-        touch "${group}.expansionhunter.vcf.gz.tbi"
+		touch "${group}.expansionhunter.vcf.gz"
+		touch "${group}.expansionhunter.vcf.gz.tbi"
 		touch "${group}_str.INFO"
-
-		${vcfbreakmulti_expansionhunter_version(task)}
+		${bgzip_index_expansionhunter_vcf_version(task)}
 		"""
 }
-def vcfbreakmulti_expansionhunter_version(task) {
+def bgzip_index_expansionhunter_vcf_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    vcflib: 1.0.9
-	    rename-sample-in-vcf: \$(echo \$(java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf --version 2>&1) | sed 's/-SNAPSHOT//')
+	    bgzip: \$(echo \$(bgzip --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
 	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
 	END_VERSIONS
 	"""
