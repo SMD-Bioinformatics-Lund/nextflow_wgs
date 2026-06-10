@@ -74,5 +74,9 @@ process qc_to_cdm {
 	script:
 		"""
 		echo "--sequencing-run ${meta.sequencing_run} --sample-id ${id} --assay ${cdm_assay} --subassay ${meta.diagnosis} --qc ${results_output_dir}/qc/${id}.QC --lims-id ${meta.clarity_sample_id}" > ${id}.cdmpy
-		"""
+	    """
+    stub:
+        """
+        echo "--sequencing-run ${meta.sequencing_run} --sample-id ${id} --assay ${cdm_assay} --subassay ${meta.diagnosis} --qc ${results_output_dir}/qc/${id}.QC --lims-id ${meta.clarity_sample_id}" > ${id}.cdmpy6
+        """
 }
