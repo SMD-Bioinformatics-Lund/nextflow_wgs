@@ -1,8 +1,8 @@
 workflow QC_TO_CDM {
 
 	take:
-	ch_qc_json             // ch:     [val(group), val(id), path(qc_jsons)]
-	ch_sample_meta         // ch:     [val(group), val(id), val(meta)]
+	ch_qc_json             // ch:     [val(group), val(id), path(qc_jsons) ]
+	ch_sample_meta         // ch:     [val(group), val(id), val(meta)      ]
 	val_results_output_dir // string: Full result base directory under which pipeline results are published.
 	val_cdm_assay          // string: CDM assay name used when creating QC cron files.
 	val_skip_cdm_cron      // bool:   Whether to skip creating CDM QC cron files.

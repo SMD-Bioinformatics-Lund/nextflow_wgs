@@ -142,12 +142,12 @@ workflow.onError {
 workflow NEXTFLOW_WGS {
 
 	take:
-	ch_samplesheet         // ch:     [map(sample_metadata)]
-	val_analysis_mode  // string:  Analysis mode derived from sample count, either "single" or "family"
-	val_cdm_assay          // string: CDM assay name used when creating QC cron files.
-	val_is_trio
-	val_results_output_dir // string: Full result base directory under which pipeline results are published.
-	val_skip_cdm_cron      // bool:   Whether to skip creating CDM QC cron files.        // bool:    Whether the input CSV contains enough samples for trio analysis
+	ch_samplesheet         // channel: [ val(samplesheet_row) ]
+	val_analysis_mode      // string:  Analysis mode derived from sample count, either "single" or "family"
+	val_cdm_assay          // string:  CDM assay name used when creating QC cron files.
+	val_is_trio            // bool:    Whether the input CSV contains enough samples for trio analysis
+	val_results_output_dir // string:  Full result base directory under which pipeline results are published.
+	val_skip_cdm_cron      // bool:    Whether to skip creating CDM QC cron files.        
 
 	main:
 	// Output channels:
