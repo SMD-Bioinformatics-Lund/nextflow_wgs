@@ -1,6 +1,13 @@
 # CHANGELOG
 
 ### [Unreleased]
+
+#### Changed
+* Pass analysis mode and trio status through workflow/process inputs instead of redefining `params.mode` and `params.trio`
+* Move MELT code into own subworkflow with separate MELT, merge, and intersect processes
+* Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
+* Parse Sentieon QC once and pass mean depth and insert size through keyed channels
+* Define `params.results_output_dir` in profile config instead of workflow and subworkflow bodies
 * Move QC-to-CDM steps into a dedicated `QC_TO_CDM` workflow
 * Pass QC-to-CDM script configuration explicitly through workflow inputs
 * Replace QC-to-CDM `when:` guard with workflow-level CDM cron skipping

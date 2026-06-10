@@ -31,7 +31,7 @@ process merge_qc_json {
     cpus 2
     errorStrategy 'retry'
     maxErrors 5
-    publishDir "${params.results_output_dir}/qc", mode: 'copy' , overwrite: true, pattern: '*.QC'
+    publishDir "${params.outdir}/${params.subdir}/qc", mode: 'copy' , overwrite: true, pattern: '*.QC'
     tag "$id"
     time '1h'
 	memory '1 GB'
