@@ -2711,13 +2711,13 @@ process gatkcov {
 
 	script:
 
-		def PON = [F: params.GATK_PON_FEMALE, M: params.GATK_PON_MALE]
+		def PON = [F: params.gatk_pon_female, M: params.gatk_pon_male]
 
 		"""
 		source activate gatk4-env
 
 		gatk CollectReadCounts \\
-			-I $bam -L $params.COV_INTERVAL_LIST \\
+			-I $bam -L $params.cov_interval_list \\
 			--interval-merging-rule OVERLAPPING_ONLY -O ${bam}.hdf5
 
 		gatk --java-options "-Xmx30g" DenoiseReadCounts \\

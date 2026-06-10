@@ -1,5 +1,8 @@
 # CHANGELOG
 
+### Unreleased
+* Platform specific PONs, GATK + GENS
+
 ### 3.26.4
 * code style change
 * changed all input-channels to a standardized format
