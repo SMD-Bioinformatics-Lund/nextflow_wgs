@@ -22,11 +22,9 @@ workflow {
 	// TODO: Params assignment inside workflow block is a temp solution:
 	//       outdir and subdir need to be combined in new var, re-setting
 	//       params.outdir won't work.
-	params.results_output_dir = params.outdir + '/' + params.subdir
-
-	// TODO: Pass these to processes in meta?
-	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
-	params.trio = file(params.csv).countLines() > 3 ? true : false
+	input_csv_line_count = file(params.csv).countLines()
+	val_analysis_mode = input_csv_line_count > 2 ? "family" : "single"
+	val_is_trio = input_csv_line_count > 3 ? true : false
 
 	// Check whether genome assembly is indexed //
 	// TODO: Move to some pre-processing workflow:
@@ -38,9 +36,9 @@ workflow {
 
 	// Count lines of input csv, if more than 2(header + 1 ind) then mode is set to family //
 	log.info("Input CSV: " + params.csv)
-	log.info("mode: " + params.mode)
-	log.info("trio analysis: " + params.trio)
-	log.info("Results output dir: " + params.results_output_dir)
+	log.info("mode: " + val_analysis_mode)
+	log.info("trio analysis: " + val_is_trio)
+	log.info("Results output dir: ${params.outdir}/${params.subdir}")
 	log.info("Results subdir: " + params.subdir)
 	log.info("CRON output dir: " + params.crondir)
 
@@ -60,7 +58,7 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet)
+	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -132,7 +130,9 @@ workflow.onError {
 workflow NEXTFLOW_WGS {
 
 	take:
-	ch_samplesheet
+	ch_samplesheet     // channel: [ val(samplesheet_row) ]
+	val_analysis_mode  // string:  Analysis mode derived from sample count, either "single" or "family"
+	val_is_trio        // bool:    Whether the input CSV contains enough samples for trio analysis
 
 	main:
 	// Output channels:
@@ -175,7 +175,7 @@ workflow NEXTFLOW_WGS {
 
 	ch_ped_trio_affected_permutations = channel.empty()  // channel for base ped + father and mother set as affected peds
 	ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations.mix(ch_ped_base)
-	if(params.mode == "family" && params.assay == "wgs") {
+    if (val_analysis_mode == "family" && params.assay == "wgs") {
 
 		ch_ped_trio_affected_permutations = ch_ped_trio_affected_permutations
             .mix(create_ped.out.ped_fa)
@@ -381,7 +381,7 @@ workflow NEXTFLOW_WGS {
 
         ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_start)
         
-		SNV_ANNOTATE(ch_bam_snv_annotate, ch_snv_annotate_in, ch_ped_trio_affected_permutations)
+		SNV_ANNOTATE(ch_bam_snv_annotate, ch_snv_annotate_in, ch_ped_trio_affected_permutations, val_analysis_mode)
 		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
 		ch_output_info = ch_output_info.mix(SNV_ANNOTATE.out.output_info)
 
@@ -428,8 +428,13 @@ workflow NEXTFLOW_WGS {
 				}
 
 			// upd
-			upd(fastgnomad.out.vcf, ch_upd_meta)
-			upd_table(upd.out.upd_sites)
+            // TODO: upd process creates dummy files is not in trio mode, used later in
+            //       a long gens input channel join. move upd into block below and find
+            //       better solution for skipping upd inputs to gens
+			upd(fastgnomad.out.vcf, ch_upd_meta, val_analysis_mode, val_is_trio)
+			if (val_analysis_mode == "family" && val_is_trio) {
+				upd_table(upd.out.upd_sites)
+			}
 
 			// roh
 			roh(fastgnomad.out.vcf)
@@ -448,7 +453,7 @@ workflow NEXTFLOW_WGS {
 				.combine(upd.out.upd_bed)
 				.combine(upd.out.upd_sites.map { it -> it[1] })
 
-			generate_gens_v4_meta(ch_gens_v4_meta)
+			generate_gens_v4_meta(ch_gens_v4_meta, val_analysis_mode)
 
 			ch_cron_meta = generate_gens_v4_meta.out.meta
 				.join(generate_gens_data.out.is_done, by: [0,1])
@@ -466,7 +471,7 @@ workflow NEXTFLOW_WGS {
 				}
 				.groupTuple(by: [0])
 
-			gens_v4_cron(ch_cron_meta)
+			gens_v4_cron(ch_cron_meta, val_is_trio)
 
 			ch_output_info = ch_output_info.mix(overview_plot.out.oplot_INFO)
 
@@ -492,14 +497,17 @@ workflow NEXTFLOW_WGS {
 				SMNCopyNumberCaller.out
 					.smn_tsv.collectFile(
 						keepHeader: true,
-						storeDir: "${params.results_output_dir}/smn/")
+						storeDir: "${params.outdir}/${params.subdir}/smn/")
 			)
 
 			// CALL REPEATS //
 
 			expansionhunter(ch_bam_bai.join(ch_proband_meta, by: [0,1]))
 			stranger(expansionhunter.out.expansionhunter_vcf)
-			vcfbreakmulti_expansionhunter(stranger.out.vcf_annotated.join(ch_proband_meta, by:[0,1]))
+			vcfbreakmulti_expansionhunter(
+                stranger.out.vcf_annotated.join(ch_proband_meta, by:[0,1]),
+                val_analysis_mode
+            )
 			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
 
 			reviewer_loci = new groovy.json.JsonSlurper()
@@ -559,7 +567,8 @@ workflow NEXTFLOW_WGS {
 			svdb_merge(
 				ch_manta_out.groupTuple(),
 				tiddit.out.vcf.groupTuple(),
-				ch_filtered_merged_gatk_calls.groupTuple()
+				ch_filtered_merged_gatk_calls.groupTuple(),
+				val_analysis_mode
 			)
 			ch_postprocessed_merged_sv_vcf = ch_postprocessed_merged_sv_vcf.mix(svdb_merge.out.merged_bndless_vcf)
 			ch_panel_svs_present = ch_postprocessed_merged_sv_vcf
@@ -689,7 +698,7 @@ workflow NEXTFLOW_WGS {
 				tuple(group, type, ped, penalty_vcf)
 			}
 		add_geneticmodels_to_svvcf(ch_add_geneticmodels_to_svvcf_input)
-		score_sv(add_geneticmodels_to_svvcf.out.annotated_sv_vcf)
+		score_sv(add_geneticmodels_to_svvcf.out.annotated_sv_vcf, val_analysis_mode)
 		bgzip_scored_genmod(score_sv.out.scored_vcf.mix(ch_panel_svs_absent))
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
 
@@ -716,15 +725,17 @@ workflow NEXTFLOW_WGS {
 			.join(ch_ped_trio_affected_permutations, by: [0,1])        // join with correct ped on group, type
 			.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1])               // join with final SNV VCF + index on group, type
 
-		compound_finder(ch_compound_finder_input)
-		ch_output_info = ch_output_info.mix(compound_finder.out.svcompound_INFO)
+		if (val_analysis_mode == "family" && params.assay == "wgs") {
+			compound_finder(ch_compound_finder_input)
+			ch_output_info = ch_output_info.mix(compound_finder.out.svcompound_INFO)
+			ch_versions = ch_versions.mix(compound_finder.out.versions.first())
+		}
 
 		ch_versions = ch_versions.mix(score_sv.out.versions.first())
 		ch_versions = ch_versions.mix(bgzip_scored_genmod.out.versions.first())
-		ch_versions = ch_versions.mix(compound_finder.out.versions.first())
 
 		// TODO: streamline if-conditions:
-		if(params.antype == "wgs" && params.trio && params.mode == "family") {
+		if(params.antype == "wgs" && val_is_trio && val_analysis_mode == "family") {
 			ch_plot_pod_in = fastgnomad.out.vcf
 				.join(bgzip_scored_genmod.out.sv_rescore_vcf, by: [0])
 				.join(ch_ped_base, by: [0])
@@ -1000,7 +1011,7 @@ process markdup {
 	memory '50 GB' // 12GB peak GIAB
 	time '3h'
 	container  "${params.container_sentieon}"
-	publishDir "${params.results_output_dir}/bam", mode: 'copy' , overwrite: true, pattern: '*_dedup.bam*'
+	publishDir "${params.outdir}/${params.subdir}/bam", mode: 'copy' , overwrite: true, pattern: '*_dedup.bam*'
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
@@ -1133,7 +1144,7 @@ process bqsr {
 	// 12gb peak giab //
 	time '5h'
 	container  "${params.container_sentieon}"
-	publishDir "${params.results_output_dir}/bqsr", mode: 'copy' , overwrite: true, pattern: '*.table'
+	publishDir "${params.outdir}/${params.subdir}/bqsr", mode: 'copy' , overwrite: true, pattern: '*.table'
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
@@ -1382,7 +1393,7 @@ process sentieon_qc_postprocess {
 process verifybamid2 {
 	cpus 16
 	memory '10 GB'
-	publishDir "${params.results_output_dir}/contamination", mode: 'copy', overwrite: true, pattern: '*.selfSM'
+	publishDir "${params.outdir}/${params.subdir}/contamination", mode: 'copy', overwrite: true, pattern: '*.selfSM'
 	tag "$id"
 	container  "${params.container_verifybamid2}"
 
@@ -1434,7 +1445,7 @@ process depth_onco {
 	cpus 2
 	time '1h'
 	memory '10 GB'
-	publishDir "${params.results_output_dir}/cov", mode: 'copy', overwrite: true
+	publishDir "${params.outdir}/${params.subdir}/cov", mode: 'copy', overwrite: true
 	tag "$id"
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
@@ -1458,7 +1469,7 @@ process SMNCopyNumberCaller {
 	cpus 10
 	memory '25GB'
 	time '2h'
-	publishDir "${params.results_output_dir}/plots/SMNcnc", mode: 'copy' , overwrite: true, pattern: '*.pdf*'
+	publishDir "${params.outdir}/${params.subdir}/plots/SMNcnc", mode: 'copy' , overwrite: true, pattern: '*.pdf*'
 	tag "$id"
 
 	input:
@@ -1626,7 +1637,7 @@ process reviewer {
 	memory '1 GB'
 	errorStrategy 'ignore'
 	container  "${params.container_reviewer}"
-	publishDir "${params.results_output_dir}/plots/reviewer/${group}", mode: 'copy' , overwrite: true, pattern: '*.svg'
+	publishDir "${params.outdir}/${params.subdir}/plots/reviewer/${group}", mode: 'copy' , overwrite: true, pattern: '*.svg'
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai), path(vcf), val(locus)
@@ -1667,14 +1678,15 @@ def reviewer_version(task) {
 // split multiallelic sites in expansionhunter vcf
 // FIXME: Use env variable for picard path...
 process vcfbreakmulti_expansionhunter {
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz'
-    publishDir "${params.results_output_dir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz.tbi'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz'
+    publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz.tbi'
 	tag "$group"
 	time '1h'
 	memory '50 GB'
 
 	input:
-		tuple val(group), val(id), path(eh_vcf_anno), val(meta)
+	    tuple val(group), val(id), path(eh_vcf_anno), val(meta)
+        val analysis_mode 
 
 	output:
 	    tuple val(group), path("${group}.expansionhunter.vcf.gz"), emit: vcf
@@ -1687,7 +1699,7 @@ process vcfbreakmulti_expansionhunter {
 		else { father = {meta.father} }
 		if ({meta.mother} == "") { mother = "null" }
 		else { mother = {meta.mother} }
-		if (params.mode == "family") {
+		if (analysis_mode == "family") {
 			"""
 			java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf INPUT=${eh_vcf_anno} OUTPUT=${eh_vcf_anno}.rename.vcf NEW_SAMPLE_NAME=${id}
 			vcfbreakmulti ${eh_vcf_anno}.rename.vcf > ${group}.expansionhunter.vcf.tmp
@@ -1804,7 +1816,7 @@ def gvcf_combine_version(task) {
 process create_ped {
 	tag "${meta.group}"
 	time '20m'
-	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: true
+	publishDir "${params.outdir}/${params.subdir}/ped", mode: 'copy' , overwrite: true
 	memory '1 GB'
 
 	input:
@@ -1846,7 +1858,7 @@ process create_ped {
 
 //madeline ped, run if family mode
 process madeline {
-	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: true, pattern: '*.xml'
+	publishDir "${params.outdir}/${params.subdir}/ped", mode: 'copy' , overwrite: true, pattern: '*.xml'
 	memory '1 GB'
 	time '1h'
 	cpus 2
@@ -1987,7 +1999,7 @@ process fetch_MTseqs {
 	memory '10GB'
 	time '1h'
 	tag "$id"
-	publishDir "${params.results_output_dir}/bam", mode: 'copy', overwrite: true, pattern: '*.bam*'
+	publishDir "${params.outdir}/${params.subdir}/bam", mode: 'copy', overwrite: true, pattern: '*.bam*'
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
@@ -2108,7 +2120,7 @@ process run_mutect2 {
 	memory '50 GB'
 	time '1h'
 	tag "$group"
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf'
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
@@ -2248,7 +2260,7 @@ process run_haplogrep {
 	time '1h'
 	memory '50 GB'
 	cpus 2
-	publishDir "${params.results_output_dir}/plots/mito", mode: 'copy', overwrite: true, pattern: '*.png'
+	publishDir "${params.outdir}/${params.subdir}/plots/mito", mode: 'copy', overwrite: true, pattern: '*.png'
 
 	input:
 		tuple val(group), val(id), path(mito_snv_vcf)
@@ -2305,8 +2317,8 @@ process run_eklipse {
 	// in rare cases with samples above 50 000x this can peak at 500+ GB of VMEM. Add downsampling!
 	memory '100GB'
 	time '60m'
-	publishDir "${params.results_output_dir}/plots/mito", mode: 'copy', overwrite: true, pattern: '*.txt'
-	publishDir "${params.results_output_dir}/plots/mito", mode: 'copy', overwrite: true, pattern: '*.png'
+	publishDir "${params.outdir}/${params.subdir}/plots/mito", mode: 'copy', overwrite: true, pattern: '*.txt'
+	publishDir "${params.outdir}/${params.subdir}/plots/mito", mode: 'copy', overwrite: true, pattern: '*.png'
 
 	input:
 		tuple val(group), val(id), val(meta), path(bam), path(bai)
@@ -2362,7 +2374,7 @@ def run_eklipse_version(task) {
 
 process rename_mito_contigs {
     cpus 2
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf'
 	tag "$group"
 	memory '5 GB'
 	time '1h'
@@ -2409,7 +2421,7 @@ process merge_qc_json {
     cpus 2
     errorStrategy 'retry'
     maxErrors 5
-    publishDir "${params.results_output_dir}/qc", mode: 'copy' , overwrite: true, pattern: '*.QC'
+    publishDir "${params.outdir}/${params.subdir}/qc", mode: 'copy' , overwrite: true, pattern: '*.QC'
     tag "$id"
     time '1h'
 	memory '1 GB'
@@ -2454,15 +2466,15 @@ process qc_to_cdm {
 
 	script:
 		"""
-		echo "--sequencing-run ${meta.sequencing_run} --sample-id ${id} --assay $params.cdm_assay --subassay ${meta.diagnosis} --qc ${params.results_output_dir}/qc/${id}.QC --lims-id ${meta.clarity_sample_id}" > ${id}.cdmpy
+		echo "--sequencing-run ${meta.sequencing_run} --sample-id ${id} --assay $params.cdm_assay --subassay ${meta.diagnosis} --qc ${params.outdir}/${params.subdir}/qc/${id}.QC --lims-id ${meta.clarity_sample_id}" > ${id}.cdmpy
 		"""
 }
 
 
 process peddy {
 
-	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: true, pattern: '*.ped'
-	publishDir "${params.results_output_dir}/ped", mode: 'copy' , overwrite: true, pattern: '*.csv'
+	publishDir "${params.outdir}/${params.subdir}/ped", mode: 'copy' , overwrite: true, pattern: '*.ped'
+	publishDir "${params.outdir}/${params.subdir}/ped", mode: 'copy' , overwrite: true, pattern: '*.csv'
 
 	cpus 4
 	tag "$group"
@@ -2513,7 +2525,7 @@ process peddy2cdm {
 	cpus 2
 	memory '20 MB'
 	tag "$group"
-	publishDir "${params.results_output_dir}/qc", mode: 'copy', overwrite: true, pattern: '*.json'
+	publishDir "${params.outdir}/${params.subdir}/qc", mode: 'copy', overwrite: true, pattern: '*.json'
 	publishDir "${params.crondir}/peddy", mode: 'copy' , overwrite: true, pattern: '*.peddy2cdm'
 	container "${params.container_pysam_cmdvcf}"
 	time '20m'
@@ -2537,7 +2549,7 @@ process peddy2cdm {
 		--sex $sex_check \
 		--sample $sample_arg \
 		--cdmassay $params.cdm_assay \
-		--results_dir ${params.results_output_dir}/qc
+		--results_dir ${params.outdir}/${params.subdir}/qc
 		"""
 		
 
@@ -2554,7 +2566,7 @@ process fastgnomad {
 	cpus 2
 	memory '40 GB'
 	tag "$group"
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	time '2h'
 
 	input:
@@ -2588,6 +2600,8 @@ process upd {
 	input:
 		tuple val(group), path(vcf)
 		tuple val(group2), val(id), val(mother), val(father)
+		val analysis_mode
+		val is_trio
 
 	output:
 		path("upd.bed"), emit: upd_bed
@@ -2595,7 +2609,7 @@ process upd {
 		path "*versions.yml", emit: versions
 
 	script:
-		if( params.mode == "family" && params.trio ) {
+		if( analysis_mode == "family" && is_trio ) {
 			"""
 			upd --vcf $vcf --proband $id --mother $mother --father $father --af-tag GNOMADAF regions > upd.bed
 			upd --vcf $vcf --proband $id --mother $mother --father $father --af-tag GNOMADAF sites > upd.sites.bed
@@ -2631,7 +2645,7 @@ def upd_version(task) {
 
 
 process upd_table {
-	publishDir "${params.results_output_dir}/plots", mode: 'copy' , overwrite: true
+	publishDir "${params.outdir}/${params.subdir}/plots", mode: 'copy' , overwrite: true
 	tag "$group"
 	time '1h'
 	memory '1 GB'
@@ -2642,9 +2656,6 @@ process upd_table {
 
 	output:
 		path("${group}.UPDtable.xls")
-
-	when:
-		params.mode == "family" && params.trio
 
 	script:
 		"""
@@ -2695,7 +2706,7 @@ def roh_version(task) {
 
 // // Create coverage profile using GATK
 process gatkcov {
-	publishDir "${params.results_output_dir}/cov", mode: 'copy' , overwrite: true, pattern: '*.tsv'
+	publishDir "${params.outdir}/${params.subdir}/cov", mode: 'copy' , overwrite: true, pattern: '*.tsv'
 	tag "$group"
 	cpus 2
 	memory '80 GB'
@@ -2760,7 +2771,7 @@ process overview_plot {
 	tag "$group"
 	time '1h'
 	memory '5 GB'
-	publishDir "${params.results_output_dir}/plots", mode: 'copy' , overwrite: true, pattern: "*.png"
+	publishDir "${params.outdir}/${params.subdir}/plots", mode: 'copy' , overwrite: true, pattern: "*.png"
 
 	input:
 		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoised)
@@ -2791,7 +2802,7 @@ process overview_plot {
 }
 
 process generate_gens_data {
-	publishDir "${params.results_output_dir}/plot_data", mode: 'copy' , overwrite: true, pattern: "*.gz*"
+	publishDir "${params.outdir}/${params.subdir}/plot_data", mode: 'copy' , overwrite: true, pattern: "*.gz*"
 	publishDir "${params.crondir}/gens", mode: 'copy', overwrite: true, pattern: "*.gens"
 	tag "$group"
 	cpus 1
@@ -2827,8 +2838,8 @@ process generate_gens_data {
 }
 
 process generate_gens_v4_meta {
-	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: true, pattern: "*.tsv"
-	publishDir "${params.results_output_dir}/plot_data", mode: 'copy', overwrite: true, pattern: "*.bed"
+	publishDir "${params.outdir}/${params.subdir}/plot_data", mode: 'copy', overwrite: true, pattern: "*.tsv"
+	publishDir "${params.outdir}/${params.subdir}/plot_data", mode: 'copy', overwrite: true, pattern: "*.bed"
 	tag "$id"
 	cpus 1
 	time '1h'
@@ -2836,6 +2847,7 @@ process generate_gens_v4_meta {
 
 	input:
 		tuple val(group), val(id), val(type), val(sex), path(cov_stand), path(cov_denoise), path(roh), path(upd_bed), path(upd_sites)
+	    val analysis_mode // value: [single, family]
 
 	output:
 		tuple val(group), val(id), val(type), val(sex), path("${id}.gens_track.roh.bed"), path("${id}.gens_track.upd.bed"), path("${id}.meta.tsv"), path("${id}.chrom_meta.tsv"), emit: meta
@@ -2858,7 +2870,7 @@ process generate_gens_v4_meta {
 				--out_gens_track_upd "${id}.gens_track.upd.bed" \\
 				--out_meta "${id}.meta.tsv" \\
 				--out_chrom_meta "${id}.chrom_meta.tsv" \\
-				--analysis_mode "${params.mode}"
+				--analysis_mode "${analysis_mode}"
 		else
 			touch "${id}.gens_track.roh.bed"
 			touch "${id}.gens_track.upd.bed"
@@ -2888,6 +2900,7 @@ process gens_v4_cron {
 
 	input:
 		tuple val(group), val(ids), val(types), val(sexes), val(track_rohs), val(track_upds), val(meta_tsvs), val(chrom_meta_tsvs)
+		val is_trio
 	
 	output:
 		path("${group}.gens_const.yaml"), emit: gens_v4_middleman
@@ -2903,7 +2916,7 @@ process gens_v4_cron {
 		def updTrackArgs = track_upds.join(' ')
 		def metaArgs = meta_tsvs.join(' ')
 		def chromMetaArgs = chrom_meta_tsvs.join(' ')
-		def trioFlag = params.trio ? "--trio" : ""
+		def trioFlag = is_trio ? "--trio" : ""
 		"""
 		create_gens_case_yaml.py \\
 		  --case_id "${group}" \\
@@ -3102,7 +3115,7 @@ process postprocessgatk {
 	memory '50GB'
 	time '3h'
 	container  "${params.container_gatk}"
-	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
+	publishDir "${params.outdir}/${params.subdir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	tag "$id"
 
 	input:
@@ -3193,7 +3206,7 @@ process filter_merge_gatk {
 	tag "$group"
 	time '2h'
 	memory '1 GB'
-	publishDir "${params.results_output_dir}/sv_vcf", mode: 'copy', overwrite: true
+	publishDir "${params.outdir}/${params.subdir}/sv_vcf", mode: 'copy', overwrite: true
 
 	input:
 		tuple val(group), val(id), path(gentotyped_intervals), path(genotyped_segments), path(denoised_copy_ration)
@@ -3216,7 +3229,7 @@ process filter_merge_gatk {
 
 process manta {
 	cpus  56
-	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
+	publishDir "${params.outdir}/${params.subdir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	tag "$id"
 	time '15h'
 	memory '150 GB'
@@ -3256,7 +3269,7 @@ def manta_version(task) {
 
 process manta_panel {
 	cpus  20
-	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
+	publishDir "${params.outdir}/${params.subdir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
 	tag "$id"
 	time '1h'
 	memory '50 GB'
@@ -3301,8 +3314,8 @@ def manta_panel_version(task) {
 process cnvkit_panel {
 	cpus  5
 	container  "${params.container_cnvkit}"
-	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf'
-	publishDir "${params.results_output_dir}/plots/", mode: 'copy', overwrite: true, pattern: '*.png'
+	publishDir "${params.outdir}/${params.subdir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf'
+	publishDir "${params.outdir}/${params.subdir}/plots/", mode: 'copy', overwrite: true, pattern: '*.png'
 	tag "$id"
 	time '1h'
 	memory '20 GB'
@@ -3354,7 +3367,7 @@ def cnvkit_panel_version(task) {
 process cnvkit_scatter {
 	cpus  2
 	container  "${params.container_cnvkit}"
-	publishDir "${params.results_output_dir}/plots/", mode: 'copy', overwrite: true, pattern: '*.png'
+	publishDir "${params.outdir}/${params.subdir}/plots/", mode: 'copy', overwrite: true, pattern: '*.png'
 	tag "$id"
 	time '1h'
 	memory '2 GB'
@@ -3411,7 +3424,7 @@ process svdb_merge_panel {
 	cpus 2
 	cache 'deep'
 	tag "$group"
-	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: true, pattern: '*.vcf'
+	publishDir "${params.outdir}/${params.subdir}/sv_vcf/merged/", mode: 'copy', overwrite: true, pattern: '*.vcf'
 	time '1h'
 	memory '1 GB'
 	input:
@@ -3497,7 +3510,7 @@ def svdb_merge_panel_version(task) {
 process postprocess_merged_panel_sv_vcf {
 	cpus 2
 	tag "$group"
-	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: true, pattern: '*.vcf'
+	publishDir "${params.outdir}/${params.subdir}/sv_vcf/merged/", mode: 'copy', overwrite: true, pattern: '*.vcf'
 	time '1h'
 	memory '1 GB'
 
@@ -3549,7 +3562,7 @@ def postprocess_merged_panel_sv_version(task) {
 
 process tiddit {
 	cpus  2
-	publishDir "${params.results_output_dir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf'
+	publishDir "${params.outdir}/${params.subdir}/sv_vcf/", mode: 'copy', overwrite: true, pattern: '*.vcf'
 	time '10h'
 	tag "$id"
 	memory '15 GB'
@@ -3591,7 +3604,7 @@ process svdb_merge {
 	cpus 2
 	container  "${params.container_svdb}"
 	tag "$group"
-	publishDir "${params.results_output_dir}/sv_vcf/merged/", mode: 'copy', overwrite: true, pattern: '*.vcf'
+	publishDir "${params.outdir}/${params.subdir}/sv_vcf/merged/", mode: 'copy', overwrite: true, pattern: '*.vcf'
 	time '2h'
 	memory '1 GB'
 
@@ -3601,6 +3614,7 @@ process svdb_merge {
 		tuple val(group), val(id), path(mantaV)
 		tuple val(group2), val(id2), path(tidditV)
 		tuple val(group3), val(id3), path(gatkV)
+		val analysis_mode
 
 	output:
 		tuple val(group), val(id), path("${group}.merged.bndless.vcf"), emit: merged_bndless_vcf
@@ -3608,7 +3622,7 @@ process svdb_merge {
 		path "*versions.yml", emit: versions
 
 	script:
-		if (params.mode == "family") {
+		if (analysis_mode == "family") {
 			def vcfs = []
 			def manta = []
 			def tiddit = []
@@ -3788,7 +3802,7 @@ process annotsv {
 	container  "${params.container_annotsv}"
 	cpus 2
 	tag "$group"
-	publishDir "${params.results_output_dir}/annotsv/", mode: 'copy', overwrite: true, pattern: '*.tsv'
+	publishDir "${params.outdir}/${params.subdir}/annotsv/", mode: 'copy', overwrite: true, pattern: '*.tsv'
 	time '5h'
 	memory '20 GB'
 
@@ -4184,7 +4198,7 @@ def add_geneticmodels_to_svvcf_version(task) {
 }
 
 process score_sv {
-	tag "$group $params.mode"
+	tag "$group $analysis_mode"
 	cpus 2
 	memory '10 GB'
 	time '2h'
@@ -4192,13 +4206,14 @@ process score_sv {
 
 	input:
 		tuple val(group), val(type), path(in_vcf)
+		val analysis_mode
 
 	output:
 		tuple val(group), val(type), path("*.sv.scored.vcf"), emit: scored_vcf
 		path "*versions.yml", emit: versions
 
 	script:
-		def model = (params.mode == "family" && params.antype == "wgs") ? params.svrank_model : params.svrank_model_s
+		def model = (analysis_mode == "family" && params.antype == "wgs") ? params.svrank_model : params.svrank_model_s
 		def group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
 		"""
 		genmod score --family_id ${group_score} --score_config ${model} --rank_results --outfile "${group_score}.sv.scored.vcf" ${in_vcf}
@@ -4228,8 +4243,8 @@ process bgzip_scored_genmod {
 	cpus 4
 	memory '1 GB'
 	time '5m'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz.tbi'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz.tbi'
 	container  "${params.container_bcftools}"
 
 	input:
@@ -4273,8 +4288,8 @@ def bgzip_score_sv_version(task) {
 
 process compound_finder {
 	cpus 2
-	tag "$group ${params.mode}"
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
+	tag "$group"
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
 	memory '10 GB'
 	time '2h'
 
@@ -4285,11 +4300,6 @@ process compound_finder {
 		tuple val(group), path("${group_score}.snv.rescored.sorted.vcf.gz"), path("${group_score}.snv.rescored.sorted.vcf.gz.tbi"), emit: vcf
 		tuple val(group), path("${group}_svp.INFO"), emit: svcompound_INFO
 		path "*versions.yml", emit: versions
-
-
-	when:
-		params.mode == "family" && params.assay == "wgs"
-
 
 	script:
 		group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
@@ -4353,7 +4363,7 @@ process output_files {
 
 
 process svvcf_to_bed {
-	publishDir "${params.results_output_dir}/bed", mode: 'copy' , overwrite: true
+	publishDir "${params.outdir}/${params.subdir}/bed", mode: 'copy' , overwrite: true
 	tag "group"
 	memory '1 GB'
 	time '1h'
@@ -4382,7 +4392,7 @@ process svvcf_to_bed {
 
 process plot_pod {
 	container  "${params.container_pod}"
-	publishDir "${params.results_output_dir}/pod", mode: 'copy' , overwrite: true
+	publishDir "${params.outdir}/${params.subdir}/pod", mode: 'copy' , overwrite: true
 	tag "$group"
 	time '1h'
 	memory '1 GB'
@@ -4408,8 +4418,8 @@ process plot_pod {
 }
 
 process create_yaml {
-	publishDir "${params.results_output_dir}/yaml", mode: 'copy' , overwrite: true, pattern: '*.yaml'
-	publishDir "${params.results_output_dir}/yaml/alt_affect", mode: 'copy' , overwrite: true, pattern: '*.yaml.*a'
+	publishDir "${params.outdir}/${params.subdir}/yaml", mode: 'copy' , overwrite: true, pattern: '*.yaml'
+	publishDir "${params.outdir}/${params.subdir}/yaml/alt_affect", mode: 'copy' , overwrite: true, pattern: '*.yaml.*a'
 	publishDir "${params.crondir}/scout", mode: 'copy' , overwrite: true, pattern: '*.yaml'
 	errorStrategy 'retry'
 	maxErrors 5
@@ -4446,7 +4456,7 @@ process create_yaml {
 }
 
 process combine_versions {
-	publishDir "${params.results_output_dir}/versions", mode: 'copy', overwrite: true, pattern: '*.versions.yml'
+	publishDir "${params.outdir}/${params.subdir}/versions", mode: 'copy', overwrite: true, pattern: '*.versions.yml'
 
 	input:
 		val(group)
