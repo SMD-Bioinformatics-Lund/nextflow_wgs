@@ -3076,12 +3076,11 @@ process gatk_call_cnv {
 	tag "$id"
 
 	input:
-		tuple val(group), val(id), val(meta), val(gatk_ref), path(tsv), path(ploidy), val(i), val(refpart) //TODO: is reffart a path or val
+		tuple val(group), val(id), val(meta), val(gatk_ref), path(tsv), path(ploidy), val(ref_part), val(refpart) //TODO: is reffart a path or val
 
 
 	output:
-	//TODO: wtf is i
-		tuple val(gatk_ref.key), val(group), val(id), val(i), path("${group}_${i}.tar"), emit: gatk_calls
+		tuple val(gatk_ref.key), val(group), val(id), val(ref_part), path("${group}_${ref_part}.tar"), emit: gatk_calls
 		path "*versions.yml", emit: versions
 
 	script:
@@ -3093,15 +3092,15 @@ process gatk_call_cnv {
 		export MKL_NUM_THREADS=${task.cpus}
 		export OMP_NUM_THREADS=${task.cpus}
 		tar -xvf ploidy.tar
-		mkdir ${group}_${i}
+		mkdir ${group}_${ref_part}
 		gatk --java-options "-Xmx25g" GermlineCNVCaller \\
 			--run-mode CASE \\
 			-I $tsv \\
 			--contig-ploidy-calls ploidy/${group}-calls/ \\
 			--model ${refpart} \\
-			--output ${group}_${i}/ \\
-			--output-prefix ${group}_${i}
-		tar -cvf ${group}_${i}.tar ${group}_${i}/
+			--output ${group}_${ref_part}/ \\
+			--output-prefix ${group}_${ref_part}
+		tar -cvf ${group}_${ref_part}.tar ${group}_${ref_part}/
 
 		${gatk_call_cnv_version(task)}
 		"""
@@ -3115,7 +3114,7 @@ process gatk_call_cnv {
 		export MKL_NUM_THREADS=${task.cpus}
 		export OMP_NUM_THREADS=${task.cpus}
 		source activate gatk
-		touch "${group}_${i}.tar"
+		touch "${group}_${ref_part}.tar"
 
 		${gatk_call_cnv_version(task)}
 		"""
