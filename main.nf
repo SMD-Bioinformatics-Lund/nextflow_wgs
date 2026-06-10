@@ -130,9 +130,9 @@ workflow.onError {
 workflow NEXTFLOW_WGS {
 
 	take:
-	ch_samplesheet
-	val_analysis_mode
-	val_is_trio
+	ch_samplesheet     // channel: [ val(samplesheet_row) ]
+	val_analysis_mode  // string:  Analysis mode derived from sample count, either "single" or "family"
+	val_is_trio        // bool:    Whether the input CSV contains enough samples for trio analysis
 
 	main:
 	// Output channels:
