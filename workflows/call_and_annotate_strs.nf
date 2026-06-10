@@ -35,8 +35,7 @@ workflow CALL_AND_ANNOTATE_STRS {
 		familyfy_expansionhunter_vcf(ch_split_expansionhunter_vcf)
 		ch_expansionhunter_vcf = familyfy_expansionhunter_vcf.out.vcf
 		ch_versions = ch_versions.mix(familyfy_expansionhunter_vcf.out.versions.first())
-	}
-	else {
+	} else {
 		ch_expansionhunter_vcf = ch_split_expansionhunter_vcf.map { group, id, vcf, _meta ->
 			tuple(group, id, vcf)
 		}
