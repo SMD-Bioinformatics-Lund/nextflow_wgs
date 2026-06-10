@@ -487,7 +487,7 @@ workflow NEXTFLOW_WGS {
 		ch_panel_svs_present = channel.empty()
 		ch_panel_svs_absent = channel.empty()
 		ch_postprocessed_merged_sv_vcf = channel.empty()
-		if(params.antype  == "wgs") {
+		if(params.smn) {
 			// SMN CALLING //
 			SMNCopyNumberCaller(ch_bam_bai)
 			ch_output_info = ch_output_info.mix(SMNCopyNumberCaller.out.smn_INFO)
@@ -499,37 +499,14 @@ workflow NEXTFLOW_WGS {
 						keepHeader: true,
 						storeDir: "${params.outdir}/${params.subdir}/smn/")
 			)
-
-			// CALL REPEATS //
-
-			expansionhunter(ch_bam_bai.join(ch_proband_meta, by: [0,1]))
-			stranger(expansionhunter.out.expansionhunter_vcf)
-			vcfbreakmulti_expansionhunter(
-                stranger.out.vcf_annotated.join(ch_proband_meta, by:[0,1]),
-                val_analysis_mode
-            )
-			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
-
-			reviewer_loci = new groovy.json.JsonSlurper()
-				.parseText(file(params.expansionhunter_catalog).text)
-				.collect { locus_definition -> locus_definition.LocusId }
-				.findAll { locus -> locus }
-
-			ch_reviewer_input = expansionhunter.out.bam_vcf
-				.flatMap { group, id, bam, bai, vcf ->
-					reviewer_loci.collect { locus ->
-						tuple(group, id, bam, bai, vcf, locus)
-					}
-				}
-
-			reviewer(ch_reviewer_input)
-			ch_output_info = ch_output_info.mix(reviewer.out.reviewer_INFO)
-
 			ch_versions = ch_versions.mix(SMNCopyNumberCaller.out.versions.first())
-			ch_versions = ch_versions.mix(reviewer.out.versions.first())
-			ch_versions = ch_versions.mix(expansionhunter.out.versions.first())
-			ch_versions = ch_versions.mix(vcfbreakmulti_expansionhunter.out.versions.first())
-			ch_versions = ch_versions.mix(stranger.out.versions.first())
+        }
+
+        if(params.str) {
+			// CALL REPEATS //
+			CALL_AND_ANNOTATE_STRS(ch_bam_bai, ch_proband_meta, val_analysis_mode)
+			ch_output_info = ch_output_info.mix(CALL_AND_ANNOTATE_STRS.out.output_info)
+			ch_versions = ch_versions.mix(CALL_AND_ANNOTATE_STRS.out.versions)
 		}
 
 
