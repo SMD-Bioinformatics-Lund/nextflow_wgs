@@ -49,7 +49,7 @@ def gatkRefConfigs() {
 		return params.gatk_ref_map
 	}
 
-	return ["default": gatkDefaultRefConfig()]
+	return [illumina: gatkDefaultRefConfig()]
 }
 
 def gatkRefKey(meta) {
@@ -60,7 +60,7 @@ def gatkRefKey(meta) {
 		platform && sex ? "${platform}_${sex}" : null,
 		platform,
 		sex,
-		'default'
+		'illumina'
 	].findAll { it }
 
 	def key = candidates.find { refs.containsKey(it) }

@@ -2763,7 +2763,9 @@ process gatkcov {
 		"""
 
 	stub:
+		def PON = gatkRefConfig(meta).pon
 		"""
+		echo ${PON[meta.sex]}
 		source activate gatk4-env
 		touch "${id}.standardizedCR.tsv"
 		touch "${id}.denoisedCR.tsv"
