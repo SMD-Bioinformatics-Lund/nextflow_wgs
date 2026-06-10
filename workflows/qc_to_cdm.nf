@@ -12,12 +12,12 @@ workflow QC_TO_CDM {
 	ch_cdm_done = channel.empty()
 
 	if (!val_skip_cdm_cron) {
-		qc_to_cdm(
+		create_cdm_cron(
 			ch_sample_meta.join(merge_qc_json.out.qc_cdm_merged, by: [0,1]),
 			val_results_output_dir,
 			val_cdm_assay
 		)
-		ch_cdm_done = qc_to_cdm.out.cdm_done
+		ch_cdm_done = create_cdm_cron.out.cdm_done
 	}
 
 	emit:
@@ -55,7 +55,7 @@ process merge_qc_json {
 }
 
 // Load QC data, emit: CDM (via middleman)
-process qc_to_cdm {
+process create_cdm_cron {
 	cpus 2
 	errorStrategy 'retry'
 	maxErrors 5
