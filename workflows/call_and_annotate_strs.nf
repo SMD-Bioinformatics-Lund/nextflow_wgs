@@ -356,8 +356,7 @@ process bgzip_index_expansionhunter_vcf {
 
 	script:
 		"""
-		cp ${eh_vcf} ${group}.expansionhunter.vcf
-		bgzip ${group}.expansionhunter.vcf
+		bgzip -c ${eh_vcf} > ${group}.expansionhunter.vcf.gz
 		tabix ${group}.expansionhunter.vcf.gz
 		echo "STR	${accessdir}/vcf/${group}.expansionhunter.vcf.gz" > ${group}_str.INFO
 
