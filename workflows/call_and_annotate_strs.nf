@@ -44,14 +44,16 @@ workflow CALL_AND_ANNOTATE_STRS {
 	bgzip_index_expansionhunter_vcf(ch_expansionhunter_vcf, val_accessdir)
 	ch_output_info = ch_output_info.mix(bgzip_index_expansionhunter_vcf.out.str_INFO)
 
-	reviewer_loci = new groovy.json.JsonSlurper()
+    // Extract STR loci ids from Expansionhunter catalog and pass
+    // as input to reviewer:
+	val_reviewer_loci = new groovy.json.JsonSlurper()
 		.parseText(val_expansionhunter_catalog.text)
 		.collect { locus_definition -> locus_definition.LocusId }
 		.findAll { locus -> locus }
 
 	ch_reviewer_input = expansionhunter.out.bam_vcf
 		.flatMap { group, id, bam, bai, vcf ->
-			reviewer_loci.collect { locus ->
+			val_reviewer_loci.collect { locus ->
 				tuple(group, id, bam, bai, vcf, locus)
 			}
 		}
