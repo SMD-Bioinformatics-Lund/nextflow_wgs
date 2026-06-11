@@ -8,7 +8,7 @@ include { SPLIT_NORMALIZE_SNVS } from './workflows/split_normalize_snvs.nf'
 include { VALIDATE_PARAMETERS  } from './workflows/validate_params.nf'
 include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
 
-include { vcfHasVariants; gatkRefConfig; gatkRefKey; gatkRefShards } from './workflows/util.nf'
+include { vcfHasVariants } from './workflows/util.nf'
 include { PREPARE_INPUT_AND_META_CHANNELS } from './workflows/prepare_input_and_meta_channels.nf'
 
 nextflow.enable.dsl=2
@@ -140,23 +140,27 @@ workflow NEXTFLOW_WGS {
 	ch_output_info = channel.empty() // Gather data for .INFO
 	ch_qc_json     = channel.empty() // Gather and merge QC JSONs per sample
 
-	PREPARE_INPUT_AND_META_CHANNELS(ch_samplesheet)
+	if (params.gatkcnv && (!params.containsKey('gatk_ref_csv') || !params.gatk_ref_csv)) {
+		error "params.gatk_ref_csv must be defined when params.gatkcnv is true"
+	}
+
+	PREPARE_INPUT_AND_META_CHANNELS(ch_samplesheet, params.gatkcnv ? params.gatk_ref_csv : null)
 
 	ch_sample_meta   = PREPARE_INPUT_AND_META_CHANNELS.out.sample_meta   // group, id, meta[:]
 	ch_proband_meta  = PREPARE_INPUT_AND_META_CHANNELS.out.proband_meta  // group, id(proband), meta[:] contains priority
 	ch_fastq_start   = PREPARE_INPUT_AND_META_CHANNELS.out.fastq         // group, id, read1, read2
 	ch_bam_start     = PREPARE_INPUT_AND_META_CHANNELS.out.bam           // group, id, read1, read2
 	ch_vcf_start     = PREPARE_INPUT_AND_META_CHANNELS.out.vcf           // group, vcf
+	ch_gatk_ref_meta = PREPARE_INPUT_AND_META_CHANNELS.out.gatk_ref_meta // group, id, gatk_ref[:]
 
 	// GATK-CNV reference shards:
-	// gatkRefShards() normalizes both config styles into shard tuples:
-	//   - WGS: params.gatk_ref_map may contain several reference sets selected by sample metadata.
-	//   - Panels: flat params.gatk_intervals/ploidymodel/gatkreffolders become one 'illumina' set.
-	// The sample-derived ref key keeps each sample paired with only the shards from its selected reference.
-	ch_gatk_ref_shards = params.gatkcnv ? channel.fromList(gatkRefShards(params)) : channel.empty()
-	ch_gatk_ref = params.gatkcnv ? ch_sample_meta
-			.map { group, id, meta ->
-					tuple(gatkRefKey(meta, params), group, id)
+	// PREPARE_INPUT_AND_META_CHANNELS resolves each sample against params.gatk_ref_csv
+	// by exact platform/sex match. The ref key keeps each sample paired with only
+	// the model shards from its selected reference.
+	ch_gatk_ref_shards = PREPARE_INPUT_AND_META_CHANNELS.out.gatk_ref_shards
+	ch_gatk_ref = params.gatkcnv ? ch_gatk_ref_meta
+			.map { group, id, gatk_ref ->
+					tuple(gatk_ref.key, group, id)
 			}
 			.combine(ch_gatk_ref_shards, by: 0)
 			.map { gatk_ref_key, group, id, ref_part, refpart_path ->
@@ -264,7 +268,10 @@ workflow NEXTFLOW_WGS {
 	// COVERAGE //
 
 	if (params.gatkcov) {
-		gatkcov(ch_sample_meta.join(ch_bam_bai, by: [0, 1]))
+		ch_gatkcov_input = ch_sample_meta
+			.join(ch_gatk_ref_meta, by: [0, 1])
+			.join(ch_bam_bai, by: [0, 1])
+		gatkcov(ch_gatkcov_input)
 		ch_versions = ch_versions.mix(gatkcov.out.versions.first())
 	}
 
@@ -549,9 +556,10 @@ workflow NEXTFLOW_WGS {
 		// gatk_ref.intervals is used by CollectReadCounts and gatk_ref.ploidy_model
 		// is carried forward to DetermineGermlineContigPloidy.
 		ch_gatk_coverage_input = ch_sample_meta
+			.join(ch_gatk_ref_meta, by: [0, 1])
 			.join(ch_bam_bai, by: [0, 1])
-			.map { group, id, meta, bam, bai ->
-				tuple(group, id, meta, gatkRefConfig(meta, params), bam, bai)
+			.map { group, id, meta, gatk_ref, bam, bai ->
+				tuple(group, id, meta, gatk_ref, bam, bai)
 			}
 
 		gatk_coverage(ch_gatk_coverage_input)
@@ -565,7 +573,7 @@ workflow NEXTFLOW_WGS {
 		ch_gatk_call_cnv_input = ch_gatk_coverage
 			.join(ch_gatk_ploidy, by: [0, 1])
 			.map { group, id, meta, gatk_ref, tsv, _meta, _gatk_ref, ploidy ->
-				tuple(gatkRefKey(meta, params), group, id, meta, gatk_ref, tsv, ploidy)
+				tuple(gatk_ref.key, group, id, meta, gatk_ref, tsv, ploidy)
 			}
 			.combine(ch_gatk_ref, by: [0, 1, 2])
 			.map { gatk_ref_key, group, id, meta, gatk_ref, tsv, ploidy, i, refpart ->
@@ -579,7 +587,7 @@ workflow NEXTFLOW_WGS {
 		ch_gatk_postprocess_input = gatk_call_cnv.out.gatk_calls
 			.groupTuple(by : [0, 1, 2])
 			.join(ch_gatk_ploidy.map { group, id, meta, gatk_ref, ploidy ->
-				tuple(gatkRefKey(meta, params), group, id, ploidy)
+				tuple(gatk_ref.key, group, id, ploidy)
 			}, by: [0, 1, 2])
 			.join(ch_gatk_ref.groupTuple(by : [0, 1, 2]), by: [0, 1, 2])
 			.map { gatk_ref_key, group, id, i, tar, ploidy, shard_no, shard ->
@@ -2751,7 +2759,7 @@ process gatkcov {
 	time '5h'
 
 	input:
-		tuple val(group), val(id), val(meta), path(bam), path(bai)
+		tuple val(group), val(id), val(meta), val(gatk_ref), path(bam), path(bai)
 
 	output:
 		tuple val(group), val(id), val(meta.type), val(meta.sex), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_plot
@@ -2759,8 +2767,6 @@ process gatkcov {
 		path "*versions.yml", emit: versions
 
 	script:
-
-		def PON = gatkRefConfig(meta, params).pon
 
 		"""
 		source activate gatk4-env
@@ -2770,7 +2776,7 @@ process gatkcov {
 			--interval-merging-rule OVERLAPPING_ONLY -O ${bam}.hdf5
 
 		gatk --java-options "-Xmx30g" DenoiseReadCounts \\
-			-I ${bam}.hdf5 --count-panel-of-normals ${PON[meta.sex]} \\
+			-I ${bam}.hdf5 --count-panel-of-normals ${gatk_ref.pon} \\
 			--standardized-copy-ratios ${id}.standardizedCR.tsv \\
 			--denoised-copy-ratios ${id}.denoisedCR.tsv
 
@@ -2784,9 +2790,8 @@ process gatkcov {
 		"""
 
 	stub:
-		def PON = gatkRefConfig(meta, params).pon
 		"""
-		echo ${PON[meta.sex]}
+		echo ${gatk_ref.pon}
 		source activate gatk4-env
 		touch "${id}.standardizedCR.tsv"
 		touch "${id}.denoisedCR.tsv"
