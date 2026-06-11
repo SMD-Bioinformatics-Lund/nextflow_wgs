@@ -153,10 +153,10 @@ workflow NEXTFLOW_WGS {
 	//   - WGS: params.gatk_ref_map may contain several reference sets selected by sample metadata.
 	//   - Panels: flat params.gatk_intervals/ploidymodel/gatkreffolders become one 'illumina' set.
 	// The sample-derived ref key keeps each sample paired with only the shards from its selected reference.
-	ch_gatk_ref_shards = params.gatkcnv ? channel.fromList(gatkRefShards()) : channel.empty()
+	ch_gatk_ref_shards = params.gatkcnv ? channel.fromList(gatkRefShards(params)) : channel.empty()
 	ch_gatk_ref = params.gatkcnv ? ch_sample_meta
 			.map { group, id, meta ->
-					tuple(gatkRefKey(meta), group, id)
+					tuple(gatkRefKey(meta, params), group, id)
 			}
 			.combine(ch_gatk_ref_shards, by: 0)
 			.map { gatk_ref_key, group, id, ref_part, refpart_path ->
@@ -551,7 +551,7 @@ workflow NEXTFLOW_WGS {
 		ch_gatk_coverage_input = ch_sample_meta
 			.join(ch_bam_bai, by: [0, 1])
 			.map { group, id, meta, bam, bai ->
-				tuple(group, id, meta, gatkRefConfig(meta), bam, bai)
+				tuple(group, id, meta, gatkRefConfig(meta, params), bam, bai)
 			}
 
 		gatk_coverage(ch_gatk_coverage_input)
@@ -565,7 +565,7 @@ workflow NEXTFLOW_WGS {
 		ch_gatk_call_cnv_input = ch_gatk_coverage
 			.join(ch_gatk_ploidy, by: [0, 1])
 			.map { group, id, meta, gatk_ref, tsv, _meta, _gatk_ref, ploidy ->
-				tuple(gatkRefKey(meta), group, id, meta, gatk_ref, tsv, ploidy)
+				tuple(gatkRefKey(meta, params), group, id, meta, gatk_ref, tsv, ploidy)
 			}
 			.combine(ch_gatk_ref, by: [0, 1, 2])
 			.map { gatk_ref_key, group, id, meta, gatk_ref, tsv, ploidy, i, refpart ->
@@ -579,7 +579,7 @@ workflow NEXTFLOW_WGS {
 		ch_gatk_postprocess_input = gatk_call_cnv.out.gatk_calls
 			.groupTuple(by : [0, 1, 2])
 			.join(ch_gatk_ploidy.map { group, id, meta, gatk_ref, ploidy ->
-				tuple(gatkRefKey(meta), group, id, ploidy)
+				tuple(gatkRefKey(meta, params), group, id, ploidy)
 			}, by: [0, 1, 2])
 			.join(ch_gatk_ref.groupTuple(by : [0, 1, 2]), by: [0, 1, 2])
 			.map { gatk_ref_key, group, id, i, tar, ploidy, shard_no, shard ->
@@ -2760,7 +2760,7 @@ process gatkcov {
 
 	script:
 
-		def PON = gatkRefConfig(meta).pon
+		def PON = gatkRefConfig(meta, params).pon
 
 		"""
 		source activate gatk4-env
@@ -2784,7 +2784,7 @@ process gatkcov {
 		"""
 
 	stub:
-		def PON = gatkRefConfig(meta).pon
+		def PON = gatkRefConfig(meta, params).pon
 		"""
 		echo ${PON[meta.sex]}
 		source activate gatk4-env

@@ -41,14 +41,14 @@ def vcfHasVariants(Path vcf) {
  * wraps this into the same map shape used by profiles with multiple
  * reference sets.
  */
-def gatkDefaultRefConfig() {
+def gatkDefaultRefConfig(workflowParams) {
 	[
-		intervals: params.gatk_intervals,
-		ploidy_model: params.ploidymodel,
-		ref_folders: params.gatkreffolders,
+		intervals: workflowParams.gatk_intervals,
+		ploidy_model: workflowParams.ploidymodel,
+		ref_folders: workflowParams.gatkreffolders,
 		pon: [
-			F: params.gatk_pon_female,
-			M: params.gatk_pon_male
+			F: workflowParams.gatk_pon_female,
+			M: workflowParams.gatk_pon_male
 		]
 	]
 }
@@ -60,12 +60,12 @@ def gatkDefaultRefConfig() {
  * from sample metadata, for example illumina vs illuminax. Profiles without
  * params.gatk_ref_map fall back to one default config keyed as 'illumina'.
  */
-def gatkRefConfigs() {
-	if (params.containsKey('gatk_ref_map')) {
-		return params.gatk_ref_map
+def gatkRefConfigs(workflowParams) {
+	if (workflowParams.containsKey('gatk_ref_map')) {
+		return workflowParams.gatk_ref_map
 	}
 
-	return [illumina: gatkDefaultRefConfig()]
+	return [illumina: gatkDefaultRefConfig(workflowParams)]
 }
 
 /*
@@ -75,8 +75,8 @@ def gatkRefConfigs() {
  * default 'illumina' key. This lets WGS route samples by platform while keeping
  * single-reference panel profiles compatible with the same downstream flow.
  */
-def gatkRefKey(meta) {
-	def refs = gatkRefConfigs()
+def gatkRefKey(meta, workflowParams) {
+	def refs = gatkRefConfigs(workflowParams)
 	def platform = meta.platform?.toString()
 	def sex = meta.sex?.toString()
 	def candidates = [
@@ -104,9 +104,9 @@ def gatkRefKey(meta) {
  * The key is carried through channels so sharded CNV calls and postprocessing
  * are joined only against reference shards from the same config.
  */
-def gatkRefConfig(meta) {
-	def key = gatkRefKey(meta)
-	def ref = gatkRefConfigs()[key]
+def gatkRefConfig(meta, workflowParams) {
+	def key = gatkRefKey(meta, workflowParams)
+	def ref = gatkRefConfigs(workflowParams)[key]
 	return ref + [key: key]
 }
 
@@ -118,8 +118,8 @@ def gatkRefConfig(meta) {
  * shard: 'i' is the shard label used in output names, and 'refpart' is the
  * model shard folder passed to GATK with --model.
  */
-def gatkRefShards() {
-	gatkRefConfigs().collectMany { key, ref ->
+def gatkRefShards(workflowParams) {
+	gatkRefConfigs(workflowParams).collectMany { key, ref ->
 		['intervals', 'ploidy_model', 'ref_folders'].each { field ->
 			if (!ref.containsKey(field)) {
 				error "GATK reference config '${key}' is missing '${field}'"
@@ -148,13 +148,14 @@ def gatkRefShards() {
 
 process bgzip_index_vcf {
 	cpus 16
-	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
+	publishDir "${publish_dir}", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
 	tag "$group"
 	time '1h'
 	memory '5 GB'
 
 	input:
 		tuple val(group), val(type), path(vcf)
+		val publish_dir
 
 	output:
 		tuple val(group), val(type), path("*.vcf.gz"), path("*.vcf.gz.tbi"), emit: compressed_indexed_vcf
