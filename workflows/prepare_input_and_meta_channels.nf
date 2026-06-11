@@ -51,7 +51,7 @@ def gatkRefConfigsFromCsv(gatkRefCsv) {
 	def rows = readCsvRows(gatkRefCsv)
 	rows.collectEntries { row ->
 		def key = gatkRefKey(row.platform, row.sex)
-		[(key): [
+		[key: [
 			key: key,
 			platform: row.platform,
 			sex: row.sex,
