@@ -151,20 +151,21 @@ workflow NEXTFLOW_WGS {
 	ch_fastq_start   = PREPARE_INPUT_AND_META_CHANNELS.out.fastq         // group, id, read1, read2
 	ch_bam_start     = PREPARE_INPUT_AND_META_CHANNELS.out.bam           // group, id, read1, read2
 	ch_vcf_start     = PREPARE_INPUT_AND_META_CHANNELS.out.vcf           // group, vcf
-	ch_gatk_ref_meta = PREPARE_INPUT_AND_META_CHANNELS.out.gatk_ref_meta // group, id, gatk_ref[:]
+	ch_gatk_ref_meta = PREPARE_INPUT_AND_META_CHANNELS.out.gatk_ref_meta // platform, sex, group, id, gatk_ref[:]
+	ch_gatk_ref_by_sample = params.gatkcnv ? ch_gatk_ref_meta
+			.map { platform, sex, group, id, gatk_ref ->
+					tuple(group, id, gatk_ref)
+			} : channel.empty()
 
 	// GATK-CNV reference shards:
 	// PREPARE_INPUT_AND_META_CHANNELS resolves each sample against params.gatk_ref_csv
-	// by exact platform/sex match. The ref key keeps each sample paired with only
-	// the model shards from its selected reference.
+	// by channel join on normalized platform/sex. The same platform/sex join
+	// keeps each sample paired with only the model shards from its selected reference.
 	ch_gatk_ref_shards = PREPARE_INPUT_AND_META_CHANNELS.out.gatk_ref_shards
 	ch_gatk_ref = params.gatkcnv ? ch_gatk_ref_meta
-			.map { group, id, gatk_ref ->
-					tuple(gatk_ref.key, group, id)
-			}
-			.combine(ch_gatk_ref_shards, by: 0)
-			.map { gatk_ref_key, group, id, ref_part, refpart_path ->
-					tuple(gatk_ref_key, group, id, ref_part, refpart_path)
+			.combine(ch_gatk_ref_shards, by: [0, 1])
+			.map { platform, sex, group, id, gatk_ref, ref_part, refpart_path ->
+					tuple(group, id, ref_part, refpart_path)
 			} : channel.empty()
 	ch_gatk_ref.view()
 
@@ -269,7 +270,7 @@ workflow NEXTFLOW_WGS {
 
 	if (params.gatkcov) {
 		ch_gatkcov_input = ch_sample_meta
-			.join(ch_gatk_ref_meta, by: [0, 1])
+			.join(ch_gatk_ref_by_sample, by: [0, 1])
 			.join(ch_bam_bai, by: [0, 1])
 		gatkcov(ch_gatkcov_input)
 		ch_versions = ch_versions.mix(gatkcov.out.versions.first())
@@ -556,7 +557,7 @@ workflow NEXTFLOW_WGS {
 		// gatk_ref.intervals is used by CollectReadCounts and gatk_ref.ploidy_model
 		// is carried forward to DetermineGermlineContigPloidy.
 		ch_gatk_coverage_input = ch_sample_meta
-			.join(ch_gatk_ref_meta, by: [0, 1])
+			.join(ch_gatk_ref_by_sample, by: [0, 1])
 			.join(ch_bam_bai, by: [0, 1])
 			.map { group, id, meta, gatk_ref, bam, bai ->
 				tuple(group, id, meta, gatk_ref, bam, bai)
@@ -568,15 +569,14 @@ workflow NEXTFLOW_WGS {
 		ch_gatk_ploidy = gatk_call_ploidy.out.call_ploidy
 
 		// Run GermlineCNVCaller once per selected model shard.
-		// The join key includes the GATK ref key so WGS samples using different
-		// platforms cannot be combined with shards from the wrong reference set.
+		// ch_gatk_ref has already paired each sample with shards via platform/sex.
 		ch_gatk_call_cnv_input = ch_gatk_coverage
 			.join(ch_gatk_ploidy, by: [0, 1])
 			.map { group, id, meta, gatk_ref, tsv, _meta, _gatk_ref, ploidy ->
-				tuple(gatk_ref.key, group, id, meta, gatk_ref, tsv, ploidy)
+				tuple(group, id, meta, gatk_ref, tsv, ploidy)
 			}
-			.combine(ch_gatk_ref, by: [0, 1, 2])
-			.map { gatk_ref_key, group, id, meta, gatk_ref, tsv, ploidy, i, refpart ->
+			.combine(ch_gatk_ref, by: [0, 1])
+			.map { group, id, meta, gatk_ref, tsv, ploidy, i, refpart ->
 				tuple(group, id, meta, gatk_ref, tsv, ploidy, i, refpart)
 			}
 
@@ -585,12 +585,12 @@ workflow NEXTFLOW_WGS {
 		// Recombine all shard calls for one sample, add the matching ploidy calls
 		// and model shard paths, then postprocess them into the final GATK CNV VCFs.
 		ch_gatk_postprocess_input = gatk_call_cnv.out.gatk_calls
-			.groupTuple(by : [0, 1, 2])
+			.groupTuple(by : [0, 1])
 			.join(ch_gatk_ploidy.map { group, id, meta, gatk_ref, ploidy ->
-				tuple(gatk_ref.key, group, id, ploidy)
-			}, by: [0, 1, 2])
-			.join(ch_gatk_ref.groupTuple(by : [0, 1, 2]), by: [0, 1, 2])
-			.map { gatk_ref_key, group, id, i, tar, ploidy, shard_no, shard ->
+				tuple(group, id, ploidy)
+			}, by: [0, 1])
+			.join(ch_gatk_ref.groupTuple(by : [0, 1]), by: [0, 1])
+			.map { group, id, i, tar, ploidy, shard_no, shard ->
 				tuple(group, id, i, tar, ploidy, shard_no, shard)
 			}
 
@@ -3106,7 +3106,7 @@ process gatk_call_cnv {
 
 
 	output:
-		tuple val(gatk_ref.key), val(group), val(id), val(ref_part), path("${group}_${ref_part}.tar"), emit: gatk_calls
+		tuple val(group), val(id), val(ref_part), path("${group}_${ref_part}.tar"), emit: gatk_calls
 		path "*versions.yml", emit: versions
 
 	script:

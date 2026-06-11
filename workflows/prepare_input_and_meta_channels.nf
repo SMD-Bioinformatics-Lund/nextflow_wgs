@@ -33,8 +33,16 @@ def readCsvRows(csvPath) {
 	}
 }
 
+def normalizePlatform(platform) {
+	platform?.toString()?.trim()?.toLowerCase()
+}
+
+def normalizeSex(sex) {
+	sex?.toString()?.trim()?.toUpperCase()
+}
+
 def gatkRefKey(platform, sex) {
-	"${platform?.toString()?.trim()?.toLowerCase()}_${sex?.toString()?.trim()?.toUpperCase()}"
+	"${normalizePlatform(platform)}_${normalizeSex(sex)}"
 }
 
 /*
@@ -47,40 +55,33 @@ def gatkRefKey(platform, sex) {
  * CSV content is validated outside the pipeline; validate_params.nf only checks
  * that the CSV path exists and is non-empty.
  */
-def gatkRefConfigsFromCsv(gatkRefCsv) {
+def gatkRefRowsFromCsv(gatkRefCsv) {
 	def rows = readCsvRows(gatkRefCsv)
-	rows.collectEntries { row ->
-		def key = gatkRefKey(row.platform, row.sex)
-		[key: [
-			key: key,
-			platform: row.platform,
-			sex: row.sex,
+	rows.collect { row ->
+		def platform = normalizePlatform(row.platform)
+		def sex = normalizeSex(row.sex)
+		def gatk_ref = [
+			key: gatkRefKey(platform, sex),
+			platform: platform,
+			sex: sex,
 			intervals: row.intervals,
 			ploidy_model: row.ploidy_model,
 			ref_folders: row.ref_folders,
 			pon: row.pon
-		]]
+		]
+		tuple(platform, sex, gatk_ref)
 	}
-}
-
-def gatkRefConfigForSample(row, gatkRefConfigs) {
-	def key = gatkRefKey(row.platform, row.sex)
-	def ref = gatkRefConfigs[key]
-	if (!ref) {
-		error "No GATK reference found for sample ${row.id} with platform='${row.platform}' and sex='${row.sex}'. Expected key '${key}' in GATK reference CSV. Available keys: ${gatkRefConfigs.keySet().join(', ')}"
-	}
-	return ref
 }
 
 /*
  * Expand each selected reference into GermlineCNVCaller model shards.
  * The ref_folders file is expected to contain columns 'i' and 'refpart'.
  */
-def gatkRefShardsFromConfigs(gatkRefConfigs) {
-	gatkRefConfigs.collectMany { key, ref ->
-		def rows = readCsvRows(ref.ref_folders)
+def gatkRefShardsFromRows(gatkRefRows) {
+	gatkRefRows.collectMany { platform, sex, gatk_ref ->
+		def rows = readCsvRows(gatk_ref.ref_folders)
 		rows.collect { row ->
-			tuple(key, row.i, row.refpart)
+			tuple(platform, sex, row.i, row.refpart)
 		}
 	}
 }
@@ -92,7 +93,7 @@ workflow PREPARE_INPUT_AND_META_CHANNELS {
 	val_gatk_ref_csv
 
 	main:
-	def gatk_ref_configs = val_gatk_ref_csv ? gatkRefConfigsFromCsv(val_gatk_ref_csv) : [:]
+	def gatk_ref_rows = val_gatk_ref_csv ? gatkRefRowsFromCsv(val_gatk_ref_csv) : []
 
 	ch_sample_meta = ch_samplesheet.map { row ->
 		def meta = sampleMeta(row)
@@ -135,12 +136,18 @@ workflow PREPARE_INPUT_AND_META_CHANNELS {
 			tuple(meta.group, row.read1)
 		}
 
-	ch_gatk_ref_meta = val_gatk_ref_csv ? ch_samplesheet.map { row ->
-		def gatk_ref = gatkRefConfigForSample(row, gatk_ref_configs)
-		tuple(row.group, row.id, gatk_ref)
+	ch_gatk_ref_rows = val_gatk_ref_csv ? channel.fromList(gatk_ref_rows) : channel.empty()
+	ch_gatk_sample_keys = val_gatk_ref_csv ? ch_samplesheet.map { row ->
+		tuple(normalizePlatform(row.platform), normalizeSex(row.sex), row.group, row.id)
 	} : channel.empty()
 
-	ch_gatk_ref_shards = val_gatk_ref_csv ? channel.fromList(gatkRefShardsFromConfigs(gatk_ref_configs)) : channel.empty()
+	ch_gatk_ref_meta = val_gatk_ref_csv ? ch_gatk_sample_keys
+		.join(ch_gatk_ref_rows, by: [0, 1])
+		.map { platform, sex, group, id, gatk_ref ->
+			tuple(platform, sex, group, id, gatk_ref)
+		} : channel.empty()
+
+	ch_gatk_ref_shards = val_gatk_ref_csv ? channel.fromList(gatkRefShardsFromRows(gatk_ref_rows)) : channel.empty()
 
 	emit:
 		sample_meta = ch_sample_meta
