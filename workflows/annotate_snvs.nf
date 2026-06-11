@@ -7,16 +7,12 @@ workflow SNV_ANNOTATE {
 
 	take:
 	ch_bam_bai         // ch:   [ val(group), path(bam), path(bai) ]
-	ch_snv_indels_vcf  // ch:   [ val(group), path(vcf) ]
-	ch_ped             // ch:   [ val(group), val(type), path(ped) ]
+	ch_snv_indels_vcf
+	ch_ped
+	val_analysis_mode
 	val_run_cftr       // bool: Whether to rescore CFTR 5T/TG homopolymer variants.
 
 	main:
-
-	// TODO: Better system so these two do not have to be redefined here.
-	params.results_output_dir = params.outdir + '/' + params.subdir
-	params.mode = file(params.csv).countLines() > 2 ? "family" : "single"
-
 	ch_versions = channel.empty()
 	ch_output_info = channel.empty()
 
@@ -49,7 +45,7 @@ workflow SNV_ANNOTATE {
 	inher_models(ch_inher_models_input)
 
 	// SCORE VARIANTS //
-	genmodscore(inher_models.out.vcf)
+	genmodscore(inher_models.out.vcf, val_analysis_mode)
 	vcf_completion_ch = channel.empty()
 	if (val_run_cftr) {
 		bgzip_index_vcf(genmodscore.out.scored_vcf)
@@ -482,6 +478,7 @@ process genmodscore {
 
 	input:
 		tuple val(group), val(type), path(vcf)
+		val analysis_mode
 
 	output:
 		tuple val(group), val(type), path("${group_score}.scored.vcf"), emit: scored_vcf
@@ -490,7 +487,9 @@ process genmodscore {
 	script:
 		group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
 
-		if ( params.mode == "family" && params.antype == "wgs" ) {
+        // TODO: Break up this process into subprocesses
+        // TODO: Add a more specific bool-flag for whatever params.antype == wgs does.
+		if ( analysis_mode == "family" && params.antype == "wgs" ) {
 			"""
 			genmod score -i $group_score -c $params.rank_model -r $vcf -o ${group_score}.only_rankscore.vcf
 			genmod compound \
@@ -543,7 +542,7 @@ def genmodscore_version(task) {
 // Bgzipping and indexing VCF:
 process vcf_completion {
 	cpus 16
-	publishDir "${params.results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
+	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
 	tag "$group"
 	time '1h'
 	memory '5 GB'
