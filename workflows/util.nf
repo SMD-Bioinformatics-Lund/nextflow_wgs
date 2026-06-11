@@ -41,7 +41,6 @@ process bgzip_index_vcf {
 
 	input:
 		tuple val(group), val(type), path(vcf)
-		val publish_dir
 
 	output:
 		tuple val(group), val(type), path("*.vcf.gz"), path("*.vcf.gz.tbi"), emit: compressed_indexed_vcf
