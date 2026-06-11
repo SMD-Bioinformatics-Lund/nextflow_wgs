@@ -66,7 +66,9 @@ workflow {
 		file(params.genome_file),
 		file("${params.genome_file}.fai"),
 		file(params.expansionhunter_catalog),
-		params.accessdir
+		params.accessdir,
+		params.smn,
+		params.str
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
@@ -146,6 +148,8 @@ workflow NEXTFLOW_WGS {
 	val_genome_fai                  // path:    Reference FASTA index.
 	val_expansionhunter_catalog     // path:    ExpansionHunter variant catalog JSON.
 	val_accessdir                   // string:  Base access path used in output metadata/INFO paths
+	val_smn                         // bool:    Whether to run SMN copy number calling
+	val_str                         // bool:    Whether to call and annotate STRs
 
 	main:
 	// Output channels:
@@ -500,7 +504,7 @@ workflow NEXTFLOW_WGS {
 		ch_panel_svs_present = channel.empty()
 		ch_panel_svs_absent = channel.empty()
 		ch_postprocessed_merged_sv_vcf = channel.empty()
-		if(params.smn) {
+		if(val_smn) {
 			// SMN CALLING //
 			SMNCopyNumberCaller(ch_bam_bai)
 			ch_output_info = ch_output_info.mix(SMNCopyNumberCaller.out.smn_INFO)
@@ -515,7 +519,7 @@ workflow NEXTFLOW_WGS {
 			ch_versions = ch_versions.mix(SMNCopyNumberCaller.out.versions.first())
         }
 
-        if(params.str) {
+        if(val_str) {
 			// CALL REPEATS //
 			CALL_AND_ANNOTATE_STRS(
 				ch_bam_bai,
