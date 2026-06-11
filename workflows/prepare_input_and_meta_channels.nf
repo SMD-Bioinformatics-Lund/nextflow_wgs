@@ -25,6 +25,7 @@ def readCsvRows(csvPath) {
 	def csv = file(csvPath)
 	def lines = csv.readLines().findAll { line -> line.trim() }
 	def header = lines[0].split(',', -1)*.trim()
+	header[0] = header[0].replaceFirst(/^\uFEFF/, '')
 
 	lines.tail().collect { line ->
 		def values = line.split(',', -1)*.trim()
@@ -33,7 +34,7 @@ def readCsvRows(csvPath) {
 }
 
 def gatkRefKey(platform, sex) {
-	"${platform}_${sex}"
+	"${platform?.toString()?.trim()?.toLowerCase()}_${sex?.toString()?.trim()?.toUpperCase()}"
 }
 
 /*
@@ -66,7 +67,7 @@ def gatkRefConfigForSample(row, gatkRefConfigs) {
 	def key = gatkRefKey(row.platform, row.sex)
 	def ref = gatkRefConfigs[key]
 	if (!ref) {
-		error "No GATK reference found for sample ${row.id} with platform='${row.platform}' and sex='${row.sex}'. Expected key '${key}' in GATK reference CSV."
+		error "No GATK reference found for sample ${row.id} with platform='${row.platform}' and sex='${row.sex}'. Expected key '${key}' in GATK reference CSV. Available keys: ${gatkRefConfigs.keySet().join(', ')}"
 	}
 	return ref
 }
