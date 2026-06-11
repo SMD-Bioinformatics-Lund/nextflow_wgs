@@ -152,6 +152,7 @@ workflow NEXTFLOW_WGS {
 	ch_bam_start     = PREPARE_INPUT_AND_META_CHANNELS.out.bam           // group, id, read1, read2
 	ch_vcf_start     = PREPARE_INPUT_AND_META_CHANNELS.out.vcf           // group, vcf
 	ch_gatk_ref_meta = PREPARE_INPUT_AND_META_CHANNELS.out.gatk_ref_meta // platform, sex, group, id, gatk_ref[:]
+
 	ch_gatk_ref_by_sample = params.gatkcnv ? ch_gatk_ref_meta
 			.map { platform, sex, group, id, gatk_ref ->
 					tuple(group, id, gatk_ref)
@@ -167,7 +168,6 @@ workflow NEXTFLOW_WGS {
 			.map { platform, sex, group, id, gatk_ref, ref_part, refpart_path ->
 					tuple(group, id, ref_part, refpart_path)
 			} : channel.empty()
-	ch_gatk_ref.view()
 
 	genes_analyzed(ch_proband_meta)
 	rename_bam(ch_bam_start) // See process for more info about why this is needed.
