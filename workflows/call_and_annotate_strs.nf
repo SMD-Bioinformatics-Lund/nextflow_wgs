@@ -73,11 +73,11 @@ workflow CALL_AND_ANNOTATE_STRS {
 	ch_versions = ch_versions.mix(stranger.out.versions.first())
 
 	emit:
-	output_info       = ch_output_info
-	versions          = ch_versions
-	reviewer_plot_svg = reviewer.out.svg
-	vcf               = bgzip_index_expansionhunter_vcf.out.vcf
-	tbi               = bgzip_index_expansionhunter_vcf.out.tbi
+	vcf               = bgzip_index_expansionhunter_vcf.out.vcf // channel: [ val(group), path(vcf.gz) ]
+	tbi               = bgzip_index_expansionhunter_vcf.out.tbi // channel: [ val(group), path(vcf.gz.tbi) ]
+	reviewer_plot_svg = reviewer.out.svg                        // channel: path(svg)
+	output_info       = ch_output_info                          // channel: [ val(group), path(INFO) ]
+	versions          = ch_versions                             // channel: path(versions.yml)
 }
 
 
