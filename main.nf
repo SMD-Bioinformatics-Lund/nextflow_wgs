@@ -68,7 +68,61 @@ workflow {
 			.map{ row -> row.group },
 		ch_versions
 	)
+	workflow.onComplete {
 
+			def msg = """\
+			Pipeline execution summary
+			---------------------------
+			Completed at: ${workflow.complete}
+			Duration    : ${workflow.duration}
+			Success     : ${workflow.success}
+			scriptFile  : ${workflow.scriptFile}
+			workDir     : ${workflow.workDir}
+			csv         : ${params.csv}
+			exit status : ${workflow.exitStatus}
+			errorMessage: ${workflow.errorMessage}
+			errorReport :
+				"""
+				.stripIndent()
+			def error = """\
+				${workflow.errorReport}
+			"""
+				.stripIndent()
+
+			def base = file(params.csv).getBaseName()
+			File logFile = new File("${params.crondir}/logs/${base}.complete")
+			if (!logFile.getParentFile().exists()) {
+				logFile.getParentFile().mkdirs()
+			}
+			logFile.text = msg
+
+		if (error) {
+			def error_report = """\
+			errorReport :
+				${error}
+				"""
+			logFile.append(error_report)
+		}
+	}
+
+	workflow.onError {
+
+		def msg = """\
+		Success     : ${workflow.success}
+		scriptFile  : ${workflow.scriptFile}
+		workDir     : ${workflow.workDir}
+		csv         : ${params.csv}
+		errorMessage: ${workflow.errorMessage}
+		"""
+		def base = file(params.csv).getBaseName()
+		File logFile = new File("${params.crondir}/logs/${base}.complete")
+		if ( !logFile.exists() ) {
+			if (!logFile.getParentFile().exists()) {
+				logFile.getParentFile().mkdirs()
+			}
+			logFile.text = msg
+		}
+	}
 }
 
 
@@ -744,63 +798,6 @@ workflow NEXTFLOW_WGS {
 	output_files(ch_output_info.groupTuple())
 	// SCOUT YAML
 	create_yaml(ch_proband_meta.join(ch_ped_base).join(output_files.out.yaml_INFO))
-
-	
-	.onComplete {
-
-			def msg = """\
-			Pipeline execution summary
-			---------------------------
-			Completed at: ${workflow.complete}
-			Duration    : ${workflow.duration}
-			Success     : ${workflow.success}
-			scriptFile  : ${workflow.scriptFile}
-			workDir     : ${workflow.workDir}
-			csv         : ${params.csv}
-			exit status : ${workflow.exitStatus}
-			errorMessage: ${workflow.errorMessage}
-			errorReport :
-				"""
-				.stripIndent()
-			def error = """\
-				${workflow.errorReport}
-			"""
-				.stripIndent()
-
-			def base = file(params.csv).getBaseName()
-			File logFile = new File("${params.crondir}/logs/${base}.complete")
-			if (!logFile.getParentFile().exists()) {
-				logFile.getParentFile().mkdirs()
-			}
-			logFile.text = msg
-
-		if (error) {
-			def error_report = """\
-			errorReport :
-				${error}
-				"""
-			logFile.append(error_report)
-		}
-	}
-
-	.onError {
-
-		def msg = """\
-		Success     : ${workflow.success}
-		scriptFile  : ${workflow.scriptFile}
-		workDir     : ${workflow.workDir}
-		csv         : ${params.csv}
-		errorMessage: ${workflow.errorMessage}
-		"""
-		def base = file(params.csv).getBaseName()
-		File logFile = new File("${params.crondir}/logs/${base}.complete")
-		if ( !logFile.exists() ) {
-			if (!logFile.getParentFile().exists()) {
-				logFile.getParentFile().mkdirs()
-			}
-			logFile.text = msg
-		}
-	}
 
 	emit:
 		versions = ch_versions
