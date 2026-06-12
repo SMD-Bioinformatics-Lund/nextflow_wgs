@@ -142,7 +142,7 @@ workflow PREPARE_INPUT_AND_META_CHANNELS {
 	} : channel.empty()
 
 	ch_gatk_ref_meta = val_gatk_ref_csv ? ch_gatk_sample_keys
-		.join(ch_gatk_ref_rows, by: [0, 1])
+		.combine(ch_gatk_ref_rows, by: [0, 1])
 		.map { platform, sex, group, id, gatk_ref ->
 			tuple(platform, sex, group, id, gatk_ref)
 		} : channel.empty()
