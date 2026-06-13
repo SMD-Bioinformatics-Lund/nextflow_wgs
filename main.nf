@@ -199,7 +199,6 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// ALIGN //
-	//TODO: why do we have a params.align conditional anyway?
 	ch_dedup_stats = channel.empty()
 	if (val_align) {
 		bwa_align(ch_fastq_start)
@@ -917,9 +916,6 @@ process fastp {
 		tuple val(group), val(id), path("${id}_R1_a_q_u_trimmed.fq.gz"), path("${id}_R2_a_q_u_trimmed.fq.gz"), emit: fastq_trimmed_reads
 		path("*versions.yml"), emit: versions
 
-	when:
-		params.umi
-
 	script:
 		"""
 		fastp -i $fq_r1 -I $fq_r2 --stdout \\
@@ -967,9 +963,6 @@ process bwa_align {
 	output:
 		tuple val(group), val(id), path("${id}_merged.bam"), path("${id}_merged.bam.bai"), emit: bam_bai
 		path "*versions.yml", emit: versions
-
-	when:
-		params.align
 
 	script:
 		"""
