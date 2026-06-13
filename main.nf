@@ -58,7 +58,7 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio, params.run_melt)
+	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio, params.run_melt, params.skip_mito)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -134,6 +134,7 @@ workflow NEXTFLOW_WGS {
 	val_analysis_mode  // string:  Analysis mode derived from sample count, either "single" or "family"
 	val_is_trio        // bool:    Whether the input CSV contains enough samples for trio analysis
 	val_run_melt       // bool:    Whether melt should be run?
+	val_skip_mito      // bool:    Whether mitochondrial analysis should be skipped
 
 	main:
 	// Output channels:
@@ -310,7 +311,7 @@ workflow NEXTFLOW_WGS {
  
 	// MITO SNVS and SVs
     // TODO: Break up into workflow(s)
-	if (!params.skip_mito) { 
+	if (!val_skip_mito) { 
 
 		fetch_MTseqs(ch_bam_bai)
 
