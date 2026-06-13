@@ -58,7 +58,7 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio)
+	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio, params.run_melt)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -133,6 +133,7 @@ workflow NEXTFLOW_WGS {
 	ch_samplesheet     // channel: [ val(samplesheet_row) ]
 	val_analysis_mode  // string:  Analysis mode derived from sample count, either "single" or "family"
 	val_is_trio        // bool:    Whether the input CSV contains enough samples for trio analysis
+	val_run_melt       // bool:    Whether melt should be run?
 
 	main:
 	// Output channels:
@@ -161,7 +162,7 @@ workflow NEXTFLOW_WGS {
 	ch_output_info = ch_output_info.mix(bamtoyaml.out.bamchoice_INFO)
 
 	ch_bam_start_dedup_dummy = channel.empty()
-	if(params.run_melt) {
+	if(val_run_melt) {
 		dedupdummy(ch_bam_start)
 		ch_bam_start_dedup_dummy = dedupdummy.out.dedup_dummy
 	}
@@ -235,10 +236,10 @@ workflow NEXTFLOW_WGS {
 				qc.mean_depth = parsed_qc.mean_coverage
 			}
 
-			if (params.run_melt && !qc.ins_size) {
+			if (val_run_melt && !qc.ins_size) {
 				error "Missing required MELT QC value 'ins_size' for ${id}"
 			}
-			if ((params.run_melt || params.antype == "panel") && !qc.mean_depth) {
+			if ((val_run_melt || params.antype == "panel") && !qc.mean_depth) {
 				error "Missing required QC value 'mean_coverage' for ${id}"
 			}
 
@@ -582,8 +583,8 @@ workflow NEXTFLOW_WGS {
 		// MELT //
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
 		ch_melt_intersect_vcf = channel.empty()
-		if (params.run_melt) {
-            MELT(
+		if (val_run_melt) {
+			MELT(
 				ch_bam_bai,
 				ch_qc_mean_depth,
 				ch_qc_ins_size,
@@ -1124,9 +1125,6 @@ process dedupdummy {
 		tuple val(group), val(id), path(bam), path(bai)
 	output:
 		tuple val(group), val(id), path("dummy"), emit: dedup_dummy
-
-	when:
-		params.run_melt
 
 	script:
 	"""
