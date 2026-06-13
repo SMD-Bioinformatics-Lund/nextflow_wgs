@@ -6,7 +6,7 @@
 * Pass analysis mode and trio status through workflow/process inputs instead of redefining `params.mode` and `params.trio`
 * Move MELT code into own subworkflow with separate MELT, merge, and intersect processes
 * Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
-* Pass MELT and mitochondrial analysis run status as explicit workflow inputs
+* Pass MELT, mitochondrial analysis, and loqusdb run status as explicit workflow inputs
 * Parse Sentieon QC once and pass mean depth and insert size through keyed channels
 * Define `params.results_output_dir` in profile config instead of workflow and subworkflow bodies
 
