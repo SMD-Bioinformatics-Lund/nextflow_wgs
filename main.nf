@@ -58,7 +58,7 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio)
+	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio, params.align, params.umi, params.annotate)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -133,6 +133,9 @@ workflow NEXTFLOW_WGS {
 	ch_samplesheet     // channel: [ val(samplesheet_row) ]
 	val_analysis_mode  // string:  Analysis mode derived from sample count, either "single" or "family"
 	val_is_trio        // bool:    Whether the input CSV contains enough samples for trio analysis
+	val_align          // bool:    Whether alignment should be run
+	val_umi            // bool:    Whether UMI trimming should be run
+	val_annotate       // bool:    Whether SNV annotation should be run
 
 	main:
 	// Output channels:
@@ -189,7 +192,7 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// FASTQ //
-	if (params.umi) {
+	if (val_umi) {
 		fastp(ch_fastq_start)
 		ch_fastq_start = fastp.out.fastq_trimmed_reads
 		ch_versions = ch_versions.mix(fastp.out.versions.first())
@@ -198,7 +201,7 @@ workflow NEXTFLOW_WGS {
 	// ALIGN //
 	//TODO: why do we have a params.align conditional anyway?
 	ch_dedup_stats = channel.empty()
-	if (params.align) {
+	if (val_align) {
 		bwa_align(ch_fastq_start)
 		markdup(bwa_align.out.bam_bai)
 		ch_dedup_stats = ch_dedup_stats.mix(markdup.out.dedup_metrics)
@@ -370,7 +373,7 @@ workflow NEXTFLOW_WGS {
     ch_versions = ch_versions.mix(rename_mito_contigs.out.versions.first())
         
 	// SNV ANNOTATION
-	if (params.annotate) {
+	if (val_annotate) {
 		
 		// bam channel for SNV annotate, special case //
 		ch_bam_snv_annotate = ch_bam_bai

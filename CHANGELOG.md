@@ -4,6 +4,7 @@
 
 #### Changed
 * Pass analysis mode and trio status through workflow/process inputs instead of redefining `params.mode` and `params.trio`
+* Pass alignment, UMI trimming, and SNV annotation status as explicit workflow inputs
 * Move MELT code into own subworkflow with separate MELT, merge, and intersect processes
 * Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
 * Parse Sentieon QC once and pass mean depth and insert size through keyed channels
