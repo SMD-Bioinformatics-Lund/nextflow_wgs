@@ -63,7 +63,7 @@ workflow {
 		ch_samplesheet,
 		val_analysis_mode,
 		val_is_trio,
-		params.varcall,
+		params.run_snv_calling,
 		params.run_freebayes,
 		channel.value(file(params.genome_file)),
 		channel.value(file("${params.genome_file}.fai")),
@@ -300,7 +300,7 @@ workflow NEXTFLOW_WGS {
 			ch_intersect_bed,
 			ch_vcfanno,
 			ch_vcfanno_lua,
-			val_run_freebayes,
+			val_run_freebayes
 		)
 		SPLIT_NORMALIZE_SNVS(CALL_SNVS.out.group_vcf_tbi, val_intersect_bed)
 		ch_snv_vcf_tbi_full = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_full
