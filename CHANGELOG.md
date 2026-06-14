@@ -9,6 +9,9 @@
 * Parse Sentieon QC once and pass mean depth and insert size through keyed channels
 * Define `params.results_output_dir` in profile config instead of workflow and subworkflow bodies
 
+#### Fixed
+* Removed chr-prefix from BQSR know sites VCF.
+
 ### 3.26.4
 * code style change
 * changed all input-channels to a standardized format
