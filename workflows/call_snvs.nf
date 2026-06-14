@@ -1,20 +1,26 @@
 workflow CALL_SNVS {
 
     take:
-    ch_bam_bai           // channel: [ val(group), val(id), path(bam), path(bai) ]
-    ch_genome_file       // channel: [ path(reference_fasta)                     ]
-    ch_genome_index      // channel: [ path(reference_fasta_fai)                 ]
-    ch_known_sites       // channel: [ path(known_sites_vcf)                     ]
-    ch_known_sites_index // channel: [ path(known_sites_vcf_index)               ]
-    ch_intersect_bed     // channel: [ path(intersect_bed)                       ]
-    ch_vcfanno           // channel: [ path(vcfanno_config)                      ]
-    ch_vcfanno_lua       // channel: [ path(vcfanno_lua)                         ]
-    val_run_freebayes    // bool:    Whether Freebayes should be run
+    ch_bam_bai                                // channel: [ val(group), val(id), path(bam), path(bai) ]
+    ch_genome_file                            // channel: [ path(reference_fasta)                     ]
+    ch_genome_index                           // channel: [ path(reference_fasta_fai)                 ]
+    ch_bqsr_known_polymorphic_sites_vcf       // channel: [ path(bqsr_known_polymorphic_sites_vcf)       ]
+    ch_bqsr_known_polymorphic_sites_vcf_index // channel: [ path(bqsr_known_polymorphic_sites_vcf_index) ]
+    ch_intersect_bed                          // channel: [ path(intersect_bed)                       ]
+    ch_vcfanno                                // channel: [ path(vcfanno_config)                      ]
+    ch_vcfanno_lua                            // channel: [ path(vcfanno_lua)                         ]
+    val_run_freebayes                         // bool:    Whether Freebayes should be run
 
     main:
     ch_versions = channel.empty()
 
-    bqsr(ch_bam_bai, ch_genome_file, ch_genome_index, ch_known_sites, ch_known_sites_index)
+    bqsr(
+        ch_bam_bai,
+        ch_genome_file,
+        ch_genome_index,
+        ch_bqsr_known_polymorphic_sites_vcf,
+        ch_bqsr_known_polymorphic_sites_vcf_index
+    )
 
     ch_dnascope_in = ch_bam_bai.join(bqsr.out.bqsr_table, by: [0,1])
     
@@ -86,8 +92,8 @@ process bqsr {
 		tuple val(group), val(id), path(bam), path(bai)
 		path(genome_file)
 		path(genome_index)
-		path(known_sites)
-		path(known_sites_index)
+		path(bqsr_known_polymorphic_sites_vcf)
+		path(bqsr_known_polymorphic_sites_vcf_index)
 
 	output:
 		tuple val(group), val(id), path("${id}.bqsr.table"), emit: bqsr_table
@@ -98,7 +104,7 @@ process bqsr {
 		sentieon driver -t ${task.cpus} \\
 			-r $genome_file -i $bam \\
 			--algo QualCal ${id}.bqsr.table \\
-			-k $known_sites
+			-k $bqsr_known_polymorphic_sites_vcf
 
 		${bqsr_version(task)}
 		"""

@@ -67,8 +67,8 @@ workflow {
 		params.run_freebayes,
 		channel.value(file(params.genome_file)),
 		channel.value(file("${params.genome_file}.fai")),
-		channel.value(file(params.KNOWN_SITES)),
-		channel.value(file("${params.KNOWN_SITES}.tbi")),
+		channel.value(file(params.bqsr_known_polymorphic_sites_vcf)),
+		channel.value(file(params.bqsr_known_polymorphic_sites_vcf_index)),
 		channel.value(file(params.intersect_bed)),
 		channel.value(file(params.vcfanno)),
 		channel.value(file(params.VCFANNO_LUA)),
@@ -152,8 +152,8 @@ workflow NEXTFLOW_WGS {
 	val_run_freebayes   // bool:   Whether Freebayes should be run
 	ch_genome_file      // channel: [ path(reference_fasta) ]
 	ch_genome_index     // channel: [ path(reference_fasta_fai) ]
-	ch_known_sites      // channel: [ path(known_sites_vcf) ]
-	ch_known_sites_index // channel: [ path(known_sites_vcf_index) ]
+	ch_bqsr_known_polymorphic_sites_vcf       // channel: [ path(bqsr_known_polymorphic_sites_vcf) ]
+	ch_bqsr_known_polymorphic_sites_vcf_index // channel: [ path(bqsr_known_polymorphic_sites_vcf_index) ]
 	ch_intersect_bed    // channel: [ path(intersect_bed) ]
 	ch_vcfanno          // channel: [ path(vcfanno_config) ]
 	ch_vcfanno_lua      // channel: [ path(vcfanno_lua) ]
@@ -295,8 +295,8 @@ workflow NEXTFLOW_WGS {
 			ch_bam_bai,
 			ch_genome_file,
 			ch_genome_index,
-			ch_known_sites,
-			ch_known_sites_index,
+			ch_bqsr_known_polymorphic_sites_vcf,
+			ch_bqsr_known_polymorphic_sites_vcf_index,
 			ch_intersect_bed,
 			ch_vcfanno,
 			ch_vcfanno_lua,
