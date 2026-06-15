@@ -1,15 +1,19 @@
 # CHANGELOG
 
-### Unreleased
-* Platform specific PONs, GATK + GENS
+### 3.27.0
+
+#### Added
+* Add Platform specific PONs, GATK + GENS
+* Add workflow `CALL_AND_ANNOTATE_STRS`
+* Add workflow `MELT`
 
 #### Changed
 * Pass analysis mode and trio status through workflow/process inputs instead of redefining `params.mode` and `params.trio`
-* Move MELT code into own subworkflow with separate MELT, merge, and intersect processes
 * Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
 * Parse Sentieon QC once and pass mean depth and insert size through keyed channels
-* Define `params.results_output_dir` in profile config instead of workflow and subworkflow bodies
-* Move STR calling and annotation into a dedicated workflow
+
+#### Fixed
+* Do not redefine `params.result_output_dir` in workflows. 
 
 ### 3.26.4
 * code style change
