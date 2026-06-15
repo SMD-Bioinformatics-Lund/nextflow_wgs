@@ -25,6 +25,7 @@ workflow {
 	input_csv_line_count = file(params.csv).countLines()
 	val_analysis_mode = input_csv_line_count > 2 ? "family" : "single"
 	val_is_trio = input_csv_line_count > 3 ? true : false
+	val_run_gatkcov = params.gatkcov ? true : false
 
 	// Check whether genome assembly is indexed //
 	// TODO: Move to some pre-processing workflow:
@@ -58,7 +59,7 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio)
+	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio, val_run_gatkcov)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -133,6 +134,7 @@ workflow NEXTFLOW_WGS {
 	ch_samplesheet     // channel: [ val(samplesheet_row) ]
 	val_analysis_mode  // string:  Analysis mode derived from sample count, either "single" or "family"
 	val_is_trio        // bool:    Whether the input CSV contains enough samples for trio analysis
+	val_run_gatkcov    // bool:    Should gatkcov run (GENS entrypoint)
 
 	main:
 	// Output channels:
@@ -140,19 +142,34 @@ workflow NEXTFLOW_WGS {
 	ch_output_info = channel.empty() // Gather data for .INFO
 	ch_qc_json     = channel.empty() // Gather and merge QC JSONs per sample
 
-	PREPARE_INPUT_AND_META_CHANNELS(ch_samplesheet)
+	if (params.gatkcnv && (!params.containsKey('gatk_ref_csv') || !params.gatk_ref_csv)) {
+		error "params.gatk_ref_csv must be defined when params.gatkcnv is true"
+	}
+
+	PREPARE_INPUT_AND_META_CHANNELS(ch_samplesheet, params.gatkcnv ? params.gatk_ref_csv : null)
 
 	ch_sample_meta   = PREPARE_INPUT_AND_META_CHANNELS.out.sample_meta   // group, id, meta[:]
 	ch_proband_meta  = PREPARE_INPUT_AND_META_CHANNELS.out.proband_meta  // group, id(proband), meta[:] contains priority
 	ch_fastq_start   = PREPARE_INPUT_AND_META_CHANNELS.out.fastq         // group, id, read1, read2
 	ch_bam_start     = PREPARE_INPUT_AND_META_CHANNELS.out.bam           // group, id, read1, read2
 	ch_vcf_start     = PREPARE_INPUT_AND_META_CHANNELS.out.vcf           // group, vcf
+	ch_gatk_ref_meta = PREPARE_INPUT_AND_META_CHANNELS.out.gatk_ref_meta // platform, sex, group, id, gatk_ref[:]
 
-	// GATK Ref:
-	ch_gatk_ref = channel
-		.fromPath(params.gatkreffolders)
-		.splitCsv(header:true)
-		.map{ row-> tuple(row.i, row.refpart) }
+	ch_gatk_ref_by_sample = params.gatkcnv ? ch_gatk_ref_meta
+			.map { _platform, _sex, group, id, gatk_ref ->
+					tuple(group, id, gatk_ref)
+			} : channel.empty()
+
+	// GATK-CNV reference shards:
+	// PREPARE_INPUT_AND_META_CHANNELS resolves each sample against params.gatk_ref_csv
+	// by channel join on normalized platform/sex. The same platform/sex join
+	// keeps each sample paired with only the model shards from its selected reference.
+	ch_gatk_ref_shards = PREPARE_INPUT_AND_META_CHANNELS.out.gatk_ref_shards
+	ch_gatk_ref = params.gatkcnv ? ch_gatk_ref_meta
+			.combine(ch_gatk_ref_shards, by: [0, 1])
+			.map { _platform, _sex, group, id, _gatk_ref, ref_part, refpart_path ->
+					tuple(group, id, ref_part, refpart_path)
+			} : channel.empty()
 
 	genes_analyzed(ch_proband_meta)
 	rename_bam(ch_bam_start) // See process for more info about why this is needed.
@@ -253,8 +270,11 @@ workflow NEXTFLOW_WGS {
 
 	// COVERAGE //
 
-	if (params.gatkcov) {
-		gatkcov(ch_sample_meta.join(ch_bam_bai, by: [0, 1]))
+	if (val_run_gatkcov) {
+		ch_gatkcov_input = ch_sample_meta
+			.join(ch_gatk_ref_by_sample, by: [0, 1])
+			.join(ch_bam_bai, by: [0, 1])
+		gatkcov(ch_gatkcov_input)
 		ch_versions = ch_versions.mix(gatkcov.out.versions.first())
 	}
 
@@ -535,18 +555,40 @@ workflow NEXTFLOW_WGS {
 
 		// BIG SV //
 
-		gatk_coverage(ch_bam_bai)
+		// Attach the selected GATK-CNV reference config before collecting read counts.
+		// gatk_ref.intervals is used by CollectReadCounts and gatk_ref.ploidy_model
+		// is carried forward to DetermineGermlineContigPloidy.
+		ch_gatk_coverage_input = ch_sample_meta
+			.join(ch_gatk_ref_by_sample, by: [0, 1])
+			.join(ch_bam_bai, by: [0, 1])
+
+		gatk_coverage(ch_gatk_coverage_input)
 		ch_gatk_coverage = gatk_coverage.out.coverage_tsv
 		gatk_call_ploidy(ch_gatk_coverage)
 		ch_gatk_ploidy = gatk_call_ploidy.out.call_ploidy
 
-		// TODO: do the joining and combining outside
-		gatk_call_cnv(ch_gatk_coverage.join(ch_gatk_ploidy, by: [0,1]).combine(ch_gatk_ref))
-
-		ch_gatk_postprocess_input = gatk_call_cnv.out.gatk_calls
-			.groupTuple(by : [0,1])
+		// Run GermlineCNVCaller once per selected model shard.
+		// ch_gatk_ref has already paired each sample with shards via platform/sex.
+		ch_gatk_call_cnv_input = ch_gatk_coverage
 			.join(ch_gatk_ploidy, by: [0, 1])
-			.combine(ch_gatk_ref.groupTuple(by : [3])) // TODO: Explanation here.
+			.map { group, id, meta, gatk_ref, tsv, _meta, _gatk_ref, ploidy ->
+				tuple(group, id, meta, gatk_ref, tsv, ploidy)
+			}
+			.combine(ch_gatk_ref, by: [0, 1])
+
+		gatk_call_cnv(ch_gatk_call_cnv_input)
+
+		// Recombine all shard calls for one sample, add the matching ploidy calls
+		// and model shard paths, then postprocess them into the final GATK CNV VCFs.
+		ch_gatk_postprocess_input = gatk_call_cnv.out.gatk_calls
+			.groupTuple(by : [0, 1])
+			.join(ch_gatk_ploidy.map { group, id, meta, gatk_ref, ploidy ->
+				tuple(group, id, ploidy)
+			}, by: [0, 1])
+			.join(ch_gatk_ref.groupTuple(by : [0, 1]), by: [0, 1])
+			.map { group, id, i, tar, ploidy, shard_no, shard ->
+				tuple(group, id, i, tar, ploidy, shard_no, shard)
+			}
 
 		postprocessgatk(ch_gatk_postprocess_input)
 		filter_merge_gatk(postprocessgatk.out.called_gatk)
@@ -2713,7 +2755,7 @@ process gatkcov {
 	time '5h'
 
 	input:
-		tuple val(group), val(id), val(meta), path(bam), path(bai)
+		tuple val(group), val(id), val(meta), val(gatk_ref), path(bam), path(bai)
 
 	output:
 		tuple val(group), val(id), val(meta.type), val(meta.sex), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_plot
@@ -2722,17 +2764,15 @@ process gatkcov {
 
 	script:
 
-		def PON = [F: params.GATK_PON_FEMALE, M: params.GATK_PON_MALE]
-
 		"""
 		source activate gatk4-env
 
 		gatk CollectReadCounts \\
-			-I $bam -L $params.COV_INTERVAL_LIST \\
+			-I $bam -L $params.cov_interval_list \\
 			--interval-merging-rule OVERLAPPING_ONLY -O ${bam}.hdf5
 
 		gatk --java-options "-Xmx30g" DenoiseReadCounts \\
-			-I ${bam}.hdf5 --count-panel-of-normals ${PON[meta.sex]} \\
+			-I ${bam}.hdf5 --count-panel-of-normals ${gatk_ref.pon} \\
 			--standardized-copy-ratios ${id}.standardizedCR.tsv \\
 			--denoised-copy-ratios ${id}.denoisedCR.tsv
 
@@ -2747,6 +2787,7 @@ process gatkcov {
 
 	stub:
 		"""
+		echo ${gatk_ref.pon}
 		source activate gatk4-env
 		touch "${id}.standardizedCR.tsv"
 		touch "${id}.denoisedCR.tsv"
@@ -2949,10 +2990,10 @@ process gatk_coverage {
 	container  "${params.container_gatk}"
 	tag "$id"
 	input:
-		tuple val(group), val(id), path(bam), path(bai)
+		tuple val(group), val(id), val(meta), val(gatk_ref), path(bam), path(bai)
 
 	output:
-		tuple val(group), val(id), path("${id}.tsv"), emit: coverage_tsv
+		tuple val(group), val(id), val(meta), val(gatk_ref), path("${id}.tsv"), emit: coverage_tsv
 		path "*versions.yml", emit: versions
 
 
@@ -2967,7 +3008,7 @@ process gatk_coverage {
 		set +u
 		source activate gatk
 		gatk --java-options "-Xmx20g" CollectReadCounts \\
-			-L $params.gatk_intervals \\
+			-L ${gatk_ref.intervals} \\
 			-R $params.genome_file \\
 			-imr OVERLAPPING_ONLY \\
 			-I $bam \\
@@ -3005,10 +3046,10 @@ process gatk_call_ploidy {
 	tag "$id"
 
 	input:
-		tuple val(group), val(id), path(coverage_tsv)
+		tuple val(group), val(id), val(meta), val(gatk_ref), path(coverage_tsv)
 
 	output:
-		tuple val(group), val(id), path("ploidy.tar"), emit: call_ploidy
+		tuple val(group), val(id), val(meta), val(gatk_ref), path("ploidy.tar"), emit: call_ploidy
 		path "*versions.yml", emit: versions
 
 	script:
@@ -3019,7 +3060,7 @@ process gatk_call_ploidy {
 		set +u
 		source activate gatk
 		gatk --java-options "-Xmx20g" DetermineGermlineContigPloidy \\
-			--model ${params.ploidymodel} \\
+			--model ${gatk_ref.ploidy_model} \\
 			-I ${coverage_tsv} \\
 			-O ploidy/ \\
 			--output-prefix ${group}
@@ -3057,12 +3098,11 @@ process gatk_call_cnv {
 	tag "$id"
 
 	input:
-		tuple val(group), val(id), path(tsv), path(ploidy), val(i), val(refpart) //TODO: is reffart a path or val
+		tuple val(group), val(id), val(meta), val(gatk_ref), path(tsv), path(ploidy), val(ref_part), path(refpart_folder)
 
 
 	output:
-	//TODO: wtf is i
-		tuple val(group), val(id), val(i), path("${group}_${i}.tar"), emit: gatk_calls
+		tuple val(group), val(id), val(ref_part), path("${group}_${ref_part}.tar"), emit: gatk_calls
 		path "*versions.yml", emit: versions
 
 	script:
@@ -3074,15 +3114,15 @@ process gatk_call_cnv {
 		export MKL_NUM_THREADS=${task.cpus}
 		export OMP_NUM_THREADS=${task.cpus}
 		tar -xvf ploidy.tar
-		mkdir ${group}_${i}
+		mkdir ${group}_${ref_part}
 		gatk --java-options "-Xmx25g" GermlineCNVCaller \\
 			--run-mode CASE \\
 			-I $tsv \\
 			--contig-ploidy-calls ploidy/${group}-calls/ \\
-			--model ${refpart} \\
-			--output ${group}_${i}/ \\
-			--output-prefix ${group}_${i}
-		tar -cvf ${group}_${i}.tar ${group}_${i}/
+			--model ${refpart_folder} \\
+			--output ${group}_${ref_part}/ \\
+			--output-prefix ${group}_${ref_part}
+		tar -cvf ${group}_${ref_part}.tar ${group}_${ref_part}/
 
 		${gatk_call_cnv_version(task)}
 		"""
@@ -3096,7 +3136,7 @@ process gatk_call_cnv {
 		export MKL_NUM_THREADS=${task.cpus}
 		export OMP_NUM_THREADS=${task.cpus}
 		source activate gatk
-		touch "${group}_${i}.tar"
+		touch "${group}_${ref_part}.tar"
 
 		${gatk_call_cnv_version(task)}
 		"""
