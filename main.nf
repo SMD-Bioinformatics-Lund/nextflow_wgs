@@ -62,13 +62,13 @@ workflow {
 
 	NEXTFLOW_WGS(
 		ch_samplesheet,
+		params.accessdir,
 		val_analysis_mode,
+		params.expansionhunter_catalog,
+		params.genome_file,
+		"${params.genome_file}.fai",
 		val_is_trio,
         val_run_gatkcov,
-		params.genome_file),
-		"${params.genome_file}.fai",
-		params.expansionhunter_catalog,
-		params.accessdir,
 		params.smn,
 		params.str
 	)
@@ -143,16 +143,16 @@ workflow.onError {
 workflow NEXTFLOW_WGS {
 
 	take:
-	ch_samplesheet                  // channel: [ val(samplesheet_row) ]
-	val_analysis_mode               // string:  Analysis mode derived from sample count, either "single" or "family"
-	val_is_trio                     // bool:    Whether the input CSV contains enough samples for trio analysis
-	val_genome_file                 // path:    Reference FASTA.
-	val_genome_fai                  // path:    Reference FASTA index.
-	val_expansionhunter_catalog     // path:    ExpansionHunter variant catalog JSON.
-	val_accessdir                   // string:  Base access path used in output metadata/INFO paths
-	val_smn                         // bool:    Whether to run SMN copy number calling
-	val_str                         // bool:    Whether to call and annotate STRs
-	val_run_gatkcov                 // bool:    Should gatkcov run (GENS entrypoint)
+	ch_samplesheet              // channel: [ val(samplesheet_row) ]
+	val_accessdir               // string:  Base access path used in output metadata/INFO paths
+	val_analysis_mode           // string:  Analysis mode derived from sample count, either "single" or "family"
+	val_expansionhunter_catalog // path:    ExpansionHunter variant catalog JSON.
+	val_genome_file             // path:    Reference FASTA.
+	val_genome_fai              // path:    Reference FASTA index.
+	val_is_trio                 // bool:    Whether the input CSV contains enough samples for trio analysis
+	val_run_gatkcov             // bool:    Should gatkcov run (GENS entrypoint)
+	val_smn                     // bool:    Whether to run SMN copy number calling
+	val_str                     // bool:    Whether to call and annotate STRs
 
 	main:
 	// Output channels:
