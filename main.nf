@@ -25,6 +25,7 @@ workflow {
 	input_csv_line_count = file(params.csv).countLines()
 	val_analysis_mode = input_csv_line_count > 2 ? "family" : "single"
 	val_is_trio = input_csv_line_count > 3 ? true : false
+	val_run_gatkcov = params.gatkcov ? true : false
 
 	// Check whether genome assembly is indexed //
 	// TODO: Move to some pre-processing workflow:
@@ -58,7 +59,7 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio)
+	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio, val_run_gatkcov)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -133,6 +134,7 @@ workflow NEXTFLOW_WGS {
 	ch_samplesheet     // channel: [ val(samplesheet_row) ]
 	val_analysis_mode  // string:  Analysis mode derived from sample count, either "single" or "family"
 	val_is_trio        // bool:    Whether the input CSV contains enough samples for trio analysis
+	val_run_gatkcov    // bool:    Should gatkcov run (GENS entrypoint)
 
 	main:
 	// Output channels:
@@ -165,7 +167,7 @@ workflow NEXTFLOW_WGS {
 	ch_gatk_ref_shards = PREPARE_INPUT_AND_META_CHANNELS.out.gatk_ref_shards
 	ch_gatk_ref = params.gatkcnv ? ch_gatk_ref_meta
 			.combine(ch_gatk_ref_shards, by: [0, 1])
-			.map { platform, sex, group, id, gatk_ref, ref_part, refpart_path ->
+			.map { _platform, _sex, group, id, _gatk_ref, ref_part, refpart_path ->
 					tuple(group, id, ref_part, refpart_path)
 			} : channel.empty()
 
@@ -268,7 +270,7 @@ workflow NEXTFLOW_WGS {
 
 	// COVERAGE //
 
-	if (params.gatkcov) {
+	if (val_run_gatkcov) {
 		ch_gatkcov_input = ch_sample_meta
 			.join(ch_gatk_ref_by_sample, by: [0, 1])
 			.join(ch_bam_bai, by: [0, 1])
@@ -559,9 +561,6 @@ workflow NEXTFLOW_WGS {
 		ch_gatk_coverage_input = ch_sample_meta
 			.join(ch_gatk_ref_by_sample, by: [0, 1])
 			.join(ch_bam_bai, by: [0, 1])
-			.map { group, id, meta, gatk_ref, bam, bai ->
-				tuple(group, id, meta, gatk_ref, bam, bai)
-			}
 
 		gatk_coverage(ch_gatk_coverage_input)
 		ch_gatk_coverage = gatk_coverage.out.coverage_tsv
@@ -576,9 +575,6 @@ workflow NEXTFLOW_WGS {
 				tuple(group, id, meta, gatk_ref, tsv, ploidy)
 			}
 			.combine(ch_gatk_ref, by: [0, 1])
-			.map { group, id, meta, gatk_ref, tsv, ploidy, i, refpart ->
-				tuple(group, id, meta, gatk_ref, tsv, ploidy, i, refpart)
-			}
 
 		gatk_call_cnv(ch_gatk_call_cnv_input)
 
