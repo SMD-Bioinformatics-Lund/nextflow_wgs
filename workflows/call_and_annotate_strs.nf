@@ -49,7 +49,7 @@ workflow CALL_AND_ANNOTATE_STRS {
     // Extract STR loci ids from Expansionhunter catalog and pass
     // as input to reviewer:
 	val_reviewer_loci = new groovy.json.JsonSlurper()
-		.parseText(val_expansionhunter_catalog.text)
+		.parseText(file(val_expansionhunter_catalog).text)
 		.collect { locus_definition -> locus_definition.LocusId }
 		.findAll { locus -> locus }
 
