@@ -156,7 +156,7 @@ workflow NEXTFLOW_WGS {
 	ch_gatk_ref_meta = PREPARE_INPUT_AND_META_CHANNELS.out.gatk_ref_meta // platform, sex, group, id, gatk_ref[:]
 
 	ch_gatk_ref_by_sample = params.gatkcnv ? ch_gatk_ref_meta
-			.map { platform, sex, group, id, gatk_ref ->
+			.map { _platform, _sex, group, id, gatk_ref ->
 					tuple(group, id, gatk_ref)
 			} : channel.empty()
 
