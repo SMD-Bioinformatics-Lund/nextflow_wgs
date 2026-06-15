@@ -1,6 +1,7 @@
 # CHANGELOG
 
-### [Unreleased]
+### Unreleased
+* Platform specific PONs, GATK + GENS
 
 #### Changed
 * Pass analysis mode and trio status through workflow/process inputs instead of redefining `params.mode` and `params.trio`
