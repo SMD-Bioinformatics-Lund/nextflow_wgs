@@ -4,7 +4,7 @@ workflow CALL_AND_ANNOTATE_STRS {
 	ch_bam_bai                   // channel: [ val(group), val(id), path(bam), path(bai) ]
 	ch_proband_meta              // channel: [ val(group), val(id), val(meta) ]
 	val_analysis_mode            // string:  Analysis mode derived from sample count, either "single" or "family"
-	val_genome_file              // path:    Reference FASTA.
+	val_genome_fasta             // path:    Reference FASTA.
 	val_genome_fai               // path:    Reference FASTA index.
 	val_expansionhunter_catalog  // path:    ExpansionHunter variant catalog JSON.
 	val_accessdir                // string:  Base access path used in output metadata/INFO paths
@@ -15,7 +15,7 @@ workflow CALL_AND_ANNOTATE_STRS {
 
 	expansionhunter(
 		ch_bam_bai.join(ch_proband_meta, by: [0,1]),
-		val_genome_file,
+		val_genome_fasta,
 		val_genome_fai,
 		val_expansionhunter_catalog
 	)
@@ -62,7 +62,7 @@ workflow CALL_AND_ANNOTATE_STRS {
 
 	reviewer(
 		ch_reviewer_input,
-		val_genome_file,
+		val_genome_fasta,
 		val_genome_fai,
 		val_expansionhunter_catalog,
 		val_accessdir

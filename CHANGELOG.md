@@ -1,11 +1,14 @@
 # CHANGELOG
 
-### Unreleased 
+### Unreleased
 
 #### Added 
-* ADd workflow `PED`
+* Add workflow `CALL_SNVS`
+* Add workflow `PED`
 
-#### Changed
+#### Changed 
+* Pass SNV calling and Freebayes run status as explicit workflow inputs
+* Rename VCFAnno config parameters to `vcfanno_config` and `vcfanno_lua`
 * Switch `create_ped.pl` from `wgs_active` to `perl_container`.
 * Add `params.create_alt_affect_ped` to control alternate affected-parent PED generation independently of assay name
 
