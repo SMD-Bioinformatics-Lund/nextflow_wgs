@@ -1,14 +1,31 @@
 # CHANGELOG
 
-### [Unreleased]
+### Unreleased
+
+#### Added 
+* ADd workflow `CALL_SNVS`
+
+#### Changed 
+* Pass SNV calling and Freebayes run status as explicit workflow inputs
+
+### 3.27.0
+
+#### Added
+* Add Platform specific PONs, GATK + GENS
+* Add workflow `CALL_AND_ANNOTATE_STRS`
+* Add workflow `MELT`
+* Add config param `params.smn` to control SMN calling per profile
 
 #### Changed
 * Pass analysis mode and trio status through workflow/process inputs instead of redefining `params.mode` and `params.trio`
-* Pass SNV calling and Freebayes run status as explicit workflow inputs
-* Move MELT code into own subworkflow with separate MELT, merge, and intersect processes
+* Pass STR reference files, catalog, and access dir as explicit workflow inputs
 * Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
 * Parse Sentieon QC once and pass mean depth and insert size through keyed channels
-* Define `params.results_output_dir` in profile config instead of workflow and subworkflow bodies
+* Split STR VCF processing into separate rename, split, familyfy, and bgzip/index processes
+
+#### Fixed
+* Do not redefine `params.results_output_dir` in workflows.
+* Harden `familyfy_str.pl` argument handling for missing parent IDs
 
 ### 3.26.4
 * code style change
