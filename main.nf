@@ -1,13 +1,14 @@
 #!/usr/bin/env nextflow
 
-include { IDSNP_CALL           } from './modules/idsnp.nf'
-include { IDSNP_VCF_TO_JSON    } from './modules/idsnp.nf'
-include { MELT                 } from './workflows/melt.nf'
+include { CALL_AND_ANNOTATE_STRS } from './workflows/call_and_annotate_strs.nf'
+include { IDSNP_CALL             } from './modules/idsnp.nf'
+include { IDSNP_VCF_TO_JSON      } from './modules/idsnp.nf'
+include { MELT                   } from './workflows/melt.nf'
 include { PED                  } from './workflows/ped.nf'
-include { SNV_ANNOTATE         } from './workflows/annotate_snvs.nf'
-include { SPLIT_NORMALIZE_SNVS } from './workflows/split_normalize_snvs.nf'
-include { VALIDATE_PARAMETERS  } from './workflows/validate_params.nf'
-include { VALIDATE_SAMPLES_CSV } from './workflows/validate_csv.nf'
+include { SNV_ANNOTATE           } from './workflows/annotate_snvs.nf'
+include { SPLIT_NORMALIZE_SNVS   } from './workflows/split_normalize_snvs.nf'
+include { VALIDATE_PARAMETERS    } from './workflows/validate_params.nf'
+include { VALIDATE_SAMPLES_CSV   } from './workflows/validate_csv.nf'
 
 include { vcfHasVariants } from './workflows/util.nf'
 include { PREPARE_INPUT_AND_META_CHANNELS } from './workflows/prepare_input_and_meta_channels.nf'
@@ -26,6 +27,7 @@ workflow {
 	input_csv_line_count = file(params.csv).countLines()
 	val_analysis_mode = input_csv_line_count > 2 ? "family" : "single"
 	val_is_trio = input_csv_line_count > 3 ? true : false
+	val_run_gatkcov = params.gatkcov ? true : false
 
 	// Check whether genome assembly is indexed //
 	// TODO: Move to some pre-processing workflow:
@@ -59,7 +61,19 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-	NEXTFLOW_WGS(ch_samplesheet, val_analysis_mode, val_is_trio, params.accessdir, params.create_alt_affect_ped)
+	NEXTFLOW_WGS(
+		ch_samplesheet,
+		params.accessdir,
+		val_analysis_mode,
+		params.expansionhunter_catalog,
+		params.genome_file,
+		"${params.genome_file}.fai",
+		val_is_trio,
+        val_run_gatkcov,
+		params.smn,
+		params.str,
+        params.create_alt_affect_ped
+	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
 
@@ -131,10 +145,16 @@ workflow.onError {
 workflow NEXTFLOW_WGS {
 
 	take:
-	ch_samplesheet            // channel: [ val(samplesheet_row) ]
-	val_analysis_mode         // string:  Analysis mode derived from sample count, either "single" or "family"
-	val_is_trio               // bool:    Whether the input CSV contains enough samples for trio analysis
-	val_accessdir             // string:  Base access path used in output metadata/INFO paths
+	ch_samplesheet              // channel: [ val(samplesheet_row) ]
+	val_accessdir               // string:  Base access path used in output metadata/INFO paths
+	val_analysis_mode           // string:  Analysis mode derived from sample count, either "single" or "family"
+	val_expansionhunter_catalog // path:    ExpansionHunter variant catalog JSON.
+	val_genome_file             // path:    Reference FASTA.
+	val_genome_fai              // path:    Reference FASTA index.
+	val_is_trio                 // bool:    Whether the input CSV contains enough samples for trio analysis
+	val_run_gatkcov             // bool:    Should gatkcov run (GENS entrypoint)
+	val_smn                     // bool:    Whether to run SMN copy number calling
+	val_str                     // bool:    Whether to call and annotate STRs
 	val_create_alt_affect_ped // bool:    Whether family runs should create alternate affected-parent PEDs
 
 	main:
@@ -143,19 +163,34 @@ workflow NEXTFLOW_WGS {
 	ch_output_info = channel.empty() // Gather data for .INFO
 	ch_qc_json     = channel.empty() // Gather and merge QC JSONs per sample
 
-	PREPARE_INPUT_AND_META_CHANNELS(ch_samplesheet)
+	if (params.gatkcnv && (!params.containsKey('gatk_ref_csv') || !params.gatk_ref_csv)) {
+		error "params.gatk_ref_csv must be defined when params.gatkcnv is true"
+	}
+
+	PREPARE_INPUT_AND_META_CHANNELS(ch_samplesheet, params.gatkcnv ? params.gatk_ref_csv : null)
 
 	ch_sample_meta   = PREPARE_INPUT_AND_META_CHANNELS.out.sample_meta   // group, id, meta[:]
 	ch_proband_meta  = PREPARE_INPUT_AND_META_CHANNELS.out.proband_meta  // group, id(proband), meta[:] contains priority
 	ch_fastq_start   = PREPARE_INPUT_AND_META_CHANNELS.out.fastq         // group, id, read1, read2
 	ch_bam_start     = PREPARE_INPUT_AND_META_CHANNELS.out.bam           // group, id, read1, read2
 	ch_vcf_start     = PREPARE_INPUT_AND_META_CHANNELS.out.vcf           // group, vcf
+	ch_gatk_ref_meta = PREPARE_INPUT_AND_META_CHANNELS.out.gatk_ref_meta // platform, sex, group, id, gatk_ref[:]
 
-	// GATK Ref:
-	ch_gatk_ref = channel
-		.fromPath(params.gatkreffolders)
-		.splitCsv(header:true)
-		.map{ row-> tuple(row.i, row.refpart) }
+	ch_gatk_ref_by_sample = params.gatkcnv ? ch_gatk_ref_meta
+			.map { _platform, _sex, group, id, gatk_ref ->
+					tuple(group, id, gatk_ref)
+			} : channel.empty()
+
+	// GATK-CNV reference shards:
+	// PREPARE_INPUT_AND_META_CHANNELS resolves each sample against params.gatk_ref_csv
+	// by channel join on normalized platform/sex. The same platform/sex join
+	// keeps each sample paired with only the model shards from its selected reference.
+	ch_gatk_ref_shards = PREPARE_INPUT_AND_META_CHANNELS.out.gatk_ref_shards
+	ch_gatk_ref = params.gatkcnv ? ch_gatk_ref_meta
+			.combine(ch_gatk_ref_shards, by: [0, 1])
+			.map { _platform, _sex, group, id, _gatk_ref, ref_part, refpart_path ->
+					tuple(group, id, ref_part, refpart_path)
+			} : channel.empty()
 
 	genes_analyzed(ch_proband_meta)
 	rename_bam(ch_bam_start) // See process for more info about why this is needed.
@@ -244,8 +279,11 @@ workflow NEXTFLOW_WGS {
 
 	// COVERAGE //
 
-	if (params.gatkcov) {
-		gatkcov(ch_sample_meta.join(ch_bam_bai, by: [0, 1]))
+	if (val_run_gatkcov) {
+		ch_gatkcov_input = ch_sample_meta
+			.join(ch_gatk_ref_by_sample, by: [0, 1])
+			.join(ch_bam_bai, by: [0, 1])
+		gatkcov(ch_gatkcov_input)
 		ch_versions = ch_versions.mix(gatkcov.out.versions.first())
 	}
 
@@ -478,7 +516,7 @@ workflow NEXTFLOW_WGS {
 		ch_panel_svs_present = channel.empty()
 		ch_panel_svs_absent = channel.empty()
 		ch_postprocessed_merged_sv_vcf = channel.empty()
-		if(params.antype  == "wgs") {
+		if(val_smn) {
 			// SMN CALLING //
 			SMNCopyNumberCaller(ch_bam_bai)
 			ch_output_info = ch_output_info.mix(SMNCopyNumberCaller.out.smn_INFO)
@@ -490,54 +528,61 @@ workflow NEXTFLOW_WGS {
 						keepHeader: true,
 						storeDir: "${params.outdir}/${params.subdir}/smn/")
 			)
-
-			// CALL REPEATS //
-
-			expansionhunter(ch_bam_bai.join(ch_proband_meta, by: [0,1]))
-			stranger(expansionhunter.out.expansionhunter_vcf)
-			vcfbreakmulti_expansionhunter(
-                stranger.out.vcf_annotated.join(ch_proband_meta, by:[0,1]),
-                val_analysis_mode
-            )
-			ch_output_info = ch_output_info.mix(vcfbreakmulti_expansionhunter.out.str_INFO)
-
-			reviewer_loci = new groovy.json.JsonSlurper()
-				.parseText(file(params.expansionhunter_catalog).text)
-				.collect { locus_definition -> locus_definition.LocusId }
-				.findAll { locus -> locus }
-
-			ch_reviewer_input = expansionhunter.out.bam_vcf
-				.flatMap { group, id, bam, bai, vcf ->
-					reviewer_loci.collect { locus ->
-						tuple(group, id, bam, bai, vcf, locus)
-					}
-				}
-
-			reviewer(ch_reviewer_input)
-			ch_output_info = ch_output_info.mix(reviewer.out.reviewer_INFO)
-
 			ch_versions = ch_versions.mix(SMNCopyNumberCaller.out.versions.first())
-			ch_versions = ch_versions.mix(reviewer.out.versions.first())
-			ch_versions = ch_versions.mix(expansionhunter.out.versions.first())
-			ch_versions = ch_versions.mix(vcfbreakmulti_expansionhunter.out.versions.first())
-			ch_versions = ch_versions.mix(stranger.out.versions.first())
+        }
+
+        if(val_str) {
+			// CALL REPEATS //
+			CALL_AND_ANNOTATE_STRS(
+				ch_bam_bai,
+				ch_proband_meta,
+				val_analysis_mode,
+				val_genome_file,
+				val_genome_fai,
+				val_expansionhunter_catalog,
+				val_accessdir
+			)
+			ch_output_info = ch_output_info.mix(CALL_AND_ANNOTATE_STRS.out.output_info)
+			ch_versions = ch_versions.mix(CALL_AND_ANNOTATE_STRS.out.versions)
 		}
 
 
 		// BIG SV //
 
-		gatk_coverage(ch_bam_bai)
+		// Attach the selected GATK-CNV reference config before collecting read counts.
+		// gatk_ref.intervals is used by CollectReadCounts and gatk_ref.ploidy_model
+		// is carried forward to DetermineGermlineContigPloidy.
+		ch_gatk_coverage_input = ch_sample_meta
+			.join(ch_gatk_ref_by_sample, by: [0, 1])
+			.join(ch_bam_bai, by: [0, 1])
+
+		gatk_coverage(ch_gatk_coverage_input)
 		ch_gatk_coverage = gatk_coverage.out.coverage_tsv
 		gatk_call_ploidy(ch_gatk_coverage)
 		ch_gatk_ploidy = gatk_call_ploidy.out.call_ploidy
 
-		// TODO: do the joining and combining outside
-		gatk_call_cnv(ch_gatk_coverage.join(ch_gatk_ploidy, by: [0,1]).combine(ch_gatk_ref))
-
-		ch_gatk_postprocess_input = gatk_call_cnv.out.gatk_calls
-			.groupTuple(by : [0,1])
+		// Run GermlineCNVCaller once per selected model shard.
+		// ch_gatk_ref has already paired each sample with shards via platform/sex.
+		ch_gatk_call_cnv_input = ch_gatk_coverage
 			.join(ch_gatk_ploidy, by: [0, 1])
-			.combine(ch_gatk_ref.groupTuple(by : [3])) // TODO: Explanation here.
+			.map { group, id, meta, gatk_ref, tsv, _meta, _gatk_ref, ploidy ->
+				tuple(group, id, meta, gatk_ref, tsv, ploidy)
+			}
+			.combine(ch_gatk_ref, by: [0, 1])
+
+		gatk_call_cnv(ch_gatk_call_cnv_input)
+
+		// Recombine all shard calls for one sample, add the matching ploidy calls
+		// and model shard paths, then postprocess them into the final GATK CNV VCFs.
+		ch_gatk_postprocess_input = gatk_call_cnv.out.gatk_calls
+			.groupTuple(by : [0, 1])
+			.join(ch_gatk_ploidy.map { group, id, meta, gatk_ref, ploidy ->
+				tuple(group, id, ploidy)
+			}, by: [0, 1])
+			.join(ch_gatk_ref.groupTuple(by : [0, 1]), by: [0, 1])
+			.map { group, id, i, tar, ploidy, shard_no, shard ->
+				tuple(group, id, i, tar, ploidy, shard_no, shard)
+			}
 
 		postprocessgatk(ch_gatk_postprocess_input)
 		filter_merge_gatk(postprocessgatk.out.called_gatk)
@@ -1524,218 +1569,6 @@ def smn_copy_number_caller_version(task) {
 	"""
 }
 
-
-////////////////////////////////////////////////////////////////////////
-////////////////////////// EXPANSION HUNTER ////////////////////////////
-////////////////////////////////////////////////////////////////////////
-
-// call STRs using ExpansionHunter, and plot alignments with GraphAlignmentViewer
-process expansionhunter {
-	tag "$group"
-	cpus 2
-	time '10h'
-	memory '40 GB'
-
-	input:
-		tuple val(group), val(id), path(bam), path(bai), val(meta)
-
-	output:
-		tuple val(group), val(id), path("${group}.eh.vcf"), emit: expansionhunter_vcf
-		tuple val(group), val(id), path("${group}.eh_realigned.sort.bam"), path("${group}.eh_realigned.sort.bam.bai"), path("${group}.eh.vcf"), emit: bam_vcf
-		path "*versions.yml", emit: versions
-
-	when:
-		params.str
-
-	script:
-		"""
-		source activate htslib10
-		ExpansionHunter \
-			--reads $bam \
-			--reference ${params.genome_file} \
-			--variant-catalog $params.expansionhunter_catalog \
-			--output-prefix ${group}.eh
-		samtools sort ${group}.eh_realigned.bam -o ${group}.eh_realigned.sort.bam
-		samtools index ${group}.eh_realigned.sort.bam
-
-		${expansionhunter_version(task)}
-		"""
-
-	stub:
-		"""
-		source activate htslib10
-		touch "${group}.eh.vcf"
-		touch "${group}.eh_realigned.sort.bam"
-		touch "${group}.eh_realigned.sort.bam.bai"
-
-		${expansionhunter_version(task)}
-		"""
-}
-def expansionhunter_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    expansionhunter: \$(echo \$(ExpansionHunter --version 2>&1) | sed 's/.*ExpansionHunter v// ; s/]//')
-	    samtools: \$(echo \$(samtools --version 2>&1) | sed 's/^.*samtools //; s/Using.*\$//')
-	END_VERSIONS
-	"""
-}
-
-// annotate expansionhunter vcf
-process stranger {
-	tag "$group"
-	memory '1 GB'
-	time '10m'
-	cpus 2
-	container  "${params.container_stranger}"
-
-	input:
-		tuple val(group), val(id), path(eh_vcf)
-
-	output:
-		tuple val(group), val(id), path("${group}.fixinfo.eh.stranger.vcf"), emit: vcf_annotated
-		path "*versions.yml", emit: versions
-
-	script:
-		"""
-		stranger ${eh_vcf} -f $params.expansionhunter_catalog > ${group}.eh.stranger.vcf
-		grep ^# ${group}.eh.stranger.vcf > ${group}.fixinfo.eh.stranger.vcf
-		grep -v ^# ${group}.eh.stranger.vcf | sed 's/ /_/g' >> ${group}.fixinfo.eh.stranger.vcf
-
-		${stranger_version(task)}
-		"""
-
-	stub:
-		"""
-		touch "${group}.fixinfo.eh.stranger.vcf"
-		${stranger_version(task)}
-		"""
-}
-def stranger_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    stranger: \$( stranger --version )
-	END_VERSIONS
-	"""
-}
-
-
-process reviewer {
-	tag "$group:$locus"
-	cpus 2
-	time '1h'
-	memory '1 GB'
-	errorStrategy 'ignore'
-	container  "${params.container_reviewer}"
-	publishDir "${params.outdir}/${params.subdir}/plots/reviewer/${group}", mode: 'copy' , overwrite: true, pattern: '*.svg'
-
-	input:
-		tuple val(group), val(id), path(bam), path(bai), path(vcf), val(locus)
-
-	output:
-		path("*svg")
-		tuple val(group), path("${group}_reviewer.INFO"), emit: reviewer_INFO
-		path "*versions.yml", emit: versions
-
-	script:
-		version_str = reviewer_version(task)
-		"""
-		REViewer --reads ${bam} \\
-			--vcf ${vcf} \\
-			--reference ${params.genome_file} \\
-			--catalog ${params.expansionhunter_catalog} \\
-			--locus "${locus}" \\
-			--output-prefix ${id}
-		echo "STR_VARIANTS_IMG	${locus}	${params.accessdir}/plots/reviewer/${group}/${id}.${locus}.svg" > ${group}_reviewer.INFO
-
-		echo "${version_str}" > "${task.process}_versions.yml"
-		"""
-
-	stub:
-		version_str = reviewer_version(task)
-		"""
-		touch "${id}.${locus}.svg"
-		echo "STR_VARIANTS_IMG	${locus}	${params.accessdir}/plots/reviewer/${group}/${id}.${locus}.svg" > "${group}_reviewer.INFO"
-		echo "${version_str}" > "${task.process}_versions.yml"
-		"""
-}
-def reviewer_version(task) {
-	// TODO: Reconcile this version stub with others.
-	"""${task.process}:
-	    reviewer: \$(echo \$(REViewer --version 2>&1) | sed 's/^.*REViewer v//')"""
-}
-
-// split multiallelic sites in expansionhunter vcf
-// FIXME: Use env variable for picard path...
-process vcfbreakmulti_expansionhunter {
-	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz'
-    publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy' , overwrite: true, pattern: '*.vcf.gz.tbi'
-	tag "$group"
-	time '1h'
-	memory '50 GB'
-
-	input:
-	    tuple val(group), val(id), path(eh_vcf_anno), val(meta)
-        val analysis_mode 
-
-	output:
-	    tuple val(group), path("${group}.expansionhunter.vcf.gz"), emit: vcf
-        tuple val(group), path("${group}.expansionhunter.vcf.gz.tbi"), emit: tbi
-		tuple val(group), path("${group}_str.INFO"), emit: str_INFO
-		path "*versions.yml", emit: versions
-
-	script:
-		if ({meta.father} == "") { father = "null" }
-		else { father = {meta.father} }
-		if ({meta.mother} == "") { mother = "null" }
-		else { mother = {meta.mother} }
-		if (analysis_mode == "family") {
-			"""
-			java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf INPUT=${eh_vcf_anno} OUTPUT=${eh_vcf_anno}.rename.vcf NEW_SAMPLE_NAME=${id}
-			vcfbreakmulti ${eh_vcf_anno}.rename.vcf > ${group}.expansionhunter.vcf.tmp
-			familyfy_str.pl --vcf ${group}.expansionhunter.vcf.tmp --mother $mother --father $father --out ${group}.expansionhunter.vcf
-			bgzip ${group}.expansionhunter.vcf
-			tabix ${group}.expansionhunter.vcf.gz
-			echo "STR	${params.accessdir}/vcf/${group}.expansionhunter.vcf.gz" > ${group}_str.INFO
-
-			${vcfbreakmulti_expansionhunter_version(task)}
-			"""
-		}
-		else {
-			"""
-			java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf INPUT=${eh_vcf_anno} OUTPUT=${eh_vcf_anno}.rename.vcf NEW_SAMPLE_NAME=${id}
-			vcfbreakmulti ${eh_vcf_anno}.rename.vcf > ${group}.expansionhunter.vcf
-			bgzip ${group}.expansionhunter.vcf
-			tabix ${group}.expansionhunter.vcf.gz
-			echo "STR	${params.accessdir}/vcf/${group}.expansionhunter.vcf.gz" > ${group}_str.INFO
-
-			${vcfbreakmulti_expansionhunter_version(task)}
-			"""
-
-		}
-
-	stub:
-		"""
-	    touch "${group}.expansionhunter.vcf.gz"
-        touch "${group}.expansionhunter.vcf.gz.tbi"
-		touch "${group}_str.INFO"
-
-		${vcfbreakmulti_expansionhunter_version(task)}
-		"""
-}
-def vcfbreakmulti_expansionhunter_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    vcflib: 1.0.9
-	    rename-sample-in-vcf: \$(echo \$(java -jar /opt/conda/envs/CMD-WGS/share/picard-2.21.2-1/picard.jar RenameSampleInVcf --version 2>&1) | sed 's/-SNAPSHOT//')
-	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
-	END_VERSIONS
-	"""
-}
-
-
 process bamtoyaml {
 	cpus 1
 	time "5m"
@@ -2609,7 +2442,7 @@ process gatkcov {
 	time '5h'
 
 	input:
-		tuple val(group), val(id), val(meta), path(bam), path(bai)
+		tuple val(group), val(id), val(meta), val(gatk_ref), path(bam), path(bai)
 
 	output:
 		tuple val(group), val(id), val(meta.type), val(meta.sex), path("${id}.standardizedCR.tsv"), path("${id}.denoisedCR.tsv"), emit: cov_plot
@@ -2618,17 +2451,15 @@ process gatkcov {
 
 	script:
 
-		def PON = [F: params.GATK_PON_FEMALE, M: params.GATK_PON_MALE]
-
 		"""
 		source activate gatk4-env
 
 		gatk CollectReadCounts \\
-			-I $bam -L $params.COV_INTERVAL_LIST \\
+			-I $bam -L $params.cov_interval_list \\
 			--interval-merging-rule OVERLAPPING_ONLY -O ${bam}.hdf5
 
 		gatk --java-options "-Xmx30g" DenoiseReadCounts \\
-			-I ${bam}.hdf5 --count-panel-of-normals ${PON[meta.sex]} \\
+			-I ${bam}.hdf5 --count-panel-of-normals ${gatk_ref.pon} \\
 			--standardized-copy-ratios ${id}.standardizedCR.tsv \\
 			--denoised-copy-ratios ${id}.denoisedCR.tsv
 
@@ -2643,6 +2474,7 @@ process gatkcov {
 
 	stub:
 		"""
+		echo ${gatk_ref.pon}
 		source activate gatk4-env
 		touch "${id}.standardizedCR.tsv"
 		touch "${id}.denoisedCR.tsv"
@@ -2845,10 +2677,10 @@ process gatk_coverage {
 	container  "${params.container_gatk}"
 	tag "$id"
 	input:
-		tuple val(group), val(id), path(bam), path(bai)
+		tuple val(group), val(id), val(meta), val(gatk_ref), path(bam), path(bai)
 
 	output:
-		tuple val(group), val(id), path("${id}.tsv"), emit: coverage_tsv
+		tuple val(group), val(id), val(meta), val(gatk_ref), path("${id}.tsv"), emit: coverage_tsv
 		path "*versions.yml", emit: versions
 
 
@@ -2863,7 +2695,7 @@ process gatk_coverage {
 		set +u
 		source activate gatk
 		gatk --java-options "-Xmx20g" CollectReadCounts \\
-			-L $params.gatk_intervals \\
+			-L ${gatk_ref.intervals} \\
 			-R $params.genome_file \\
 			-imr OVERLAPPING_ONLY \\
 			-I $bam \\
@@ -2901,10 +2733,10 @@ process gatk_call_ploidy {
 	tag "$id"
 
 	input:
-		tuple val(group), val(id), path(coverage_tsv)
+		tuple val(group), val(id), val(meta), val(gatk_ref), path(coverage_tsv)
 
 	output:
-		tuple val(group), val(id), path("ploidy.tar"), emit: call_ploidy
+		tuple val(group), val(id), val(meta), val(gatk_ref), path("ploidy.tar"), emit: call_ploidy
 		path "*versions.yml", emit: versions
 
 	script:
@@ -2915,7 +2747,7 @@ process gatk_call_ploidy {
 		set +u
 		source activate gatk
 		gatk --java-options "-Xmx20g" DetermineGermlineContigPloidy \\
-			--model ${params.ploidymodel} \\
+			--model ${gatk_ref.ploidy_model} \\
 			-I ${coverage_tsv} \\
 			-O ploidy/ \\
 			--output-prefix ${group}
@@ -2953,12 +2785,11 @@ process gatk_call_cnv {
 	tag "$id"
 
 	input:
-		tuple val(group), val(id), path(tsv), path(ploidy), val(i), val(refpart) //TODO: is reffart a path or val
+		tuple val(group), val(id), val(meta), val(gatk_ref), path(tsv), path(ploidy), val(ref_part), path(refpart_folder)
 
 
 	output:
-	//TODO: wtf is i
-		tuple val(group), val(id), val(i), path("${group}_${i}.tar"), emit: gatk_calls
+		tuple val(group), val(id), val(ref_part), path("${group}_${ref_part}.tar"), emit: gatk_calls
 		path "*versions.yml", emit: versions
 
 	script:
@@ -2970,15 +2801,15 @@ process gatk_call_cnv {
 		export MKL_NUM_THREADS=${task.cpus}
 		export OMP_NUM_THREADS=${task.cpus}
 		tar -xvf ploidy.tar
-		mkdir ${group}_${i}
+		mkdir ${group}_${ref_part}
 		gatk --java-options "-Xmx25g" GermlineCNVCaller \\
 			--run-mode CASE \\
 			-I $tsv \\
 			--contig-ploidy-calls ploidy/${group}-calls/ \\
-			--model ${refpart} \\
-			--output ${group}_${i}/ \\
-			--output-prefix ${group}_${i}
-		tar -cvf ${group}_${i}.tar ${group}_${i}/
+			--model ${refpart_folder} \\
+			--output ${group}_${ref_part}/ \\
+			--output-prefix ${group}_${ref_part}
+		tar -cvf ${group}_${ref_part}.tar ${group}_${ref_part}/
 
 		${gatk_call_cnv_version(task)}
 		"""
@@ -2992,7 +2823,7 @@ process gatk_call_cnv {
 		export MKL_NUM_THREADS=${task.cpus}
 		export OMP_NUM_THREADS=${task.cpus}
 		source activate gatk
-		touch "${group}_${i}.tar"
+		touch "${group}_${ref_part}.tar"
 
 		${gatk_call_cnv_version(task)}
 		"""
