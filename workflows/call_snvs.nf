@@ -1,14 +1,14 @@
 workflow CALL_SNVS {
 
     take:
-    ch_bam_bai                                // channel: [ val(group), val(id), path(bam), path(bai) ]
-    ch_genome_file                            // channel: [ path(reference_fasta)                     ]
-    ch_genome_index                           // channel: [ path(reference_fasta_fai)                 ]
+    ch_bam_bai                                // channel: [ val(group), val(id), path(bam), path(bai)    ]
+    ch_genome_file                            // channel: [ path(reference_fasta)                        ]
+    ch_genome_index                           // channel: [ path(reference_fasta_fai)                    ]
     ch_bqsr_known_polymorphic_sites_vcf       // channel: [ path(bqsr_known_polymorphic_sites_vcf)       ]
     ch_bqsr_known_polymorphic_sites_vcf_index // channel: [ path(bqsr_known_polymorphic_sites_vcf_index) ]
-    ch_intersect_bed                          // channel: [ path(intersect_bed)                       ]
-    ch_vcfanno                                // channel: [ path(vcfanno_config)                      ]
-    ch_vcfanno_lua                            // channel: [ path(vcfanno_lua)                         ]
+    ch_intersect_bed                          // channel: [ path(intersect_bed)                          ]
+    ch_vcfanno_config                         // channel: [ path(vcfanno_config)                         ]
+    ch_vcfanno_lua                            // channel: [ path(vcfanno_lua)                            ]
     val_run_freebayes                         // bool:    Whether Freebayes should be run
 
     main:
@@ -47,7 +47,7 @@ workflow CALL_SNVS {
             ch_genome_file,
             ch_genome_index,
             ch_intersect_bed,
-            ch_vcfanno,
+            ch_vcfanno_config,
             ch_vcfanno_lua
         )
 		ch_versions = ch_versions.mix(freebayes.out.versions.first())
@@ -254,7 +254,7 @@ process freebayes {
 		path(genome_file)
 		path(genome_index)
 		path(bed_intersect)
-		path(vcfanno)
+		path(vcfanno_config)
 		path(vcfanno_lua)
 
 	output:
@@ -266,7 +266,7 @@ process freebayes {
 		freebayes -f ${genome_file} --pooled-continuous --pooled-discrete -t $bed_intersect --min-repeat-entropy 1 -F 0.03 $bam > ${id}.freebayes.vcf
 		vcfbreakmulti ${id}.freebayes.vcf > ${id}.freebayes.multibreak.vcf
 		bcftools norm -m-both -c w -O v -f ${genome_file} -o ${id}.freebayes.multibreak.norm.vcf ${id}.freebayes.multibreak.vcf
-		vcfanno_linux64 -lua $vcfanno_lua $vcfanno ${id}.freebayes.multibreak.norm.vcf > ${id}.freebayes.multibreak.norm.anno.vcf
+		vcfanno_linux64 -lua $vcfanno_lua $vcfanno_config ${id}.freebayes.multibreak.norm.vcf > ${id}.freebayes.multibreak.norm.anno.vcf
 		grep ^# ${id}.freebayes.multibreak.norm.anno.vcf > ${id}.freebayes.multibreak.norm.anno.path.vcf
 		grep -v ^# ${id}.freebayes.multibreak.norm.anno.vcf | grep -i pathogenic > ${id}.freebayes.multibreak.norm.anno.path.vcf2
 		cat ${id}.freebayes.multibreak.norm.anno.path.vcf ${id}.freebayes.multibreak.norm.anno.path.vcf2 > ${id}.freebayes.multibreak.norm.anno.path.vcf3

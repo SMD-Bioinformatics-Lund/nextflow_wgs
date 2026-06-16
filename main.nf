@@ -66,8 +66,8 @@ workflow {
 		params.bqsr_known_polymorphic_sites_vcf,
 		params.bqsr_known_polymorphic_sites_vcf_index,
 		params.intersect_bed,
-		params.vcfanno,
-		params.VCFANNO_LUA,
+		params.vcfanno_config,
+		params.vcfanno_lua,
 		params.accessdir,
 		val_analysis_mode,
 		params.expansionhunter_catalog,
@@ -155,8 +155,8 @@ workflow NEXTFLOW_WGS {
 	val_bqsr_known_polymorphic_sites_vcf       // path: [ path(bqsr_known_polymorphic_sites_vcf) ]
 	val_bqsr_known_polymorphic_sites_vcf_index // path: [ path(bqsr_known_polymorphic_sites_vcf_index) ]
 	val_intersect_bed    // path: [ path(intersect_bed) ]
-	val_vcfanno          // path: [ path(vcfanno_config) ]
-	val_vcfanno_lua      // path: [ path(vcfanno_lua) ]
+	val_vcfanno_config  // path: [ path(vcfanno_config) ]
+	val_vcfanno_lua     // path: [ path(vcfanno_lua) ]
 	val_accessdir               // string:  Base access path used in output metadata/INFO paths
 	val_analysis_mode           // string:  Analysis mode derived from sample count, either "single" or "family"
 	val_expansionhunter_catalog // path:    ExpansionHunter variant catalog JSON.
@@ -326,7 +326,7 @@ workflow NEXTFLOW_WGS {
 			val_bqsr_known_polymorphic_sites_vcf,
 			val_bqsr_known_polymorphic_sites_vcf_index,
 			val_intersect_bed,
-			val_vcfanno,
+			val_vcfanno_config,
 			val_vcfanno_lua,
 			val_run_freebayes
 		)
