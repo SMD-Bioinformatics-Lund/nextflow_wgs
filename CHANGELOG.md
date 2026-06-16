@@ -3,7 +3,7 @@
 ### Unreleased
 
 #### Added 
-* ADd workflow `CALL_SNVS`
+* Add workflow `CALL_SNVS`
 
 #### Changed 
 * Pass SNV calling and Freebayes run status as explicit workflow inputs
