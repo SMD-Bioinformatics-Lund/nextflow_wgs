@@ -156,7 +156,7 @@ process vcfanno {
 
 	script:
 		"""
-		vcfanno_linux64 -lua $params.VCFANNO_LUA $params.vcfanno $vcf > ${group}.clinvar.loqusdb.gene.vcf
+		vcfanno_linux64 -lua $params.vcfanno_lua $params.vcfanno_config $vcf > ${group}.clinvar.loqusdb.gene.vcf
 		${vcfanno_version(task)}
 		"""
 

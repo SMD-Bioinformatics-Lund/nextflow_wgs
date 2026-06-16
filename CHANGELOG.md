@@ -1,5 +1,14 @@
 # CHANGELOG
 
+### Unreleased
+
+#### Added 
+* Add workflow `CALL_SNVS`
+
+#### Changed 
+* Pass SNV calling and Freebayes run status as explicit workflow inputs
+* Rename VCFAnno config parameters to `vcfanno_config` and `vcfanno_lua`
+
 ### 3.27.0
 
 #### Added

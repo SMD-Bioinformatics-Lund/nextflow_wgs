@@ -1,6 +1,7 @@
 #!/usr/bin/env nextflow
 
 include { CALL_AND_ANNOTATE_STRS } from './workflows/call_and_annotate_strs.nf'
+include { CALL_SNVS            } from './workflows/call_snvs.nf'
 include { IDSNP_CALL             } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON      } from './modules/idsnp.nf'
 include { MELT                   } from './workflows/melt.nf'
@@ -62,13 +63,20 @@ workflow {
 
 	NEXTFLOW_WGS(
 		ch_samplesheet,
+		params.bqsr_known_polymorphic_sites_vcf,
+		params.bqsr_known_polymorphic_sites_vcf_index,
+		params.intersect_bed,
+		params.vcfanno_config,
+		params.vcfanno_lua,
 		params.accessdir,
 		val_analysis_mode,
 		params.expansionhunter_catalog,
-		params.genome_file,
 		"${params.genome_file}.fai",
+		params.genome_file,
 		val_is_trio,
-        val_run_gatkcov,
+		params.run_freebayes,
+		val_run_gatkcov,
+		params.run_snv_calling,
 		params.smn,
 		params.str
 	)
@@ -143,14 +151,21 @@ workflow.onError {
 workflow NEXTFLOW_WGS {
 
 	take:
-	ch_samplesheet              // channel: [ val(samplesheet_row) ]
+	ch_samplesheet     // channel: [ val(samplesheet_row) ]
+	val_bqsr_known_polymorphic_sites_vcf       // path: [ path(bqsr_known_polymorphic_sites_vcf) ]
+	val_bqsr_known_polymorphic_sites_vcf_index // path: [ path(bqsr_known_polymorphic_sites_vcf_index) ]
+	val_intersect_bed    // path: [ path(intersect_bed) ]
+	val_vcfanno_config  // path: [ path(vcfanno_config) ]
+	val_vcfanno_lua     // path: [ path(vcfanno_lua) ]
 	val_accessdir               // string:  Base access path used in output metadata/INFO paths
 	val_analysis_mode           // string:  Analysis mode derived from sample count, either "single" or "family"
 	val_expansionhunter_catalog // path:    ExpansionHunter variant catalog JSON.
-	val_genome_file             // path:    Reference FASTA.
 	val_genome_fai              // path:    Reference FASTA index.
+	val_genome_fasta            // path:    Reference FASTA.
 	val_is_trio                 // bool:    Whether the input CSV contains enough samples for trio analysis
+	val_run_freebayes   // bool:   Whether Freebayes should be run
 	val_run_gatkcov             // bool:    Should gatkcov run (GENS entrypoint)
+	val_run_snv_calling // bool:   Whether SNV calling should be run
 	val_smn                     // bool:    Whether to run SMN copy number calling
 	val_str                     // bool:    Whether to call and annotate STRs
 
@@ -244,9 +259,6 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(markdup.out.versions.first())
 	}
 
-	bqsr(ch_bam_bai)
-	ch_versions = ch_versions.mix(bqsr.out.versions.first())
-
 	// POST SEQ QC //
 	sentieon_qc(ch_bam_bai)
 	ch_versions = ch_versions.mix(sentieon_qc.out.versions.first())
@@ -302,39 +314,29 @@ workflow NEXTFLOW_WGS {
 
 
 	// SNV CALLING //
-	dnascope(ch_bam_bai.join(bqsr.out.dnascope_bqsr, by: [0, 1]))
-	ch_versions = ch_versions.mix(dnascope.out.versions.first())
-	gvcf_combine(dnascope.out.gvcf_tbi.groupTuple())
-	ch_versions = ch_versions.mix(gvcf_combine.out.versions.first())
+	ch_snv_vcf_tbi_full = channel.empty()
+	ch_snv_vcf_tbi_intersected = channel.empty()
+	ch_sample_gvcf_tbi = channel.empty()
 
-    ch_split_normalize_in = channel.empty()
-    
-	// TODO: move antypes and similar to constants?
-	if (params.onco) {
-		freebayes(ch_bam_bai)
-		ch_versions = ch_versions.mix(freebayes.out.versions.first())
-        
-        ch_concat_gvcf_freebayes_in = freebayes.out.freebayes_variants
-            .join(
-                gvcf_combine.out.combined_vcf
-            )
-            .map {
-                group, freebayes_vcf, _id, gvcf, _gvcf_tbi ->
-                [ group, gvcf, freebayes_vcf ]
-            }
-
-        concat_gvcf_freebayes(ch_concat_gvcf_freebayes_in)
-        ch_split_normalize_in = concat_gvcf_freebayes.out.vcf_tbi
-        ch_versions = ch_versions.mix(concat_gvcf_freebayes.out.versions.first())
-        
-	} else {
-        ch_split_normalize_in = gvcf_combine.out.combined_vcf
-            .map { group, _id, vcf, tbi -> [ group, vcf, tbi ] }
-    }
-
-    
-    SPLIT_NORMALIZE_SNVS(ch_split_normalize_in, params.intersect_bed)
-    ch_versions = ch_versions.mix(SPLIT_NORMALIZE_SNVS.out.versions)
+	if(val_run_snv_calling) {
+		CALL_SNVS(
+			ch_bam_bai,
+			val_genome_fasta,
+			val_genome_fai,
+			val_bqsr_known_polymorphic_sites_vcf,
+			val_bqsr_known_polymorphic_sites_vcf_index,
+			val_intersect_bed,
+			val_vcfanno_config,
+			val_vcfanno_lua,
+			val_run_freebayes
+		)
+		SPLIT_NORMALIZE_SNVS(CALL_SNVS.out.group_vcf_tbi, val_intersect_bed)
+		ch_snv_vcf_tbi_full = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_full
+		ch_snv_vcf_tbi_intersected = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+		ch_sample_gvcf_tbi = CALL_SNVS.out.sample_gvcf_tbi
+		ch_versions = ch_versions.mix(CALL_SNVS.out.versions)
+		ch_versions = ch_versions.mix(SPLIT_NORMALIZE_SNVS.out.versions)
+	}
 
     ch_rename_mito_contigs_in = channel.empty() 
 
@@ -373,7 +375,7 @@ workflow NEXTFLOW_WGS {
         
 		run_hmtnote(split_normalize_mito.out.vcf) 
 
-        ch_picard_mergevcfs_in = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+        ch_picard_mergevcfs_in = ch_snv_vcf_tbi_intersected
             .join(run_hmtnote.out.vcf) 
             .map { group, snv_vcf, _tbi, mito_vcf -> [ group, snv_vcf, mito_vcf ] }
 
@@ -397,7 +399,7 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(run_haplogrep.out.versions.first())
 		ch_versions = ch_versions.mix(run_eklipse.out.versions.first())
 	} else {
-        ch_rename_mito_contigs_in = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+        ch_rename_mito_contigs_in = ch_snv_vcf_tbi_intersected
     }
 
     // TODO: Do this inside mito snv workflow? 
@@ -450,7 +452,7 @@ workflow NEXTFLOW_WGS {
 		if (params.antype == "wgs") {
 			// fastgnomad
 			fastgnomad(
-                SPLIT_NORMALIZE_SNVS.out.vcf_tbi_full
+                ch_snv_vcf_tbi_full
                     .map {
                         group, vcf, _tbi -> [ group, vcf ]
                     }
@@ -484,7 +486,7 @@ workflow NEXTFLOW_WGS {
 				upd.out.upd_bed
 			)
 
-			generate_gens_data(dnascope.out.gvcf_tbi.join(gatkcov.out.cov_gens, by: [0,1]))
+			generate_gens_data(ch_sample_gvcf_tbi.join(gatkcov.out.cov_gens, by: [0,1]))
 
 			ch_gens_v4_meta = gatkcov.out.cov_plot
 				.combine(roh.out.roh_plot.map { it -> it[1] })
@@ -546,7 +548,7 @@ workflow NEXTFLOW_WGS {
 				ch_bam_bai,
 				ch_proband_meta,
 				val_analysis_mode,
-				val_genome_file,
+				val_genome_fasta,
 				val_genome_fai,
 				val_expansionhunter_catalog,
 				val_accessdir
@@ -651,7 +653,7 @@ workflow NEXTFLOW_WGS {
 
 			ch_cnvkit_panel_in = ch_bam_bai
 				.combine(
-					SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+					ch_snv_vcf_tbi_intersected
 						.map { group, vcf, _tbi -> [ group, vcf ] },
 					by: 0
 				)
@@ -754,7 +756,7 @@ workflow NEXTFLOW_WGS {
 			}
 		svvcf_to_bed(ch_svvcf_to_bed_in)
 
-        ch_cnvkit_plot_snvs = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
+        ch_cnvkit_plot_snvs = ch_snv_vcf_tbi_intersected
             .map { group, vcf, _tbi -> [ group, vcf ] }
         
 		// plot cnvkit for panels
@@ -1180,125 +1182,10 @@ process dedupdummy {
 }
 
 
-process bqsr {
-	cpus 40
-	errorStrategy 'retry'
-	maxErrors 5
-	tag "$id"
-	memory '30 GB'
-	// 12gb peak giab //
-	time '5h'
-	container  "${params.container_sentieon}"
-	publishDir "${params.outdir}/${params.subdir}/bqsr", mode: 'copy' , overwrite: true, pattern: '*.table'
 
-	input:
-		tuple val(group), val(id), path(bam), path(bai)
-
-	output:
-		tuple val(group), val(id), path("${id}.bqsr.table"), emit: dnascope_bqsr
-		path "*versions.yml", emit: versions
-
-	script:
-		"""
-		sentieon driver -t ${task.cpus} \\
-			-r ${params.genome_file} -i $bam \\
-			--algo QualCal ${id}.bqsr.table \\
-			-k $params.KNOWN_SITES
-
-		${bqsr_version(task)}
-		"""
-
-	stub:
-		"""
-		touch "${id}.bqsr.table"
-		${bqsr_version(task)}
-		"""
-}
-def bqsr_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    sentieon: \$(echo \$(sentieon driver --version 2>&1) | sed -e "s/sentieon-genomics-//g")
-	END_VERSIONS
-	"""
-}
 
 // When rerunning sample
-process dnascope {
-	cpus 54
-	memory '100 GB'
-	// 12 GB peak giab //
-	time '4h'
-	tag "$id"
-	container  "${params.container_sentieon}"
 
-	input:
-		tuple val(group), val(id), val(bam), val(bai), val(bqsr)
-
-	output:
-		tuple val(group), val(id), path("${id}.dnascope.gvcf.gz"), path("${id}.dnascope.gvcf.gz.tbi"), emit: gvcf_tbi
-		path "*versions.yml", emit: versions
-
-	when:
-		params.varcall
-
-	// TODO: Move shards out to some config file:
-	script:
-		"""
-		sentieon driver \\
-			-t ${task.cpus} \\
-			-r ${params.genome_file} \\
-			-q $bqsr \\
-			-i $bam \\
-			--shard 1:1-248956422  \\
-			--shard 2:1-242193529  \\
-			--shard 3:1-198295559  \\
-			--shard 4:1-190214555  \\
-			--shard 5:1-120339935  \\
-			--shard 5:120339936-181538259  \\
-			--shard 6:1-170805979  \\
-			--shard 7:1-159345973  \\
-			--shard 8:1-145138636  \\
-			--shard 9:1-138394717  \\
-			--shard 10:1-133797422  \\
-			--shard 11:1-135086622  \\
-			--shard 12:1-56232327  \\
-			--shard 12:56232328-133275309  \\
-			--shard 13:1-114364328  \\
-			--shard 14:1-107043718  \\
-			--shard 15:1-101991189  \\
-			--shard 16:1-90338345  \\
-			--shard 17:1-83257441  \\
-			--shard 18:1-80373285  \\
-			--shard 19:1-58617616  \\
-			--shard 20:1-64444167  \\
-			--shard 21:1-46709983  \\
-			--shard 22:1-50818468  \\
-			--shard X:1-124998478  \\
-			--shard X:124998479-156040895  \\
-			--shard Y:1-57227415  \\
-			--shard M:1-16569 \\
-			--algo DNAscope --emit_mode GVCF ${id}.dnascope.gvcf.gz
-
-		${dnascope_version(task)}
-		"""
-
-	stub:
-		"""
-		touch "${id}.dnascope.gvcf.gz"
-		touch "${id}.dnascope.gvcf.gz.tbi"
-
-		${dnascope_version(task)}
-		"""
-}
-def dnascope_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    sentieon: \$(echo \$(sentieon driver --version 2>&1) | sed -e "s/sentieon-genomics-//g")
-	END_VERSIONS
-	"""
-}
 
 
 //Collect various QC data:
@@ -1601,50 +1488,6 @@ process bamtoyaml {
 }
 
 
-process gvcf_combine {
-	cpus 16
-	tag "$group"
-	memory '5 GB'
-	time '5h'
-	container  "${params.container_sentieon}"
-
-	input:
-		tuple val(group), val(id), path(gvcfs), path(gvcf_idxs)
-
-	output: // Off to split_normalize, together with other stuff
-		tuple val(group), val(id), path("${group}.combined.vcf.gz"), path("${group}.combined.vcf.gz.tbi"), emit: combined_vcf
-		path "*versions.yml", emit: versions
-
-	script:
-		all_gvcfs = gvcfs.collect { gvcf -> gvcf.toString() }.sort().join(' -v ')
-		"""
-		sentieon driver \\
-			-t ${task.cpus} \\
-			-r ${params.genome_file} \\
-			--algo GVCFtyper \\
-			-v $all_gvcfs ${group}.combined.vcf.gz
-
-		${gvcf_combine_version(task)}
-		"""
-
-	stub:
-		all_gvcfs = gvcfs.collect { gvcf -> gvcf.toString() }.sort().join(' -v ')
-		"""
-		touch "${group}.combined.vcf.gz"
-		touch "${group}.combined.vcf.gz.tbi"
-
-		${gvcf_combine_version(task)}
-		"""
-}
-def gvcf_combine_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    sentieon: \$(echo \$(sentieon driver --version 2>&1) | sed -e "s/sentieon-genomics-//g")
-	END_VERSIONS
-	"""
-}
-
 // Create ped
 process create_ped {
 	tag "${meta.group}"
@@ -1740,87 +1583,7 @@ def madeline_version(task) {
 	"""
 }
 
-process freebayes {
-	cpus 1
-	time '2h'
-	memory '10 GB'
-	container  "${params.container_twist_myeloid}"
 
-	input:
-		tuple val(group), val(id), path(bam), path(bai)
-
-	output:
-		tuple val(group), path("${id}.pathfreebayes.vcf_no_header.tsv.gz"), emit: freebayes_variants
-		path "*versions.yml", emit: versions
-
-	script:
-		"""
-		freebayes -f ${params.genome_file} --pooled-continuous --pooled-discrete -t $params.intersect_bed --min-repeat-entropy 1 -F 0.03 $bam > ${id}.freebayes.vcf
-		vcfbreakmulti ${id}.freebayes.vcf > ${id}.freebayes.multibreak.vcf
-		bcftools norm -m-both -c w -O v -f ${params.genome_file} -o ${id}.freebayes.multibreak.norm.vcf ${id}.freebayes.multibreak.vcf
-		vcfanno_linux64 -lua $params.VCFANNO_LUA $params.vcfanno ${id}.freebayes.multibreak.norm.vcf > ${id}.freebayes.multibreak.norm.anno.vcf
-		grep ^# ${id}.freebayes.multibreak.norm.anno.vcf > ${id}.freebayes.multibreak.norm.anno.path.vcf
-		grep -v ^# ${id}.freebayes.multibreak.norm.anno.vcf | grep -i pathogenic > ${id}.freebayes.multibreak.norm.anno.path.vcf2
-		cat ${id}.freebayes.multibreak.norm.anno.path.vcf ${id}.freebayes.multibreak.norm.anno.path.vcf2 > ${id}.freebayes.multibreak.norm.anno.path.vcf3
-		filter_freebayes.pl ${id}.freebayes.multibreak.norm.anno.path.vcf3 | bgzip -c > "${id}.pathfreebayes.vcf_no_header.tsv.gz"
-
-		${freebayes_version(task)}
-		"""
-	stub:
-		"""
-		touch "${id}.pathfreebayes.vcf_no_header.tsv.gz"
-
-		${freebayes_version(task)}
-		"""
-}
-def freebayes_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    freebayes: \$(echo \$(freebayes --version 2>&1) | sed 's/version:\s*v//g')
-	    vcflib: 1.0.9
-	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
-	    vcfanno: \$(echo \$(vcfanno_linux64 2>&1 | grep version | cut -f3 -d' ')  )
-	END_VERSIONS
-	"""
-}
-
-process concat_gvcf_freebayes {
-    cpus 2
-	tag "$group"
-	memory '10 GB'
-	time '1h'
-
-    container "${params.container_bcftools}"
-    
-    input:
-	tuple val(group), path(gvcf), path(freebayes_headerless_vcf)
-    output:
-    tuple val(group), path("${group}.sorted.vcf.gz"), path("${group}.sorted.vcf.gz.tbi"), emit: vcf_tbi
-    path "*versions.yml", emit: versions
-    
-    script:
-    """
-    zcat ${gvcf} ${freebayes_headerless_vcf} |\
-        bcftools sort -o ${group}.sorted.vcf.gz -O z --write-index=tbi
-    ${concat_gvcf_freebayes_version(task)}
-    """
-
-    stub:
-    """
-    touch ${group}.sorted.vcf.gz
-    touch ${group}.sorted.vcf.gz.tbi
-    ${concat_gvcf_freebayes_version(task)}
-    """
-}
-def concat_gvcf_freebayes_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
-	END_VERSIONS
-	"""
-}
 
 
 /////////////// MITOCHONDRIA SNV CALLING ///////////////
