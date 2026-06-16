@@ -63,23 +63,20 @@ workflow {
 
 	NEXTFLOW_WGS(
 		ch_samplesheet,
-		val_analysis_mode,
-		val_is_trio,
-		params.run_snv_calling,
-		params.run_freebayes,
 		params.bqsr_known_polymorphic_sites_vcf,
 		params.bqsr_known_polymorphic_sites_vcf_index,
 		params.intersect_bed,
 		params.vcfanno,
 		params.VCFANNO_LUA,
-		params.intersect_bed
 		params.accessdir,
 		val_analysis_mode,
 		params.expansionhunter_catalog,
-		params.genome_file,
 		"${params.genome_file}.fai",
+		params.genome_file,
 		val_is_trio,
-        val_run_gatkcov,
+		params.run_freebayes,
+		val_run_gatkcov,
+		params.run_snv_calling,
 		params.smn,
 		params.str
 	)
@@ -155,19 +152,16 @@ workflow NEXTFLOW_WGS {
 
 	take:
 	ch_samplesheet     // channel: [ val(samplesheet_row) ]
-	ch_bqsr_known_polymorphic_sites_vcf       // channel: [ path(bqsr_known_polymorphic_sites_vcf) ]
-	ch_bqsr_known_polymorphic_sites_vcf_index // channel: [ path(bqsr_known_polymorphic_sites_vcf_index) ]
-	ch_genome_file      // channel: [ path(reference_fasta) ]
-	ch_genome_index     // channel: [ path(reference_fasta_fai) ]
-	ch_intersect_bed    // channel: [ path(intersect_bed) ]
-	ch_vcfanno          // channel: [ path(vcfanno_config) ]
-	ch_vcfanno_lua      // channel: [ path(vcfanno_lua) ]
+	val_bqsr_known_polymorphic_sites_vcf       // path: [ path(bqsr_known_polymorphic_sites_vcf) ]
+	val_bqsr_known_polymorphic_sites_vcf_index // path: [ path(bqsr_known_polymorphic_sites_vcf_index) ]
+	val_intersect_bed    // path: [ path(intersect_bed) ]
+	val_vcfanno          // path: [ path(vcfanno_config) ]
+	val_vcfanno_lua      // path: [ path(vcfanno_lua) ]
 	val_accessdir               // string:  Base access path used in output metadata/INFO paths
 	val_analysis_mode           // string:  Analysis mode derived from sample count, either "single" or "family"
 	val_expansionhunter_catalog // path:    ExpansionHunter variant catalog JSON.
 	val_genome_fai              // path:    Reference FASTA index.
-	val_genome_file             // path:    Reference FASTA.
-	val_intersect_bed   // path:    Intersect BED
+	val_genome_fasta            // path:    Reference FASTA.
 	val_is_trio                 // bool:    Whether the input CSV contains enough samples for trio analysis
 	val_run_freebayes   // bool:   Whether Freebayes should be run
 	val_run_gatkcov             // bool:    Should gatkcov run (GENS entrypoint)
@@ -327,13 +321,13 @@ workflow NEXTFLOW_WGS {
 	if(val_run_snv_calling) {
 		CALL_SNVS(
 			ch_bam_bai,
-			ch_genome_file,
-			ch_genome_index,
-			ch_bqsr_known_polymorphic_sites_vcf,
-			ch_bqsr_known_polymorphic_sites_vcf_index,
-			ch_intersect_bed,
-			ch_vcfanno,
-			ch_vcfanno_lua,
+			val_genome_fasta,
+			val_genome_fai,
+			val_bqsr_known_polymorphic_sites_vcf,
+			val_bqsr_known_polymorphic_sites_vcf_index,
+			val_intersect_bed,
+			val_vcfanno,
+			val_vcfanno_lua,
 			val_run_freebayes
 		)
 		SPLIT_NORMALIZE_SNVS(CALL_SNVS.out.group_vcf_tbi, val_intersect_bed)
@@ -554,7 +548,7 @@ workflow NEXTFLOW_WGS {
 				ch_bam_bai,
 				ch_proband_meta,
 				val_analysis_mode,
-				val_genome_file,
+				val_genome_fasta,
 				val_genome_fai,
 				val_expansionhunter_catalog,
 				val_accessdir
