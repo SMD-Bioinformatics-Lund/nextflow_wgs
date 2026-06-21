@@ -9,7 +9,7 @@ To run the pipeline, you need to setup a number of annotation files. Default val
 | `rCRS_fasta`              | Reference genome     | `fasta`         | Mitochondrial FASTA reference sequence found [here](https://www.ncbi.nlm.nih.gov/nuccore/251831106)                                                                                                                                                     |
 | `bwa_shards`              | Alignment            | integer         | Number of shards to split the reads into prior to alignment                                                                                                                                                                                             |
 | `shardbwa`                | Alignment            | boolean         | Boolean specifying whether to do alignment in sharded mode                                                                                                                                                                                              |
-| `KNOWN_SITES`                   | Alignment            | `vcf`           | Gold-standard indels used in Sentieon's base quality score recalibration (BQSR)                                                                                                                                                                         |
+| `bqsr_known_polymorphic_sites_vcf` | Alignment          | `vcf`           | Gold-standard indels used in Sentieon's base quality score recalibration (BQSR)                                                                                                                                                                         |
 | `VEP_CACHE`               | Annotation (VEP)     | folder          | VEP files for offline run. Instructions on how to setup a cache can be found [here](https://www.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache).                                                                                           |
 | `VEP_FASTA`               | Annotation (VEP)     | `fasta`         | Reference sequence used for optimization within the VEP cache                                                                                                                                                                                           |
 | `SYNONYMS`                | Annotation (VEP)     | `tsv`           | Chromosome synonyms used by VEP (for instance to recognize `M` as `MT`)                                                                                                                                                                                 |
@@ -21,8 +21,8 @@ To run the pipeline, you need to setup a number of annotation files. Default val
 | `dbNSFP`                  | Annotation (VEP)     | `tsv`           | Path to gzipped tab delimited file containing the dbNSFP annotations.                                                                                                                                                                                   |
 | `PHYLOP`                  | Annotation (VEP)     | `tsv`           | Measures evolutionary conservation at individual alignment sites. This parameter expects a tab-delimited file with pre-calculated phyloP scores.                                                                                                        |
 | `PHASTCONS`               | Annotation (VEP)     | `tsv`           | Conservation scores. This parameter expects a tab-delimited file with pre-calculated phyloP scores.                                                                                                                                                     |
-| `vcfanno`                 | Annotation (VCFAnno) | `toml`          | Config file pointing to which files to retrieve annotation from, which fields that should be extracted and how these should be inserted in the target VCF. This additional annotations are different depending on which profile is used for processing. |
-| `LUA`                     | Annotation (VCFAnno) | `lua`           | Custom script for VCFAnno annotations                                                                                                                                                                                                                   |
+| `vcfanno_config`         | Annotation (VCFAnno) | `toml`          | Config file pointing to which files to retrieve annotation from, which fields that should be extracted and how these should be inserted in the target VCF. This additional annotations are different depending on which profile is used for processing. |
+| `vcfanno_lua`            | Annotation (VCFAnno) | `lua`           | Custom script for VCFAnno annotations                                                                                                                                                                                                                   |
 | `COV_INTERNAL_LIST`       | CNV                  | `interval_list` | List of pre-calculated intervals to use in `gatk CollectReadCount` ([more info](https://gatk.broadinstitute.org/hc/en-us/articles/360037427371-PreprocessIntervals-BETA-))                                                                              |
 | `GATK_PON_MALE`           | CNV                  | `hdf5`          | Gender specific panel of normals used in `DenoiseReadCounts` GATK step                                                                                                                                                                                  |
 | `GATK_PON_FEMALE`         | CNV                  | `hdf5`          | Gender specific panel of normals used in `DenoiseReadCounts` GATK step                                                                                                                                                                                  |
@@ -37,7 +37,11 @@ To run the pipeline, you need to setup a number of annotation files. Default val
 | `loqusdb`                 | LoqusDB              | string          | Path-name to the `loqusdb` from which to retrieve local artifact frequencies                                                                                                                                                                            |
 | `panelsdef`               | Scout                | `json`          | Location of panels used in Scout                                                                                                                                                                                                                        |
 | `scoutbed`                | Scout                | `bed`           | Bedfile used in coverage calculations for Scout                                                                                                                                                                                                         |
-| `svdb`                    | LoqusDB              | `vcf`           | LoqusDB SV artefacts                                                                                                                                                                                                                                    |
+| `svdb`                    | LoqusDB              | `vcf`           | LoqusDB SV 
+GATK
+`gatk_ref_csv`              | GENS/gatk cnvs       | `csv`           | GENS pons per sex and input ploidy, call models for GATK coverage and interval files |
+
+artefacts                                                                                                                                                                                                                                    |
 ## Preparing annotation files
 
 This is a non-comprehensive documentation on how some of the reference files can be prepared. If you miss instructions for some annotation file, please open an issue in the [GitHub repository](https://github.com/Clinical-Genomics-Lund/nextflow_wgs/issues).
@@ -100,3 +104,13 @@ names=["Annotation"]
 ops=["concat"]
 ```
 
+### GATK meta-csv
+
+Example of meta-csv for gatk- references/pons. Headers (description). PON can be left empty for panels that dont use GENS. if platform/sex combination does not exist in this meta-csv pipeline will exit with error message to indicate this
+
+* platform (illumina/illuminax)
+* sex (M/F)
+* intervals (path_to_interval_file)
+* ploidy_model (path_to_ploidy_model)
+* ref_folders (path_to_ref_folders)
+* pon (path_to_sex_specific_gens_pon)
