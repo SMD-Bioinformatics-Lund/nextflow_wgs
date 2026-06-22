@@ -1,5 +1,6 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 use strict;
+use warnings;
 use Getopt::Long;
 use File::Basename;
 use lib dirname (__FILE__);
@@ -14,13 +15,16 @@ my $vcf_file = $opt{vcf};
 my $mother = $opt{mother};
 my $father = $opt{father};
 my $out = $opt{out};
+
+die "--vcf and --out are required\n" unless defined $vcf_file && defined $out;
+
 open (OUT,'>',$out);
 
 my @extra_individuals;
-if ($father ne "null") {
+if (defined $father && $father ne "") {
 	push @extra_individuals,$father;
 }
-if ($mother ne "null") {
+if (defined $mother && $mother ne "") {
 	push @extra_individuals,$mother;
 }
 
