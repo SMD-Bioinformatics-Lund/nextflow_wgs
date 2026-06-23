@@ -4,6 +4,7 @@ include { CALL_AND_ANNOTATE_STRS } from './workflows/call_and_annotate_strs.nf'
 include { CALL_SNVS            } from './workflows/call_snvs.nf'
 include { IDSNP_CALL             } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON      } from './modules/idsnp.nf'
+include { ALIGN_READS            } from './workflows/align_reads.nf'
 include { MELT                   } from './workflows/melt.nf'
 include { SNV_ANNOTATE           } from './workflows/annotate_snvs.nf'
 include { SPLIT_NORMALIZE_SNVS   } from './workflows/split_normalize_snvs.nf'
@@ -28,14 +29,6 @@ workflow {
 	val_analysis_mode = input_csv_line_count > 2 ? "family" : "single"
 	val_is_trio = input_csv_line_count > 3 ? true : false
 	val_run_gatkcov = params.gatkcov ? true : false
-
-	// Check whether genome assembly is indexed //
-	// TODO: Move to some pre-processing workflow:
-	if(params.genome_file) {
-		_bwaId = channel
-			.fromPath("${params.genome_file}.bwt")
-			.ifEmpty { exit 1, "BWA index not found: ${params.genome_file}.bwt" }
-	}
 
 	// Count lines of input csv, if more than 2(header + 1 ind) then mode is set to family //
 	log.info("Input CSV: " + params.csv)
@@ -249,14 +242,12 @@ workflow NEXTFLOW_WGS {
 	//TODO: why do we have a params.align conditional anyway?
 	ch_dedup_stats = channel.empty()
 	if (params.align) {
-		bwa_align(ch_fastq_start)
-		markdup(bwa_align.out.bam_bai)
-		ch_dedup_stats = ch_dedup_stats.mix(markdup.out.dedup_metrics)
-		ch_output_info = ch_output_info.mix(markdup.out.dedup_bam_INFO)
-		ch_bam_bai = ch_bam_bai.mix(markdup.out.dedup_bam_bai)
+		ALIGN_READS(ch_fastq_start, params.genome_file)
+		ch_dedup_stats = ch_dedup_stats.mix(ALIGN_READS.out.dedup_metrics)
+		ch_output_info = ch_output_info.mix(ALIGN_READS.out.dedup_bam_INFO)
+		ch_bam_bai = ch_bam_bai.mix(ALIGN_READS.out.dedup_bam_bai)
 
-		ch_versions = ch_versions.mix(bwa_align.out.versions.first())
-		ch_versions = ch_versions.mix(markdup.out.versions.first())
+		ch_versions = ch_versions.mix(ALIGN_READS.out.versions)
 	}
 
 	// POST SEQ QC //
@@ -995,121 +986,6 @@ def fastp_version(task) {
 	"""
 }
 
-
-process bwa_align {
-	cpus 50
-	memory '100 GB' 	// 64 GB peak giab //
-	scratch true
-	stageInMode 'copy'
-	stageOutMode 'copy'
-	tag "$id"
-	container  "${params.container_sentieon}"
-
-	input:
-		tuple val(group), val(id), path(fastq_r1), path(fastq_r2)
-
-	output:
-		tuple val(group), val(id), path("${id}_merged.bam"), path("${id}_merged.bam.bai"), emit: bam_bai
-		path "*versions.yml", emit: versions
-
-	when:
-		params.align
-
-	script:
-		"""
-		sentieon bwa mem \\
-			-M \\
-			-K ${params.bwa_K_size} \\
-			-R '@RG\\tID:${id}\\tSM:${id}\\tPL:illumina' \\
-			-t ${task.cpus} \\
-			${params.genome_file} $fastq_r1 $fastq_r2 \\
-			| sentieon util sort \\
-			-r ${params.genome_file} \\
-			-o ${id}_merged.bam \\
-			-t ${task.cpus} --sam2bam -i -
-
-		${bwa_align_versions(task)}
-		"""
-
-	stub:
-		"""
-		touch "${id}_merged.bam"
-		touch "${id}_merged.bam.bai"
-
-		${bwa_align_versions(task)}
-		"""
-
-}
-def bwa_align_versions(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    sentieon: \$(echo \$(sentieon util --version 2>&1) | sed -e "s/sentieon-genomics-//g")
-	    bwa: \$(echo \$(sentieon bwa 2>&1) | sed 's/^.*Version: //; s/Contact:.*\$//')
-	END_VERSIONS
-	"""
-}
-
-process markdup {
-	cpus 40
-	errorStrategy 'retry'
-	maxErrors 5
-	tag "$id"
-	memory '50 GB' // 12GB peak GIAB
-	time '3h'
-	container  "${params.container_sentieon}"
-	publishDir "${params.outdir}/${params.subdir}/bam", mode: 'copy' , overwrite: true, pattern: '*_dedup.bam*'
-
-	input:
-		tuple val(group), val(id), path(bam), path(bai)
-
-	output:
-		tuple val(group), val(id), path("${id}_dedup.bam"), path("${id}_dedup.bam.bai"), emit: dedup_bam_bai
-		tuple val(group), val(id), path("dedup_metrics.txt"), emit: dedup_metrics
-		tuple val(group), path("${group}_bam.INFO"), emit: dedup_bam_INFO
-		path "*versions.yml", emit: versions
-
-	script:
-		"""
-		sentieon driver \\
-			--temp_dir /local/scratch/ \\
-			-t ${task.cpus} \\
-			-i $bam --shard 1:1-248956422 --shard 2:1-242193529 --shard 3:1-198295559 --shard 4:1-190214555 --shard 5:1-120339935 --shard 5:120339936-181538259 --shard 6:1-170805979 --shard 7:1-159345973 --shard 8:1-145138636 --shard 9:1-138394717 --shard 10:1-133797422 --shard 11:1-135086622 --shard 12:1-56232327 --shard 12:56232328-133275309 --shard 13:1-114364328 --shard 14:1-107043718 --shard 15:1-101991189 --shard 16:1-90338345 --shard 17:1-83257441 --shard 18:1-80373285 --shard 19:1-58617616 --shard 20:1-64444167 --shard 21:1-46709983 --shard 22:1-50818468 --shard X:1-124998478 --shard X:124998479-156040895 --shard Y:1-57227415 --shard M:1-16569 \\
-			--algo LocusCollector \\
-			--fun score_info ${id}.score
-
-		sentieon driver \\
-			--temp_dir /local/scratch/ \\
-			-t ${task.cpus} \\
-			-i $bam \\
-			--algo Dedup --score_info ${id}.score \\
-			--metrics dedup_metrics.txt \\
-			--rmdup ${id}_dedup.bam
-
-		# TODO: Build this and other INFO outputs in separate workflow/process.
-		echo "BAM	$id	/access/${params.subdir}/bam/${id}_dedup.bam" > ${group}_bam.INFO
-
-		${markdup_versions(task)}
-		"""
-
-	stub:
-		"""
-		touch "${id}_dedup.bam"
-		touch "${id}_dedup.bam.bai"
-		touch "dedup_metrics.txt"
-		touch "${group}_bam.INFO"
-
- 		${markdup_versions(task)}
- 		"""
-}
-def markdup_versions(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    sentieon: \$(echo \$(sentieon driver --version 2>&1) | sed -e "s/sentieon-genomics-//g")
-	END_VERSIONS
-	"""
-}
 
 // Rename of bams prior to copy_bam required so that copy_bam can output the
 // bam with unaltered filenames. This needs to be fixed in a better way.
