@@ -28,6 +28,9 @@
 * Do not redefine `params.results_output_dir` in workflows.
 * Harden `familyfy_str.pl` argument handling for missing parent IDs
 
+#### Fixed
+* Removed chr-prefix from BQSR know sites VCF.
+
 ### 3.26.4
 * code style change
 * changed all input-channels to a standardized format
