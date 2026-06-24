@@ -8,6 +8,7 @@
 #### Changed 
 * Pass SNV calling and Freebayes run status as explicit workflow inputs
 * Rename VCFAnno config parameters to `vcfanno_config` and `vcfanno_lua`
+* Pass the CFTR annotation flag through `NEXTFLOW_WGS` into `SNV_ANNOTATE` instead of reading `params.cftr` inside named workflows
 
 ### 3.27.0
 
