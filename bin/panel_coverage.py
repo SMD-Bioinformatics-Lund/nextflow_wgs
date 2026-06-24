@@ -26,8 +26,9 @@ def main():
     # WGS
     else:
         gene_filter = args.gene_filter
-        gene_list = read_gene_filter(gene_filter)
+        gene_list, partial_cds_genes = read_coverage_gene_list(gene_filter)
         gene_gtf,exon_to_gene,cds_to_gene,probe_mapper,wgs_gtf = read_mane_gtf(mane_gtf,gene_list)
+        mark_partial_cds_genes(gene_gtf, partial_cds_genes)
         cds_file,exon_file = generate_bed_regions(wgs_gtf)
 
     # calculate coverage for sub-regions using mosdepth
@@ -44,6 +45,12 @@ def main():
     
     mongolike = {}
     mongolike['genes'] = filtered_gene_gtf
+    if args.summary_genes:
+        genes_to_include = read_gene_list(args.summary_genes)
+        summary = summarize_coverage(mongolike, genes_to_include, args.threshold)
+        mongolike["summary"] = summary
+        if args.summary_output:
+            write_json(args.summary_output, summary)
     json_output = json.dumps(mongolike, indent=4)
     output_json = f"{sample_id}.cov.json"
     if args.output:
@@ -81,7 +88,26 @@ def parse_arguments():
     parser.add_argument(
         '-f', '--gene_filter',
         type=str,
-        help="list of genes to keep mutually exclusive to design_bed"
+        help=(
+            "list of genes to keep, mutually exclusive to design_bed. "
+            "Optional second column marks partial CDS coverage: true/false, yes/no, partial/full"
+        )
+    )
+    parser.add_argument(
+        '--summary_genes',
+        type=str,
+        help="list of genes to include in the coverage summary"
+    )
+    parser.add_argument(
+        '-t', '--threshold',
+        default=500.0,
+        type=float,
+        help="Mean CDS coverage threshold for summary. Default: 500"
+    )
+    parser.add_argument(
+        '--summary_output',
+        type=str,
+        help="write summary JSON to this file in addition to embedding it in the main JSON output"
     )
     parser.add_argument(
         '-o', '--output',
@@ -94,6 +120,195 @@ def parse_arguments():
     elif args.design_bed is None and args.gene_filter is None:
         exit("Please provide either design_bed or gene_filter")
     return args
+
+def write_json(output_file, data):
+    with open(output_file, "w", encoding="utf-8") as outfile:
+        outfile.write(json.dumps(data, indent=4) + "\n")
+
+def parse_partial_cds_flag(value):
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "t", "yes", "y", "partial", "partially_covered", "partial_cds"}:
+        return True
+    if normalized in {"0", "false", "f", "no", "n", "full", "complete", "fully_covered", "full_cds"}:
+        return False
+    raise ValueError(
+        f"Unknown partial CDS flag '{value}'. Use true/false, yes/no, partial/full, or 1/0."
+    )
+
+def read_coverage_gene_list(gene_file):
+    """
+    Reads the coverage gene list used to select genes for coverage calculation.
+    Column 1 is gene symbol. Optional column 2 marks genes where only part of the
+    CDS is covered by the design.
+    """
+    gene_list = []
+    partial_cds_genes = set()
+    seen = set()
+    with open(gene_file, 'r', encoding="utf-8") as file:
+        for line_number, line in enumerate(file, start=1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            fields = line.split()
+            gene = fields[0]
+            if len(fields) > 2:
+                raise ValueError(
+                    f"{gene_file}:{line_number} has too many columns. Expected gene and optional partial CDS flag."
+                )
+            if gene not in seen:
+                gene_list.append(gene)
+                seen.add(gene)
+            if len(fields) == 2 and parse_partial_cds_flag(fields[1]):
+                partial_cds_genes.add(gene)
+    return gene_list, partial_cds_genes
+
+def read_gene_list(gene_file):
+    genes = []
+    seen = set()
+    with open(gene_file, 'r', encoding="utf-8") as file:
+        for line in file:
+            gene = line.strip()
+            if not gene or gene.startswith("#"):
+                continue
+            if gene not in seen:
+                genes.append(gene)
+                seen.add(gene)
+    return genes
+
+def mark_partial_cds_genes(gene_gtf, partial_cds_genes):
+    for gene in partial_cds_genes:
+        gene_gtf[gene]["partial_cds_coverage"] = True
+    for gene in gene_gtf:
+        gene_gtf[gene].setdefault("partial_cds_coverage", False)
+    return gene_gtf
+
+def region_length(region):
+    start = int(region["start"])
+    end = int(region["end"])
+    return max(end - start, 0)
+
+def region_coverage(region):
+    if "cov" not in region:
+        return 0.0
+    return float(region["cov"])
+
+def weighted_mean_cds_coverage(cds_regions):
+    total_bases = 0
+    coverage_sum = 0.0
+
+    for region in cds_regions.values():
+        length = region_length(region)
+        total_bases += length
+        coverage_sum += region_coverage(region) * length
+
+    if total_bases == 0:
+        return None
+
+    return coverage_sum / total_bases
+
+def summarize_coverage(coverage_data, genes_to_include, threshold):
+    genes = coverage_data.get("genes", {})
+
+    gene_results = []
+    missing_genes = []
+    partial_cds_genes = []
+    genes_below_threshold = []
+    assessed_genes = 0
+    covered_genes = 0
+
+    for gene in genes_to_include:
+        gene_record = genes.get(gene)
+        if gene_record is None:
+            missing_genes.append(gene)
+            genes_below_threshold.append(gene)
+            assessed_genes += 1
+            gene_results.append(
+                {
+                    "gene": gene,
+                    "found": False,
+                    "partial_cds_coverage": False,
+                    "mean_cds_coverage": None,
+                    "covered_by_mean_cds_coverage_threshold": False,
+                    "coverage_assessment": "missing_gene",
+                }
+            )
+            continue
+
+        cds_regions = gene_record.get("CDS", {})
+        mean_coverage = weighted_mean_cds_coverage(cds_regions)
+        is_partial_cds = bool(gene_record.get("partial_cds_coverage", False))
+
+        if is_partial_cds:
+            partial_cds_genes.append(gene)
+            gene_results.append(
+                {
+                    "gene": gene,
+                    "found": True,
+                    "partial_cds_coverage": True,
+                    "mean_cds_coverage": None,
+                    "available_cds_regions_mean_coverage": (
+                        round(mean_coverage, 2) if mean_coverage is not None else None
+                    ),
+                    "covered_by_mean_cds_coverage_threshold": None,
+                    "coverage_assessment": "partial_cds_not_assessed",
+                    "cds_regions": len(cds_regions),
+                    "cds_regions_without_coverage": sum(
+                        1 for region in cds_regions.values() if "cov" not in region
+                    ),
+                    "cds_regions_below_threshold": [
+                        region_name
+                        for region_name, region in cds_regions.items()
+                        if region_coverage(region) < threshold
+                    ],
+                }
+            )
+            continue
+
+        assessed_genes += 1
+        is_covered = mean_coverage is not None and mean_coverage >= threshold
+
+        if is_covered:
+            covered_genes += 1
+        else:
+            genes_below_threshold.append(gene)
+
+        gene_results.append(
+            {
+                "gene": gene,
+                "found": True,
+                "partial_cds_coverage": False,
+                "mean_cds_coverage": round(mean_coverage, 2) if mean_coverage is not None else None,
+                "covered_by_mean_cds_coverage_threshold": is_covered,
+                "coverage_assessment": "assessed_full_cds",
+                "cds_regions": len(cds_regions),
+                "cds_regions_without_coverage": sum(
+                    1 for region in cds_regions.values() if "cov" not in region
+                ),
+                "cds_regions_below_threshold": [
+                    region_name
+                    for region_name, region in cds_regions.items()
+                    if region_coverage(region) < threshold
+                ],
+            }
+        )
+
+    total_genes = len(genes_to_include)
+    percent_covered = (covered_genes / assessed_genes * 100) if assessed_genes else 0.0
+
+    return {
+        "threshold": threshold,
+        "genes_requested": total_genes,
+        "genes_found": total_genes - len(missing_genes),
+        "genes_assessed_for_full_cds_mean_coverage": assessed_genes,
+        "genes_skipped_due_to_partial_cds_coverage": partial_cds_genes,
+        "genes_covered_by_mean_cds_coverage_threshold": covered_genes,
+        "percent_genes_covered_by_at_least_threshold_mean_cds_coverage": round(
+            percent_covered, 2
+        ),
+        "genes_not_covered_by_at_least_threshold_mean_cds_coverage": genes_below_threshold,
+        "missing_genes": missing_genes,
+        "gene_results": gene_results,
+    }
 
 def query_cov_for_region(bam_file, sample_id, region_bed, region):
     """
