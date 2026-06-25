@@ -79,9 +79,12 @@ workflow {
 		params.run_snv_calling,
 		params.smn,
 		params.str,
-        params.run_melt,
-        params.skip_mito,
-        params.skip_loqusdb
+    params.align,
+    params.umi,
+    params.annotate,
+		params.run_melt
+    params.skip_mito,
+    params.skip_loqusdb
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
@@ -171,6 +174,9 @@ workflow NEXTFLOW_WGS {
 	val_run_snv_calling                        // bool:   Whether SNV calling should be run
 	val_smn                                    // bool:    Whether to run SMN copy number calling
 	val_str                                    // bool:    Whether to call and annotate STRs
+	val_align                                  // bool:    Whether alignment should be run
+	val_umi                                    // bool:    Whether UMI trimming should be run
+	val_annotate                               // bool:    Whether SNV annotation should be run
 	val_run_melt                               // bool:    Whether melt should be run?
 	val_skip_mito                              // bool:    Whether mitochondrial analysis should be skipped
 	val_skip_loqusdb                           // bool:    Whether loqusdb upload should be skipped
@@ -245,16 +251,15 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// FASTQ //
-	if (params.umi) {
+	if (val_umi) {
 		fastp(ch_fastq_start)
 		ch_fastq_start = fastp.out.fastq_trimmed_reads
 		ch_versions = ch_versions.mix(fastp.out.versions.first())
 	}
 
 	// ALIGN //
-	//TODO: why do we have a params.align conditional anyway?
 	ch_dedup_stats = channel.empty()
-	if (params.align) {
+	if (val_align) {
 		bwa_align(ch_fastq_start)
 		markdup(bwa_align.out.bam_bai)
 		ch_dedup_stats = ch_dedup_stats.mix(markdup.out.dedup_metrics)
@@ -416,7 +421,7 @@ workflow NEXTFLOW_WGS {
     ch_versions = ch_versions.mix(rename_mito_contigs.out.versions.first())
         
 	// SNV ANNOTATION
-	if (params.annotate) {
+	if (val_annotate) {
 		
 		// bam channel for SNV annotate, special case //
 		ch_bam_snv_annotate = ch_bam_bai
@@ -967,9 +972,6 @@ process fastp {
 		tuple val(group), val(id), path("${id}_R1_a_q_u_trimmed.fq.gz"), path("${id}_R2_a_q_u_trimmed.fq.gz"), emit: fastq_trimmed_reads
 		path("*versions.yml"), emit: versions
 
-	when:
-		params.umi
-
 	script:
 		"""
 		fastp -i $fq_r1 -I $fq_r2 --stdout \\
@@ -1017,9 +1019,6 @@ process bwa_align {
 	output:
 		tuple val(group), val(id), path("${id}_merged.bam"), path("${id}_merged.bam.bai"), emit: bam_bai
 		path "*versions.yml", emit: versions
-
-	when:
-		params.align
 
 	script:
 		"""
