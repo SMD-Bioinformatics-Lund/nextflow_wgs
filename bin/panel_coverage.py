@@ -16,20 +16,26 @@ def main():
     logging.debug(f"Hi!")
     args = parse_arguments()   
     sample_id = args.sample_id
+    output_prefix = sample_id
     bam_file = args.bam
     mane_gtf = args.gtf
     # Panel
     if args.design_bed:
         design_bed = args.design_bed
-        cds_file, exon_file = intersect_gtf_with_design(mane_gtf,design_bed)        
-        gene_gtf,exon_to_gene,cds_to_gene,probe_mapper,wgs_gtf = read_mane_gtf(mane_gtf)
+        cds_file, exon_file = intersect_gtf_with_design(mane_gtf,design_bed,output_prefix)
+        gene_gtf,exon_to_gene,cds_to_gene,probe_mapper,_wgs_gtf = read_mane_gtf(mane_gtf)
     # WGS
     else:
         gene_filter = args.gene_filter
         gene_list, partial_cds_genes = read_coverage_gene_list(gene_filter)
-        gene_gtf,exon_to_gene,cds_to_gene,probe_mapper,wgs_gtf = read_mane_gtf(mane_gtf,gene_list)
+        filtered_gtf = f"{output_prefix}.filtered.gtf"
+        gene_gtf,exon_to_gene,cds_to_gene,probe_mapper,wgs_gtf = read_mane_gtf(
+            mane_gtf,
+            gene_list,
+            filtered_gtf,
+        )
         mark_partial_cds_genes(gene_gtf, partial_cds_genes)
-        cds_file,exon_file = generate_bed_regions(wgs_gtf)
+        cds_file,exon_file = generate_bed_regions(wgs_gtf, output_prefix)
 
     # calculate coverage for sub-regions using mosdepth
     cds_cov   = query_cov_for_region(bam_file,sample_id,cds_file,"cds")
@@ -412,20 +418,27 @@ def open_case_cov(gene_gtf,translate_dict,file_path,region):
     logging.debug(f"Done")
     return gene_gtf
 
-def read_mane_gtf(mane_gtf: str, gene_list=None):
+def gtf_start_to_bed_start(start):
+    return max(int(start) - 1, 0)
+
+def read_mane_gtf(mane_gtf: str, gene_list=None, filtered_gtf=None):
     logging.debug(f"Reading gtf: {mane_gtf} ..")
     gene_gtf = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
     exon_to_gene = defaultdict(str)
     cds_to_gene = defaultdict(str)
     probe_mapper = defaultdict(dict)
-    wgs_gtf = None
-    if gene_list:
-        wgs_gtf = "filtered.gtf"
+    selected_genes = set(gene_list) if gene_list is not None else None
+    if selected_genes is not None and filtered_gtf is None:
+        filtered_gtf = "filtered.gtf"
+    wgs_gtf = filtered_gtf
+    filtered_out = open(wgs_gtf, 'w') if selected_genes is not None else None
     with open(mane_gtf, 'r') as file:
         for line in file:
             original = line
             line = line.rstrip()
             line = line.split('\t')
+            if len(line) < 9:
+                continue
             chr = line[0]
             start = line[3]
             end = line[4]
@@ -439,65 +452,70 @@ def read_mane_gtf(mane_gtf: str, gene_list=None):
                 continue
             if gene_name is None:
                 continue
+            if selected_genes is not None and gene_name not in selected_genes:
+                continue
             else:
-                if gene_list:
-                    if gene_name in gene_list:
-                        with open(wgs_gtf, 'a') as out:
-                            out.write(original)
-                        gene_gtf[gene_name]["covered_by_panel"] = True
+                if selected_genes is not None:
+                    filtered_out.write(original)
+                    gene_gtf[gene_name]["covered_by_panel"] = True
                 else:
                     gene_gtf[gene_name]["covered_by_panel"] = False
+            bed_start = str(gtf_start_to_bed_start(start))
             if annotation_type == "exon":
                 exon          = {}
                 exon['chr']   = chr
-                exon['start'] = start
+                exon['start'] = bed_start
                 exon['end']   = end
                 exon['nbr']   = annotation['exon_number']
-                gene_gtf[annotation['gene_name']]['exons'][f"{chr}_{start}_{end}"] = exon
-                exon_to_gene[f"{chr}_{start}_{end}"] = annotation['gene_name']
+                gene_gtf[annotation['gene_name']]['exons'][f"{chr}_{bed_start}_{end}"] = exon
+                exon_to_gene[f"{chr}_{bed_start}_{end}"] = annotation['gene_name']
             elif annotation_type == "CDS":
                 cds          = {}
                 cds['chr']   = chr
-                cds['start'] = start
+                cds['start'] = bed_start
                 cds['end']   = end
                 cds['nbr']   = annotation['exon_number']
-                gene_gtf[annotation['gene_name']]['CDS'][f"{chr}_{start}_{end}"] = cds
-                cds_to_gene[f"{chr}_{start}_{end}"] = annotation['gene_name']
+                gene_gtf[annotation['gene_name']]['CDS'][f"{chr}_{bed_start}_{end}"] = cds
+                cds_to_gene[f"{chr}_{bed_start}_{end}"] = annotation['gene_name']
             elif annotation_type == "transcript":
                 ## catch probes in promoters
-                start_slop     = int(start) - 1000
+                start_slop     = max(gtf_start_to_bed_start(start) - 1000, 0)
                 end_slop       = int(end) + 1000
                 slopped_coords = f"{chr}_{start_slop}_{end_slop}"
                 ## assign values
                 probe_mapper[slopped_coords]['gene_name']     = gene_name
-                probe_mapper[slopped_coords]['start']         = start
+                probe_mapper[slopped_coords]['start']         = bed_start
                 probe_mapper[slopped_coords]['end']           = end
                 probe_mapper[slopped_coords]['chr']           = chr
                 probe_mapper[slopped_coords]['transcript_id'] = annotation['transcript_id']
                 
-                gene_gtf[gene_name]['transcript'] = {"chr":chr,'start':start,'transcript_id':annotation['transcript_id'], 'end': end}
+                gene_gtf[gene_name]['transcript'] = {"chr":chr,'start':bed_start,'transcript_id':annotation['transcript_id'], 'end': end}
             elif annotation_type == "three_prime_utr":
                 pass
             elif annotation_type == "five_prime_utr":
                 pass
+    if filtered_out:
+        filtered_out.close()
     logging.debug(f"Done")
     return gene_gtf,exon_to_gene,cds_to_gene,probe_mapper,wgs_gtf
 
-def generate_bed_regions(panel_gtf):
+def generate_bed_regions(panel_gtf, output_prefix):
     """
     generates bed-regions from gtf as input for mosdepth stats
     This is used both in panels and WGS
     """
     logging.debug(f"generating exon and CDS input beds")
-    cds_file = "cds.bed"
-    exon_file = "exons.bed"
+    cds_file = f"{output_prefix}.cds.bed"
+    exon_file = f"{output_prefix}.exons.bed"
     with open(panel_gtf, 'r') as file:
         with open(cds_file, "w") as cdsfile, open(exon_file, "w") as exonfile:
             for line in file:
                 line = line.rstrip()
                 line = line.split('\t')
+                if len(line) < 5:
+                    continue
                 chr = line[0]
-                start = line[3]
+                start = gtf_start_to_bed_start(line[3])
                 end = line[4]
                 annotation_type = line[2]
                 if annotation_type == "exon":
@@ -507,7 +525,7 @@ def generate_bed_regions(panel_gtf):
     logging.debug(f"Done, created input beds {cds_file}, {exon_file}")
     return cds_file,exon_file
 
-def intersect_gtf_with_design(mane_gtf,design_bed):
+def intersect_gtf_with_design(mane_gtf,design_bed,output_prefix):
     """
     use bedtools to pickout regions overlapping provided 
     design file
@@ -518,23 +536,12 @@ def intersect_gtf_with_design(mane_gtf,design_bed):
         input file for generate_bed_regions
     """
     logging.debug(f"Generating design gtf via bedtools")
-    output_file = 'design.gtf'
+    output_file = f"{output_prefix}.design.gtf"
     command = ['bedtools', 'intersect', '-a', mane_gtf, '-b', design_bed, '-u']
     with open(output_file, "w") as file:
         subprocess.run(command, stdout=file, stderr=subprocess.PIPE, text=True, check=True)
-    cds_file,exon_file = generate_bed_regions("design.gtf")
+    cds_file,exon_file = generate_bed_regions(output_file, output_prefix)
     return cds_file,exon_file
-
-def read_gene_filter(gene_file):
-    """
-    reads genefilter into list
-    """
-    gene_list = []
-    with open(gene_file, 'r') as file:
-        for line in file:
-            line = line.rstrip()
-            gene_list.append(line)
-    return gene_list
 
 if __name__ == "__main__":
     ## logging
