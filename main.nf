@@ -178,7 +178,7 @@ workflow NEXTFLOW_WGS {
 	val_align                                  // bool:    Whether alignment should be run
 	val_umi                                    // bool:    Whether UMI trimming should be run
 	val_annotate                               // bool:    Whether SNV annotation should be run
-  val_cdm_assay                              // string:  CDM assay name used when creating QC cron files.
+	val_cdm_assay                              // string:  CDM assay name used when creating QC cron files.
 	val_results_output_dir                     // string:  Full result base directory under which pipeline results are published.
 	val_skip_cdm_cron                          // bool:    Whether to skip creating CDM QC cron files.        
 
