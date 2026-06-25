@@ -79,9 +79,12 @@ workflow {
 		params.run_snv_calling,
 		params.smn,
 		params.str,
-        params.align,
-        params.umi,
-        params.annotate
+		params.align,
+		params.umi,
+		params.annotate,
+		params.run_melt
+		params.skip_mito,
+		params.skip_loqusdb
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
@@ -174,6 +177,9 @@ workflow NEXTFLOW_WGS {
 	val_align                                  // bool:    Whether alignment should be run
 	val_umi                                    // bool:    Whether UMI trimming should be run
 	val_annotate                               // bool:    Whether SNV annotation should be run
+	val_run_melt                               // bool:    Whether melt should be run?
+	val_skip_mito                              // bool:    Whether mitochondrial analysis should be skipped
+	val_skip_loqusdb                           // bool:    Whether loqusdb upload should be skipped
 
 	main:
 	// Output channels:
@@ -217,7 +223,7 @@ workflow NEXTFLOW_WGS {
 	ch_output_info = ch_output_info.mix(bamtoyaml.out.bamchoice_INFO)
 
 	ch_bam_start_dedup_dummy = channel.empty()
-	if(params.run_melt) {
+	if(val_run_melt) {
 		dedupdummy(ch_bam_start)
 		ch_bam_start_dedup_dummy = dedupdummy.out.dedup_dummy
 	}
@@ -287,10 +293,10 @@ workflow NEXTFLOW_WGS {
 				qc.mean_depth = parsed_qc.mean_coverage
 			}
 
-			if (params.run_melt && !qc.ins_size) {
+			if (val_run_melt && !qc.ins_size) {
 				error "Missing required MELT QC value 'ins_size' for ${id}"
 			}
-			if ((params.run_melt || params.antype == "panel") && !qc.mean_depth) {
+			if ((val_run_melt || params.antype == "panel") && !qc.mean_depth) {
 				error "Missing required QC value 'mean_coverage' for ${id}"
 			}
 
@@ -354,7 +360,7 @@ workflow NEXTFLOW_WGS {
  
 	// MITO SNVS and SVs
     // TODO: Break up into workflow(s)
-	if (!params.skip_mito) { 
+	if (!val_skip_mito) { 
 
 		fetch_MTseqs(ch_bam_bai)
 
@@ -634,8 +640,8 @@ workflow NEXTFLOW_WGS {
 		// MELT //
 		// TODO: The panel SV-calling code presumes melt is called so just move the process code there:
 		ch_melt_intersect_vcf = channel.empty()
-		if (params.run_melt) {
-            MELT(
+		if (val_run_melt) {
+			MELT(
 				ch_bam_bai,
 				ch_qc_mean_depth,
 				ch_qc_ins_size,
@@ -836,11 +842,11 @@ workflow NEXTFLOW_WGS {
 			tuple(group, type, ped, vcf_snvs, vcf_svs)
 		}
 
-    if(!params.skip_loqusdb) {
-	    add_to_loqusdb(
-		    ch_loqusdb_input
-	    )
-    }
+		if(!val_skip_loqusdb) {
+			add_to_loqusdb(
+				ch_loqusdb_input
+			)
+		}
 
 	// MERGE QC JSONs AND OUTPUT TO CDM //
 	merge_qc_json(ch_qc_json.groupTuple(by: [0,1]))
@@ -1170,9 +1176,6 @@ process dedupdummy {
 		tuple val(group), val(id), path(bam), path(bai)
 	output:
 		tuple val(group), val(id), path("dummy"), emit: dedup_dummy
-
-	when:
-		params.run_melt
 
 	script:
 	"""

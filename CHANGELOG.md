@@ -22,6 +22,7 @@
 * Pass analysis mode and trio status through workflow/process inputs instead of redefining `params.mode` and `params.trio`
 * Pass STR reference files, catalog, and access dir as explicit workflow inputs
 * Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
+* Pass MELT, mitochondrial analysis, and loqusdb run status as explicit workflow inputs
 * Parse Sentieon QC once and pass mean depth and insert size through keyed channels
 * Split STR VCF processing into separate rename, split, familyfy, and bgzip/index processes
 
