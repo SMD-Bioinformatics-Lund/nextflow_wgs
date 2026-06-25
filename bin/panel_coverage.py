@@ -24,6 +24,9 @@ def main():
         design_bed = args.design_bed
         cds_file, exon_file = intersect_gtf_with_design(mane_gtf,design_bed,output_prefix)
         gene_gtf,exon_to_gene,cds_to_gene,probe_mapper,_wgs_gtf = read_mane_gtf(mane_gtf)
+        if args.caveat_genes:
+            caveat_genes = read_caveat_gene_list(args.caveat_genes)
+            mark_partial_cds_genes(gene_gtf, caveat_genes)
     # WGS
     else:
         gene_filter = args.gene_filter
@@ -86,6 +89,15 @@ def parse_arguments():
         help="design probes, only genes overlapping these will be kept, mutually exclusive to gene_filter"
     )
     parser.add_argument(
+        '--caveat_genes',
+        type=str,
+        help=(
+            "gene list to skip from summary when using design_bed. "
+            "One-column entries are treated as caveats; optional second column accepts "
+            "true/false, yes/no, partial/full"
+        )
+    )
+    parser.add_argument(
         '-s', '--sample_id',
         type=str,
         required=True,
@@ -125,6 +137,8 @@ def parse_arguments():
         exit("Cannot use both gene filter and design bed")
     elif args.design_bed is None and args.gene_filter is None:
         exit("Please provide either design_bed or gene_filter")
+    elif args.caveat_genes and not args.design_bed:
+        exit("caveat_genes can only be used together with design_bed")
     return args
 
 def write_json(output_file, data):
@@ -167,6 +181,27 @@ def read_coverage_gene_list(gene_file):
             if len(fields) == 2 and parse_partial_cds_flag(fields[1]):
                 partial_cds_genes.add(gene)
     return gene_list, partial_cds_genes
+
+def read_caveat_gene_list(gene_file):
+    """
+    Reads genes that should be skipped from summary assessment in design-bed mode.
+    A single-column file marks every listed gene as a caveat. If a second column is
+    present, only truthy partial/caveat values are marked.
+    """
+    caveat_genes = set()
+    with open(gene_file, 'r', encoding="utf-8") as file:
+        for line_number, line in enumerate(file, start=1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            fields = line.split()
+            if len(fields) > 2:
+                raise ValueError(
+                    f"{gene_file}:{line_number} has too many columns. Expected gene and optional caveat flag."
+                )
+            if len(fields) == 1 or parse_partial_cds_flag(fields[1]):
+                caveat_genes.add(fields[0])
+    return caveat_genes
 
 def read_gene_list(gene_file):
     genes = []
