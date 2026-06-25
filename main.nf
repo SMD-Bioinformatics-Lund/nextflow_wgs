@@ -80,10 +80,10 @@ workflow {
 		params.run_snv_calling,
 		params.smn,
 		params.str,
-    params.align,
-    params.umi,
-    params.annotate
-    params.create_alt_affect_ped
+		params.align,
+		params.umi,
+		params.annotate,
+		params.create_alt_affect_ped
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
