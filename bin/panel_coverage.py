@@ -408,6 +408,9 @@ def gtf_info_field(annotation_info:list):
             anno_info_dict[anno[0]] = " ".join(anno[1:]).replace('"', '').replace("'", "")
     anno_info_dict['tags'] = tags
     return anno_info_dict
+
+def intervals_overlap(start, end, other_start, other_end):
+    return start < other_end and end > other_start
     
 def assign_probes(gene_gtf,probe_mapper,file_path):
     logging.debug(f"Reading probe cov and assigning to gene ..")
@@ -429,7 +432,7 @@ def assign_probes(gene_gtf,probe_mapper,file_path):
                 gstart = int(parts[1])
                 gend = int(parts[2])
                 #print(f"{gend}:{end}  {gchr}={chr}  {gstart}:{start}")
-                if gchr == chr and start > gstart and end < gend:
+                if gchr == chr and intervals_overlap(start, end, gstart, gend):
                     gene = probe_mapper[entry]["gene_name"]
             if gene:
                 gene_gtf[gene]["probes"][probe_name] = { 'cov': cov, 'chr':chr, 'start': start, 'end': end}
@@ -450,6 +453,7 @@ def open_case_cov(gene_gtf,translate_dict,file_path,region):
             gene = translate_dict.get(probe_name,None)
             if gene:
                 gene_gtf[gene][region][probe_name]['cov'] = cov
+                gene_gtf[gene]["covered_by_panel"] = True
     logging.debug(f"Done")
     return gene_gtf
 
