@@ -62,7 +62,6 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
-    val_results_output_dir = "${params.outdir}/${params.subdir}"
 	NEXTFLOW_WGS(
 		ch_samplesheet,
 		params.bqsr_known_polymorphic_sites_vcf,
@@ -81,10 +80,10 @@ workflow {
 		params.run_snv_calling,
 		params.smn,
 		params.str,
-    params.align,
-    params.umi,
-    params.annotate
-    val_results_output_dir,
+		params.align,
+		params.umi,
+		params.annotate,
+		"${params.outdir}/${params.subdir}",
 		params.cdm_assay,
 		params.noupload
 	)
