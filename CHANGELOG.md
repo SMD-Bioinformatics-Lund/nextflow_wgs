@@ -8,6 +8,7 @@
 #### Changed 
 * Pass SNV calling and Freebayes run status as explicit workflow inputs
 * Rename VCFAnno config parameters to `vcfanno_config` and `vcfanno_lua`
+* Pass alignment, UMI trimming, and SNV annotation status as explicit workflow inputs
 
 ### 3.27.0
 
