@@ -9,10 +9,9 @@
 #### Changed 
 * Pass SNV calling and Freebayes run status as explicit workflow inputs
 * Rename VCFAnno config parameters to `vcfanno_config` and `vcfanno_lua`
+* Pass alignment, UMI trimming, and SNV annotation status as explicit workflow inputs
 * Pass QC-to-CDM script configuration explicitly through workflow inputs
 * Replace QC-to-CDM `when:` guard with workflow-level CDM cron skipping
-
-* Split STR VCF processing into separate rename, split, familyfy, and bgzip/index processes
 
 ### 3.27.0
 
@@ -31,6 +30,9 @@
 #### Fixed
 * Do not redefine `params.results_output_dir` in workflows.
 * Harden `familyfy_str.pl` argument handling for missing parent IDs
+
+#### Fixed
+* Removed chr-prefix from BQSR know sites VCF.
 
 ### 3.26.4
 * code style change
