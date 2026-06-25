@@ -78,7 +78,7 @@ workflow {
 		val_run_gatkcov,
 		params.run_snv_calling,
 		params.smn,
-		params.str
+		params.str,
         params.run_melt,
         params.skip_mito,
         params.skip_loqusdb
