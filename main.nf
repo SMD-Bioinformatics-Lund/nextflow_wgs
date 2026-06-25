@@ -79,12 +79,12 @@ workflow {
 		params.run_snv_calling,
 		params.smn,
 		params.str,
-    params.align,
-    params.umi,
-    params.annotate,
+		params.align,
+		params.umi,
+		params.annotate,
 		params.run_melt
-    params.skip_mito,
-    params.skip_loqusdb
+		params.skip_mito,
+		params.skip_loqusdb
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
