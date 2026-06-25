@@ -123,7 +123,7 @@ process sam_to_sorted_bam {
 	stageInMode 'copy'
 	stageOutMode 'copy'
 	tag "$id"
-	container "${params.container_sentieon}"
+	container "${params.container_minibwa}"
 
 	input:
 		tuple val(group), val(id), path(sam), path(genome_file)
@@ -134,10 +134,15 @@ process sam_to_sorted_bam {
 
 	script:
 		"""
-		sentieon util sort \\
-			-r ${genome_file} \\
-			-o ${id}_merged.bam \\
-			-t ${task.cpus} --sam2bam -i ${sam}
+		rg_line=\$(printf '@RG\\tID:%s\\tSM:%s\\tPL:illumina' "${id}" "${id}")
+
+		samtools view -@ ${task.cpus} -T ${genome_file} -u ${sam} \\
+			| samtools addreplacerg -@ ${task.cpus} \\
+				-r "\${rg_line}" \\
+				-u - \\
+			| samtools sort -@ ${task.cpus} -o ${id}_merged.bam -
+
+		samtools index -@ ${task.cpus} -b ${id}_merged.bam
 
 		${sam_to_sorted_bam_versions(task)}
 		"""
@@ -155,7 +160,7 @@ def sam_to_sorted_bam_versions(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    sentieon: \$(echo \$(sentieon util --version 2>&1) | sed -e "s/sentieon-genomics-//g")
+	    samtools: \$(echo \$(samtools --version 2>&1) | sed 's/^.*samtools //; s/Using.*\$//')
 	END_VERSIONS
 	"""
 }
