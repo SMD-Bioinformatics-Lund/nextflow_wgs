@@ -119,8 +119,8 @@ def parse_arguments():
     parser.add_argument(
         '-t', '--threshold',
         default=500.0,
-        type=float,
-        help="Mean CDS coverage threshold for summary. Default: 500"
+        type=parse_thresholds,
+        help="Mean CDS coverage threshold(s) for summary. Use comma-separated values for multiple thresholds. Default: 500"
     )
     parser.add_argument(
         '--summary_output',
@@ -154,6 +154,24 @@ def parse_partial_cds_flag(value):
     raise ValueError(
         f"Unknown partial CDS flag '{value}'. Use true/false, yes/no, partial/full, or 1/0."
     )
+
+def parse_thresholds(value):
+    thresholds = []
+    for raw_threshold in str(value).split(","):
+        raw_threshold = raw_threshold.strip()
+        if not raw_threshold:
+            continue
+        try:
+            thresholds.append(float(raw_threshold))
+        except ValueError as error:
+            raise argparse.ArgumentTypeError(
+                f"Invalid threshold '{raw_threshold}'. Use a number or comma-separated numbers."
+            ) from error
+
+    if not thresholds:
+        raise argparse.ArgumentTypeError("At least one threshold is required.")
+
+    return thresholds[0] if len(thresholds) == 1 else thresholds
 
 def read_coverage_gene_list(gene_file):
     """
@@ -247,22 +265,71 @@ def weighted_mean_cds_coverage(cds_regions):
 
     return coverage_sum / total_bases
 
+def normalize_thresholds(threshold):
+    if isinstance(threshold, (list, tuple)):
+        thresholds = [float(value) for value in threshold]
+    else:
+        thresholds = [float(threshold)]
+
+    if not thresholds:
+        raise ValueError("At least one threshold is required.")
+
+    return thresholds
+
+def summarize_threshold_results(gene_results, threshold):
+    genes_below_threshold = []
+    covered_genes = 0
+    assessed_genes = 0
+
+    for gene_result in gene_results:
+        assessment = gene_result["coverage_assessment"]
+        if assessment == "partial_cds_not_assessed":
+            continue
+
+        assessed_genes += 1
+        mean_coverage = gene_result["mean_cds_coverage"]
+        is_covered = mean_coverage is not None and mean_coverage >= threshold
+
+        if is_covered:
+            covered_genes += 1
+        else:
+            genes_below_threshold.append(gene_result["gene"])
+
+    percent_covered = (covered_genes / assessed_genes * 100) if assessed_genes else 0.0
+
+    return {
+        "threshold": threshold,
+        "genes_assessed_for_full_cds_mean_coverage": assessed_genes,
+        "genes_covered_by_mean_cds_coverage_threshold": covered_genes,
+        "percent_genes_covered_by_at_least_threshold_mean_cds_coverage": round(
+            percent_covered, 2
+        ),
+        "genes_not_covered_by_at_least_threshold_mean_cds_coverage": genes_below_threshold,
+    }
+
 def summarize_coverage(coverage_data, genes_to_include, threshold):
+    thresholds = normalize_thresholds(threshold)
+    primary_threshold = thresholds[0]
     genes = coverage_data.get("genes", {})
 
     gene_results = []
+    threshold_assessment_records = []
     missing_genes = []
     partial_cds_genes = []
-    genes_below_threshold = []
     assessed_genes = 0
-    covered_genes = 0
 
     for gene in genes_to_include:
         gene_record = genes.get(gene)
         if gene_record is None:
             missing_genes.append(gene)
-            genes_below_threshold.append(gene)
             assessed_genes += 1
+            threshold_assessment_records.append(
+                {
+                    "gene": gene,
+                    "mean_cds_coverage": None,
+                    "coverage_assessment": "missing_gene",
+                }
+            )
             gene_results.append(
                 {
                     "gene": gene,
@@ -270,6 +337,9 @@ def summarize_coverage(coverage_data, genes_to_include, threshold):
                     "partial_cds_coverage": False,
                     "mean_cds_coverage": None,
                     "covered_by_mean_cds_coverage_threshold": False,
+                    "covered_by_mean_cds_coverage_thresholds": {
+                        str(threshold): False for threshold in thresholds
+                    },
                     "coverage_assessment": "missing_gene",
                 }
             )
@@ -281,6 +351,13 @@ def summarize_coverage(coverage_data, genes_to_include, threshold):
 
         if is_partial_cds:
             partial_cds_genes.append(gene)
+            threshold_assessment_records.append(
+                {
+                    "gene": gene,
+                    "mean_cds_coverage": mean_coverage,
+                    "coverage_assessment": "partial_cds_not_assessed",
+                }
+            )
             gene_results.append(
                 {
                     "gene": gene,
@@ -291,6 +368,9 @@ def summarize_coverage(coverage_data, genes_to_include, threshold):
                         round(mean_coverage, 2) if mean_coverage is not None else None
                     ),
                     "covered_by_mean_cds_coverage_threshold": None,
+                    "covered_by_mean_cds_coverage_thresholds": {
+                        str(threshold): None for threshold in thresholds
+                    },
                     "coverage_assessment": "partial_cds_not_assessed",
                     "cds_regions": len(cds_regions),
                     "cds_regions_without_coverage": sum(
@@ -299,19 +379,29 @@ def summarize_coverage(coverage_data, genes_to_include, threshold):
                     "cds_regions_below_threshold": [
                         region_name
                         for region_name, region in cds_regions.items()
-                        if region_coverage(region) < threshold
+                        if region_coverage(region) < primary_threshold
                     ],
+                    "cds_regions_below_thresholds": {
+                        str(threshold): [
+                            region_name
+                            for region_name, region in cds_regions.items()
+                            if region_coverage(region) < threshold
+                        ]
+                        for threshold in thresholds
+                    },
                 }
             )
             continue
 
         assessed_genes += 1
-        is_covered = mean_coverage is not None and mean_coverage >= threshold
-
-        if is_covered:
-            covered_genes += 1
-        else:
-            genes_below_threshold.append(gene)
+        is_covered = mean_coverage is not None and mean_coverage >= primary_threshold
+        threshold_assessment_records.append(
+            {
+                "gene": gene,
+                "mean_cds_coverage": mean_coverage,
+                "coverage_assessment": "assessed_full_cds",
+            }
+        )
 
         gene_results.append(
             {
@@ -320,6 +410,10 @@ def summarize_coverage(coverage_data, genes_to_include, threshold):
                 "partial_cds_coverage": False,
                 "mean_cds_coverage": round(mean_coverage, 2) if mean_coverage is not None else None,
                 "covered_by_mean_cds_coverage_threshold": is_covered,
+                "covered_by_mean_cds_coverage_thresholds": {
+                    str(threshold): mean_coverage is not None and mean_coverage >= threshold
+                    for threshold in thresholds
+                },
                 "coverage_assessment": "assessed_full_cds",
                 "cds_regions": len(cds_regions),
                 "cds_regions_without_coverage": sum(
@@ -328,28 +422,50 @@ def summarize_coverage(coverage_data, genes_to_include, threshold):
                 "cds_regions_below_threshold": [
                     region_name
                     for region_name, region in cds_regions.items()
-                    if region_coverage(region) < threshold
+                    if region_coverage(region) < primary_threshold
                 ],
+                "cds_regions_below_thresholds": {
+                    str(threshold): [
+                        region_name
+                        for region_name, region in cds_regions.items()
+                        if region_coverage(region) < threshold
+                    ]
+                    for threshold in thresholds
+                },
             }
         )
 
     total_genes = len(genes_to_include)
-    percent_covered = (covered_genes / assessed_genes * 100) if assessed_genes else 0.0
+    threshold_summaries = [
+        summarize_threshold_results(threshold_assessment_records, threshold)
+        for threshold in thresholds
+    ]
+    primary_threshold_summary = threshold_summaries[0]
 
-    return {
-        "threshold": threshold,
+    summary = {
+        "threshold": primary_threshold,
         "genes_requested": total_genes,
         "genes_found": total_genes - len(missing_genes),
         "genes_assessed_for_full_cds_mean_coverage": assessed_genes,
         "genes_skipped_due_to_partial_cds_coverage": partial_cds_genes,
-        "genes_covered_by_mean_cds_coverage_threshold": covered_genes,
-        "percent_genes_covered_by_at_least_threshold_mean_cds_coverage": round(
-            percent_covered, 2
-        ),
-        "genes_not_covered_by_at_least_threshold_mean_cds_coverage": genes_below_threshold,
+        "genes_covered_by_mean_cds_coverage_threshold": primary_threshold_summary[
+            "genes_covered_by_mean_cds_coverage_threshold"
+        ],
+        "percent_genes_covered_by_at_least_threshold_mean_cds_coverage": primary_threshold_summary[
+            "percent_genes_covered_by_at_least_threshold_mean_cds_coverage"
+        ],
+        "genes_not_covered_by_at_least_threshold_mean_cds_coverage": primary_threshold_summary[
+            "genes_not_covered_by_at_least_threshold_mean_cds_coverage"
+        ],
         "missing_genes": missing_genes,
         "gene_results": gene_results,
     }
+
+    if len(thresholds) > 1:
+        summary["thresholds"] = thresholds
+        summary["threshold_summaries"] = threshold_summaries
+
+    return summary
 
 def query_cov_for_region(bam_file, sample_id, region_bed, region):
     """

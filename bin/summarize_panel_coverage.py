@@ -6,9 +6,9 @@ import sys
 from pathlib import Path
 
 try:
-    from bin.panel_coverage import read_gene_list, summarize_coverage
+    from bin.panel_coverage import parse_thresholds, read_gene_list, summarize_coverage
 except ModuleNotFoundError:
-    from panel_coverage import read_gene_list, summarize_coverage
+    from panel_coverage import parse_thresholds, read_gene_list, summarize_coverage
 
 
 DEFAULT_THRESHOLD = 500.0
@@ -34,8 +34,11 @@ def parse_arguments() -> argparse.Namespace:
         "-t",
         "--threshold",
         default=DEFAULT_THRESHOLD,
-        type=float,
-        help=f"Mean CDS coverage threshold. Default: {DEFAULT_THRESHOLD:g}",
+        type=parse_thresholds,
+        help=(
+            "Mean CDS coverage threshold(s). Use comma-separated values for multiple "
+            f"thresholds. Default: {DEFAULT_THRESHOLD:g}"
+        ),
     )
     parser.add_argument(
         "-o",
