@@ -7,7 +7,7 @@ workflow ALIGN_READS {
 	genome_file
 
 	main:
-	ch_genome = Channel.value(file(genome_file))
+	ch_genome = channel.value(file(genome_file))
 
 	minibwa_index(ch_genome)
 
