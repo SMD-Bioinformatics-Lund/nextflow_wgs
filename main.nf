@@ -80,7 +80,10 @@ workflow {
 		params.run_snv_calling,
 		params.smn,
 		params.str,
-        params.create_alt_affect_ped
+    params.align,
+    params.umi,
+    params.annotate
+    params.create_alt_affect_ped
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
@@ -153,24 +156,27 @@ workflow.onError {
 workflow NEXTFLOW_WGS {
 
 	take:
-	ch_samplesheet     // channel: [ val(samplesheet_row) ]
+	ch_samplesheet                             // channel: [ val(samplesheet_row) ]
 	val_bqsr_known_polymorphic_sites_vcf       // path: [ path(bqsr_known_polymorphic_sites_vcf) ]
 	val_bqsr_known_polymorphic_sites_vcf_index // path: [ path(bqsr_known_polymorphic_sites_vcf_index) ]
-	val_intersect_bed    // path: [ path(intersect_bed) ]
-	val_vcfanno_config  // path: [ path(vcfanno_config) ]
-	val_vcfanno_lua     // path: [ path(vcfanno_lua) ]
-	val_accessdir               // string:  Base access path used in output metadata/INFO paths
-	val_analysis_mode           // string:  Analysis mode derived from sample count, either "single" or "family"
-	val_expansionhunter_catalog // path:    ExpansionHunter variant catalog JSON.
-	val_genome_fai              // path:    Reference FASTA index.
-	val_genome_fasta            // path:    Reference FASTA.
-	val_is_trio                 // bool:    Whether the input CSV contains enough samples for trio analysis
-	val_run_freebayes   // bool:   Whether Freebayes should be run
-	val_run_gatkcov             // bool:    Should gatkcov run (GENS entrypoint)
-	val_run_snv_calling // bool:   Whether SNV calling should be run
-	val_smn                     // bool:    Whether to run SMN copy number calling
-	val_str                     // bool:    Whether to call and annotate STRs
-	val_create_alt_affect_ped // bool:    Whether family runs should create alternate affected-parent PEDs
+	val_intersect_bed                          // path: [ path(intersect_bed) ]
+	val_vcfanno_config                         // path: [ path(vcfanno_config) ]
+	val_vcfanno_lua                            // path: [ path(vcfanno_lua) ]
+	val_accessdir                              // string:  Base access path used in output metadata/INFO paths
+	val_analysis_mode                          // string:  Analysis mode derived from sample count, either "single" or "family"
+	val_expansionhunter_catalog                // path:    ExpansionHunter variant catalog JSON.
+	val_genome_fai                             // path:    Reference FASTA index.
+	val_genome_fasta                           // path:    Reference FASTA.
+	val_is_trio                                // bool:    Whether the input CSV contains enough samples for trio analysis
+	val_run_freebayes                          // bool:   Whether Freebayes should be run
+	val_run_gatkcov                            // bool:    Should gatkcov run (GENS entrypoint)
+	val_run_snv_calling                        // bool:   Whether SNV calling should be run
+	val_smn                                    // bool:    Whether to run SMN copy number calling
+	val_str                                    // bool:    Whether to call and annotate STRs
+	val_align                                  // bool:    Whether alignment should be run
+	val_umi                                    // bool:    Whether UMI trimming should be run
+	val_annotate                               // bool:    Whether SNV annotation should be run
+  val_create_alt_affect_ped                  // bool:    Whether family runs should create alternate affected-parent PEDs
 
 	main:
 	// Output channels:
@@ -230,16 +236,15 @@ workflow NEXTFLOW_WGS {
 	ch_output_info = ch_output_info.mix(PED.out.output_info)
 
 	// FASTQ //
-	if (params.umi) {
+	if (val_umi) {
 		fastp(ch_fastq_start)
 		ch_fastq_start = fastp.out.fastq_trimmed_reads
 		ch_versions = ch_versions.mix(fastp.out.versions.first())
 	}
 
 	// ALIGN //
-	//TODO: why do we have a params.align conditional anyway?
 	ch_dedup_stats = channel.empty()
-	if (params.align) {
+	if (val_align) {
 		bwa_align(ch_fastq_start)
 		markdup(bwa_align.out.bam_bai)
 		ch_dedup_stats = ch_dedup_stats.mix(markdup.out.dedup_metrics)
@@ -401,7 +406,7 @@ workflow NEXTFLOW_WGS {
     ch_versions = ch_versions.mix(rename_mito_contigs.out.versions.first())
         
 	// SNV ANNOTATION
-	if (params.annotate) {
+	if (val_annotate) {
 		
 		// bam channel for SNV annotate, special case //
 		ch_bam_snv_annotate = ch_bam_bai
@@ -952,9 +957,6 @@ process fastp {
 		tuple val(group), val(id), path("${id}_R1_a_q_u_trimmed.fq.gz"), path("${id}_R2_a_q_u_trimmed.fq.gz"), emit: fastq_trimmed_reads
 		path("*versions.yml"), emit: versions
 
-	when:
-		params.umi
-
 	script:
 		"""
 		fastp -i $fq_r1 -I $fq_r2 --stdout \\
@@ -1002,9 +1004,6 @@ process bwa_align {
 	output:
 		tuple val(group), val(id), path("${id}_merged.bam"), path("${id}_merged.bam.bai"), emit: bam_bai
 		path "*versions.yml", emit: versions
-
-	when:
-		params.align
 
 	script:
 		"""
