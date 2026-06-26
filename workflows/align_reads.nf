@@ -123,7 +123,7 @@ process sam_to_sorted_bam {
 	stageInMode 'copy'
 	stageOutMode 'copy'
 	tag "$id"
-	container "${params.container_minibwa}"
+	container "/fs1/resources/containers/depot.galaxyproject.org-singularity-samtools-1.22.1--h96c455f_0.img"
 
 	input:
 		tuple val(group), val(id), path(sam), path(genome_file)
