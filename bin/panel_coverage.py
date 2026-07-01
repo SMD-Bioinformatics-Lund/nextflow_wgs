@@ -19,11 +19,19 @@ def main():
     output_prefix = sample_id
     bam_file = args.bam
     mane_gtf = args.gtf
+    exclude_y_regions = args.sex == "F"
     # Panel
     if args.design_bed:
         design_bed = args.design_bed
-        cds_file, exon_file = intersect_gtf_with_design(mane_gtf,design_bed,output_prefix)
+        cds_file, exon_file = intersect_gtf_with_design(
+            mane_gtf,
+            design_bed,
+            output_prefix,
+            exclude_y_regions,
+        )
         gene_gtf,exon_to_gene,cds_to_gene,probe_mapper,_wgs_gtf = read_mane_gtf(mane_gtf)
+        if exclude_y_regions:
+            prune_y_chromosome_regions(gene_gtf, exon_to_gene, cds_to_gene, probe_mapper)
         if args.caveat_genes:
             caveat_genes = read_caveat_gene_list(args.caveat_genes)
             mark_partial_cds_genes(gene_gtf, caveat_genes)
@@ -37,8 +45,10 @@ def main():
             gene_list,
             filtered_gtf,
         )
+        if exclude_y_regions:
+            prune_y_chromosome_regions(gene_gtf, exon_to_gene, cds_to_gene, probe_mapper)
         mark_partial_cds_genes(gene_gtf, partial_cds_genes)
-        cds_file,exon_file = generate_bed_regions(wgs_gtf, output_prefix)
+        cds_file,exon_file = generate_bed_regions(wgs_gtf, output_prefix, exclude_y_regions)
 
     # calculate coverage for sub-regions using mosdepth
     cds_cov   = query_cov_for_region(bam_file,sample_id,cds_file,"cds")
@@ -46,7 +56,8 @@ def main():
     gene_gtf = open_case_cov(gene_gtf,cds_to_gene,cds_cov,"CDS")
     gene_gtf = open_case_cov(gene_gtf,exon_to_gene,exon_cov,"exons")
     if args.design_bed:
-        probe_cov = query_cov_for_region(bam_file,sample_id,design_bed,"probes")
+        probe_bed = filter_y_chromosome_bed(design_bed, output_prefix, "probes") if exclude_y_regions else design_bed
+        probe_cov = query_cov_for_region(bam_file,sample_id,probe_bed,"probes")
         gene_gtf = assign_probes(gene_gtf,probe_mapper,probe_cov)
 
     # only keep genes with some kind of coverage, probe or gene filtered for wgs    
@@ -132,6 +143,12 @@ def parse_arguments():
         type=str,
         help="name of json output file. If not provided sample_id.cov.json"
     )
+    parser.add_argument(
+        '--sex',
+        type=parse_sex,
+        choices=["M", "F"],
+        help="sample sex (M/F). Female samples ignore Y chromosome regions"
+    )
     args = parser.parse_args()
     if args.design_bed and args.gene_filter:
         exit("Cannot use both gene filter and design bed")
@@ -140,6 +157,12 @@ def parse_arguments():
     elif args.caveat_genes and not args.design_bed:
         exit("caveat_genes can only be used together with design_bed")
     return args
+
+def parse_sex(value):
+    sex = value.strip().upper()
+    if sex not in {"M", "F"}:
+        raise argparse.ArgumentTypeError("--sex must be either 'M' or 'F'")
+    return sex
 
 def write_json(output_file, data):
     with open(output_file, "w", encoding="utf-8") as outfile:
@@ -484,6 +507,12 @@ def query_cov_for_region(bam_file, sample_id, region_bed, region):
     mosdepth_regions_gz = f"{prefix}.regions.bed.gz"
     normalized_cov = f"{sample_id}.{region}.cov"
 
+    if not bed_has_regions(region_bed):
+        logging.debug(f"No regions in {region_bed}; writing empty coverage file {normalized_cov}")
+        with open(normalized_cov, "w", encoding="utf-8"):
+            pass
+        return normalized_cov
+
     logging.debug(f"Calculating {region} coverage for {region_bed} with mosdepth ..")
     command = [
         "mosdepth",
@@ -508,6 +537,13 @@ def query_cov_for_region(bam_file, sample_id, region_bed, region):
     logging.debug(f"Done, wrote normalized coverage to {normalized_cov}")
     return normalized_cov
 
+def bed_has_regions(region_bed):
+    with open(region_bed, "r", encoding="utf-8") as file:
+        for line in file:
+            if line.strip() and not line.startswith("#"):
+                return True
+    return False
+
 def gtf_info_field(annotation_info:list):
     anno_info_list = annotation_info.split(';')
     #trailing ;
@@ -527,7 +563,51 @@ def gtf_info_field(annotation_info:list):
 
 def intervals_overlap(start, end, other_start, other_end):
     return start < other_end and end > other_start
-    
+
+def is_y_chromosome(chromosome):
+    normalized = str(chromosome).lower()
+    if normalized.startswith("chr"):
+        normalized = normalized[3:]
+    return normalized == "y"
+
+def prune_y_chromosome_regions(gene_gtf, exon_to_gene, cds_to_gene, probe_mapper):
+    for region_map in (exon_to_gene, cds_to_gene, probe_mapper):
+        for region_name in list(region_map.keys()):
+            chromosome = region_name.split("_", 1)[0]
+            if is_y_chromosome(chromosome):
+                del region_map[region_name]
+
+    for gene in list(gene_gtf.keys()):
+        gene_record = gene_gtf[gene]
+        for region_type in ("exons", "CDS", "probes"):
+            for region_name, region in list(gene_record.get(region_type, {}).items()):
+                chromosome = region.get("chr", region_name.split("_", 1)[0])
+                if is_y_chromosome(chromosome):
+                    del gene_record[region_type][region_name]
+
+        transcript = gene_record.get("transcript", {})
+        if is_y_chromosome(transcript.get("chr", "")):
+            del gene_gtf[gene]
+
+    return gene_gtf
+
+def filter_y_chromosome_bed(bed_file, output_prefix, label):
+    filtered_bed = f"{output_prefix}.{label}.no_y.bed"
+    with open(bed_file, "r", encoding="utf-8") as infile, open(
+        filtered_bed,
+        "w",
+        encoding="utf-8",
+    ) as outfile:
+        for line in infile:
+            if line.startswith("#") or not line.strip():
+                outfile.write(line)
+                continue
+            fields = line.rstrip("\n").split("\t")
+            if fields and is_y_chromosome(fields[0]):
+                continue
+            outfile.write(line)
+    return filtered_bed
+
 def assign_probes(gene_gtf,probe_mapper,file_path):
     logging.debug(f"Reading probe cov and assigning to gene ..")
     with open(file_path, 'r') as file:
@@ -654,7 +734,7 @@ def read_mane_gtf(mane_gtf: str, gene_list=None, filtered_gtf=None):
     logging.debug(f"Done")
     return gene_gtf,exon_to_gene,cds_to_gene,probe_mapper,wgs_gtf
 
-def generate_bed_regions(panel_gtf, output_prefix):
+def generate_bed_regions(panel_gtf, output_prefix, exclude_y_regions=False):
     """
     generates bed-regions from gtf as input for mosdepth stats
     This is used both in panels and WGS
@@ -670,6 +750,8 @@ def generate_bed_regions(panel_gtf, output_prefix):
                 if len(line) < 5:
                     continue
                 chr = line[0]
+                if exclude_y_regions and is_y_chromosome(chr):
+                    continue
                 start = gtf_start_to_bed_start(line[3])
                 end = line[4]
                 annotation_type = line[2]
@@ -680,7 +762,7 @@ def generate_bed_regions(panel_gtf, output_prefix):
     logging.debug(f"Done, created input beds {cds_file}, {exon_file}")
     return cds_file,exon_file
 
-def intersect_gtf_with_design(mane_gtf,design_bed,output_prefix):
+def intersect_gtf_with_design(mane_gtf,design_bed,output_prefix,exclude_y_regions=False):
     """
     use bedtools to pickout regions overlapping provided 
     design file
@@ -695,7 +777,7 @@ def intersect_gtf_with_design(mane_gtf,design_bed,output_prefix):
     command = ['bedtools', 'intersect', '-a', mane_gtf, '-b', design_bed, '-u']
     with open(output_file, "w") as file:
         subprocess.run(command, stdout=file, stderr=subprocess.PIPE, text=True, check=True)
-    cds_file,exon_file = generate_bed_regions(output_file, output_prefix)
+    cds_file,exon_file = generate_bed_regions(output_file, output_prefix, exclude_y_regions)
     return cds_file,exon_file
 
 if __name__ == "__main__":
