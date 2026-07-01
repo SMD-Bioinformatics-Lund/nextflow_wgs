@@ -20,6 +20,7 @@ def main():
     bam_file = args.bam
     mane_gtf = args.gtf
     ignore_y_genes_in_summary = args.sex == "F"
+    partial_cds_genes_to_skip = set()
     # Panel
     if args.design_bed:
         design_bed = args.design_bed
@@ -27,6 +28,7 @@ def main():
         gene_gtf,exon_to_gene,cds_to_gene,probe_mapper,_wgs_gtf = read_mane_gtf(mane_gtf)
         if args.caveat_genes:
             caveat_genes = read_caveat_gene_list(args.caveat_genes)
+            partial_cds_genes_to_skip = caveat_genes
             mark_partial_cds_genes(gene_gtf, caveat_genes)
     # WGS
     else:
@@ -62,6 +64,7 @@ def main():
             genes_to_include,
             args.threshold,
             ignore_y_chromosome_genes=ignore_y_genes_in_summary,
+            partial_cds_genes_to_skip=partial_cds_genes_to_skip,
         )
         mongolike["summary"] = summary
         if args.summary_output:
@@ -330,10 +333,12 @@ def summarize_coverage(
     genes_to_include,
     threshold,
     ignore_y_chromosome_genes=False,
+    partial_cds_genes_to_skip=None,
 ):
     thresholds = normalize_thresholds(threshold)
     primary_threshold = thresholds[0]
     genes = coverage_data.get("genes", {})
+    partial_cds_genes_to_skip = set(partial_cds_genes_to_skip or [])
 
     gene_results = []
     threshold_assessment_records = []
@@ -349,6 +354,37 @@ def summarize_coverage(
             continue
 
         if gene_record is None:
+            if gene in partial_cds_genes_to_skip:
+                partial_cds_genes.append(gene)
+                threshold_assessment_records.append(
+                    {
+                        "gene": gene,
+                        "mean_cds_coverage": None,
+                        "coverage_assessment": "partial_cds_not_assessed",
+                    }
+                )
+                gene_results.append(
+                    {
+                        "gene": gene,
+                        "found": False,
+                        "partial_cds_coverage": True,
+                        "mean_cds_coverage": None,
+                        "available_cds_regions_mean_coverage": None,
+                        "covered_by_mean_cds_coverage_threshold": None,
+                        "covered_by_mean_cds_coverage_thresholds": {
+                            str(threshold): None for threshold in thresholds
+                        },
+                        "coverage_assessment": "partial_cds_not_assessed",
+                        "cds_regions": 0,
+                        "cds_regions_without_coverage": 0,
+                        "cds_regions_below_threshold": [],
+                        "cds_regions_below_thresholds": {
+                            str(threshold): [] for threshold in thresholds
+                        },
+                    }
+                )
+                continue
+
             missing_genes.append(gene)
             assessed_genes += 1
             threshold_assessment_records.append(
@@ -375,7 +411,7 @@ def summarize_coverage(
 
         cds_regions = gene_record.get("CDS", {})
         mean_coverage = weighted_mean_cds_coverage(cds_regions)
-        is_partial_cds = bool(gene_record.get("partial_cds_coverage", False))
+        is_partial_cds = bool(gene_record.get("partial_cds_coverage", False)) or gene in partial_cds_genes_to_skip
 
         if is_partial_cds:
             partial_cds_genes.append(gene)
