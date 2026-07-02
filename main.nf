@@ -313,8 +313,13 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(gatkcov.out.versions.first())
 	}
 
-	if (params.assay == "swea") {
-		depth_onco(ch_bam_bai)
+	// perhaps its own param?
+	if (params.antype == "panel") {
+		// calculate coverage for twist panels
+		ch_panel_coverage = ch_bam_bai
+			.join(genes_analyzed.out.genes_of_interest, by: [0, 1])
+			.join(ch_sample_meta, by: [0, 1])
+		calculate_panel_coverage(ch_panel_coverage)
 	}
 
 
@@ -1372,27 +1377,39 @@ def verifybamid2_version(task) {
 }
 
 // Calculate coverage for paneldepth
-process depth_onco {
+process calculate_panel_coverage {
 	cpus 2
 	time '1h'
 	memory '10 GB'
+	container "${params.container_panel_cov}"
 	publishDir "${params.outdir}/${params.subdir}/cov", mode: 'copy', overwrite: true
 	tag "$id"
+
 	input:
-		tuple val(group), val(id), path(bam), path(bai)
+		tuple val(group), val(id), path(bam), path(bai), path(genes), val(meta)
 
 	output:
-		path("${id}.lowcov.overlapping.bed"), emit: cov_onco
+		path("${id}.cov.json"), emit: cov_onco
 
 	script:
+		def summary_genes = genes.size() > 0 ? genes : params.all_relevant_genes
+		def caveat_arg = params.caveat_genes ? "--caveat_genes ${params.caveat_genes}" : ""
 		"""
-		panel_depth.pl $bam $params.scoutbed > ${id}.lowcov.bed
-		overlapping_genes.pl ${id}.lowcov.bed $params.gene_regions > ${id}.lowcov.overlapping.bed
+		panel_coverage.py \\
+			-b ${bam} \\
+			-g ${params.mane_gene_regions} \\
+			-s ${id} \\
+			-d ${params.intersect_bed} \\
+			--summary_genes ${summary_genes} \\
+			--summary_output ${id}.summary.json \\
+			-t ${params.cov_tresholds} \\
+			--sex ${meta.sex} \\
+			${caveat_arg}
 		"""
 
 	stub:
 		"""
-		touch "${id}.lowcov.overlapping.bed"
+		touch "${id}.cov.json"
 		"""
 }
 
