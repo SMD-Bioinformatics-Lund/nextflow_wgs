@@ -313,8 +313,8 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(gatkcov.out.versions.first())
 	}
 
-	// perhaps its own param?
-	if (params.antype == "panel") {
+
+	if (params.panel_cov) {
 		// calculate coverage for twist panels
 		ch_panel_coverage = ch_bam_bai
 			.join(genes_analyzed.out.genes_of_interest, by: [0, 1])
@@ -1389,7 +1389,8 @@ process calculate_panel_coverage {
 		tuple val(group), val(id), path(bam), path(bai), path(genes), val(meta)
 
 	output:
-		path("${id}.cov.json"), emit: cov_onco
+		path("${id}.cov.json"), emit: cov_cdm
+		path("${id}.summary.json"), emit: cov_summary
 
 	script:
 		def summary_genes = genes.size() > 0 ? genes : params.all_relevant_genes
@@ -1405,12 +1406,24 @@ process calculate_panel_coverage {
 			-t ${params.cov_tresholds} \\
 			--sex ${meta.sex} \\
 			${caveat_arg}
+		${calculate_panel_coverage_version(task)}
 		"""
 
 	stub:
 		"""
 		touch "${id}.cov.json"
+		${calculate_panel_coverage_version(task)}
 		"""
+}
+def calculate_panel_coverage_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+		python: \$(python --version 2>&1 | sed -e 's/Python //g')
+	    bedtools: \$(bedtools | grep Version | sed -r "s/Version:\s+//")
+	    mosdepth: \$(mosdepth --version | cut -f 2 )
+	END_VERSIONS
+	"""
 }
 
 process SMNCopyNumberCaller {
