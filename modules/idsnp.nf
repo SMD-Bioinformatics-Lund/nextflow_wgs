@@ -63,22 +63,26 @@ process IDSNP_VCF_TO_JSON {
     tag "${id}"
     container "${params.container_python}"
 	publishDir "${params.outdir}/${params.subdir}/qc", mode: 'copy' , overwrite: true, pattern: '*.json'
+    publishDir "${params.crondir}/idsnp", mode: 'copy' , overwrite: true, pattern: '*.pairgen'
 
     input:
-        tuple val(group), val(id), path(vcf)
+        tuple val(group), val(id), path(vcf), val(meta)
     
     output:
-        tuple val(group), val(id), path("*.json"), emit: json
+        tuple val(group), val(id), path("*.json"),    emit: json
+        tuple val(group), val(id), path("*.pairgen"), emit: cdm_input
     
     script:
     def prefix = "${id}"
     """
     genotype_to_json.py "${vcf}" "${prefix}.genotypes.json"
+    echo "--overwrite --sample-id $id --sequencing-run ${meta.sequencing_run} --assay ${params.cdm_assay} --id-snp ${params.outdir}/${params.subdir}/qc/${prefix}.genotypes.json" > ${prefix}.${params.cdm_assay}.pairgen 
     """
 
     stub:
     def prefix = "${id}"
     """
     touch "${prefix}.genotypes.json"
+    echo "--overwrite --sample-id $id --sequencing-run ${meta.sequencing_run} --assay ${params.cdm_assay} --id-snp ${params.outdir}/${params.subdir}/qc/${prefix}.genotypes.json" > ${prefix}.${params.cdm_assay}.pairgen 
     """
 }
