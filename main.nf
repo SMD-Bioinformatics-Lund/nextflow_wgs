@@ -300,7 +300,7 @@ workflow NEXTFLOW_WGS {
 	ch_qc_ins_size = ch_qc_parsed.map { group, id, qc -> tuple(group, id, qc.ins_size) }
 
 	IDSNP_CALL(ch_bam_bai, params.idsnps)
-	IDSNP_VCF_TO_JSON(IDSNP_CALL.out.vcf)
+	IDSNP_VCF_TO_JSON(IDSNP_CALL.out.vcf.join(ch_sample_meta, by:[0,1]))
 	ch_versions = ch_versions.mix(IDSNP_CALL.out.versions.first())
 
 	// COVERAGE //

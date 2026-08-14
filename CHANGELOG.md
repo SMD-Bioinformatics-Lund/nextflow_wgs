@@ -10,6 +10,9 @@
 * Rename VCFAnno config parameters to `vcfanno_config` and `vcfanno_lua`
 * Pass alignment, UMI trimming, and SNV annotation status as explicit workflow inputs
 
+### 3.27.1
+* Added output for idsnps to be added to CDM
+
 ### 3.27.0
 
 #### Added
