@@ -5,6 +5,7 @@
 #### Added 
 * Add workflow `CALL_SNVS`
 * Add workflow `PED`
+* Add workflow `QC_TO_CDM`
 
 #### Changed 
 * Pass SNV calling and Freebayes run status as explicit workflow inputs
@@ -12,6 +13,11 @@
 * Pass alignment, UMI trimming, and SNV annotation status as explicit workflow inputs
 * Switch `create_ped.pl` from `wgs_active` to `perl_container`.
 * Add `params.create_alt_affect_ped` to control alternate affected-parent PED generation independently of assay name
+* Pass QC-to-CDM script configuration explicitly through workflow inputs
+* Replace QC-to-CDM `when:` guard with workflow-level CDM cron skipping
+
+### 3.27.1
+* Added output for idsnps to be added to CDM
 
 ### 3.27.0
 
@@ -25,8 +31,8 @@
 * Pass analysis mode and trio status through workflow/process inputs instead of redefining `params.mode` and `params.trio`
 * Pass STR reference files, catalog, and access dir as explicit workflow inputs
 * Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
+* Pass MELT, mitochondrial analysis, and loqusdb run status as explicit workflow inputs
 * Parse Sentieon QC once and pass mean depth and insert size through keyed channels
-* Split STR VCF processing into separate rename, split, familyfy, and bgzip/index processes
 
 #### Fixed
 * Do not redefine `params.results_output_dir` in workflows.
