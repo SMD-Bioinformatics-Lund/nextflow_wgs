@@ -4,11 +4,17 @@
 
 #### Added 
 * Add workflow `CALL_SNVS`
+* Add workflow `QC_TO_CDM`
 
 #### Changed 
 * Pass SNV calling and Freebayes run status as explicit workflow inputs
 * Rename VCFAnno config parameters to `vcfanno_config` and `vcfanno_lua`
 * Pass alignment, UMI trimming, and SNV annotation status as explicit workflow inputs
+* Pass QC-to-CDM script configuration explicitly through workflow inputs
+* Replace QC-to-CDM `when:` guard with workflow-level CDM cron skipping
+
+### 3.27.1
+* Added output for idsnps to be added to CDM
 
 ### 3.27.0
 
@@ -24,7 +30,6 @@
 * Pass MELT reference, MEI list, VCF header, and intersect BED as explicit workflow inputs
 * Pass MELT, mitochondrial analysis, and loqusdb run status as explicit workflow inputs
 * Parse Sentieon QC once and pass mean depth and insert size through keyed channels
-* Split STR VCF processing into separate rename, split, familyfy, and bgzip/index processes
 
 #### Fixed
 * Do not redefine `params.results_output_dir` in workflows.
