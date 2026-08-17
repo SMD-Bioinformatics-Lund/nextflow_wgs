@@ -841,7 +841,7 @@ workflow NEXTFLOW_WGS {
 			tuple(group, type, ped, vcf_snvs, vcf_svs)
 		}
 
-    if(!params.skip_loqusdb) {
+    if(!val_skip_loqusdb) {
 	    add_to_loqusdb(
 		    ch_loqusdb_input
 	    )
