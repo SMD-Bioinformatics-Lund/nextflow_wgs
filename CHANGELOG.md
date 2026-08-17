@@ -4,12 +4,15 @@
 
 #### Added 
 * Add workflow `CALL_SNVS`
+* Add workflow `PED`
 * Add workflow `QC_TO_CDM`
 
 #### Changed 
 * Pass SNV calling and Freebayes run status as explicit workflow inputs
 * Rename VCFAnno config parameters to `vcfanno_config` and `vcfanno_lua`
 * Pass alignment, UMI trimming, and SNV annotation status as explicit workflow inputs
+* Switch `create_ped.pl` from `wgs_active` to `perl_container`.
+* Add `params.create_alt_affect_ped` to control alternate affected-parent PED generation independently of assay name
 * Pass QC-to-CDM script configuration explicitly through workflow inputs
 * Replace QC-to-CDM `when:` guard with workflow-level CDM cron skipping
 
