@@ -85,12 +85,12 @@ workflow {
 		params.align,
 		params.umi,
 		params.annotate,
-		params.create_alt_affect_ped
-		params.run_melt
+		params.create_alt_affect_ped,
+		params.run_melt,
 		params.skip_mito,
-		params.skip_loqusdb
-		"${params.outdir}/${params.subdir}",
+		params.skip_loqusdb,
 		params.cdm_assay,
+		"${params.outdir}/${params.subdir}",
 		params.noupload
 	)
 
