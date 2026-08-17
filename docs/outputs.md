@@ -9,7 +9,7 @@ When running the pipeline, two separate results folders are produced. One contai
 | gens      | wgs  | `generate_gens_data` | `<group>.gens`            | Input data to Gens                  |
 | gens      | wgs  | `gens_v4_cron`       | `<group>.gens_const.yaml` | Gens case YAML for `gens load case` |
 | loqus     |      | `add_to_loqusdb`     | `<group>.loqus`           | Artefact frequencies to LoqusDB     |
-| qc        |      | `qc_to_cdm`          | `<group>.cdm`             | Sample quality information to CDM   |
+| qc        |      | `create_cdm_cron`    | `<id>.cdmpy`              | CDM load command for sample QC      |
 | scout     |      | `scout`              | `<group>.yaml`            | Scout input YAML file               |
 
 ## Results-folder
@@ -36,7 +36,7 @@ When running the pipeline, two separate results folders are produced. One contai
 | plots/mito     | Visualize   | wgs   | `run_eklipse`                   | `<group>_eklipse.png`                            | Mitochondrial deletions visualized                                                |
 | plots          | Visualize   | trio  | `upd_table`                     | `<group>.UPDTable.xls`                           | Uniparental disomy overview                                                       |
 | overview_plot  | Visualize   | trio  | `overview_plot`                 | `<group>.genomic_overview.png`                   | High-level illustration of uniparental disomy and runs of homozygosity            |
-| qc             | QC          |       | `merge_qc_json`                 | `<group>.QC`                                     | Sample QC information                                                             |
+| qc             | QC          |       | `merge_qc_json`                 | `<id>.QC`                                        | Merged sample QC information                                                      |
 | pod            | Visualize   | trio  | `plot_pod`                      | `<group>_POD_karyotype.pdf`                      | CNV origin illustration                                                           |
 | pod            | Visualize   | trio  | `plot_pod`                      | `<group>_POD_results.html`                       | CNV origin illustration                                                           |
 | sv_vcf         | SV calling  | wgs   | `postprocessgatk`               | `denoised-<group>-vs-cohort30.vcf.gz`            | GATK CNVCaller output                                                             |
