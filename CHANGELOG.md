@@ -1,8 +1,9 @@
 # CHANGELOG
 
-### Unreleased
+### 3.28.0
 
 #### Added 
+* Added output for idsnps to be added to CDM
 * Add workflow `CALL_SNVS`
 * Add workflow `PED`
 * Add workflow `QC_TO_CDM`
@@ -16,8 +17,6 @@
 * Pass QC-to-CDM script configuration explicitly through workflow inputs
 * Replace QC-to-CDM `when:` guard with workflow-level CDM cron skipping
 
-### 3.27.1
-* Added output for idsnps to be added to CDM
 
 ### 3.27.0
 

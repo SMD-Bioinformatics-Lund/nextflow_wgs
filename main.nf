@@ -12,6 +12,7 @@ include { SNV_ANNOTATE           } from './workflows/annotate_snvs.nf'
 include { SPLIT_NORMALIZE_SNVS   } from './workflows/split_normalize_snvs.nf'
 include { VALIDATE_PARAMETERS    } from './workflows/validate_params.nf'
 include { VALIDATE_SAMPLES_CSV   } from './workflows/validate_csv.nf'
+include { PREPARE_INPUT_AND_META_CHANNELS } from './workflows/prepare_input_and_meta_channels.nf'
 
 include { vcfHasVariants } from './workflows/util.nf'
 
@@ -84,12 +85,12 @@ workflow {
 		params.align,
 		params.umi,
 		params.annotate,
-		params.create_alt_affect_ped
-		params.run_melt
+		params.create_alt_affect_ped,
+		params.run_melt,
 		params.skip_mito,
-		params.skip_loqusdb
-		"${params.outdir}/${params.subdir}",
+		params.skip_loqusdb,
 		params.cdm_assay,
+		"${params.outdir}/${params.subdir}",
 		params.noupload
 	)
 
@@ -840,7 +841,7 @@ workflow NEXTFLOW_WGS {
 			tuple(group, type, ped, vcf_snvs, vcf_svs)
 		}
 
-    if(!params.skip_loqusdb) {
+    if(!val_skip_loqusdb) {
 	    add_to_loqusdb(
 		    ch_loqusdb_input
 	    )
