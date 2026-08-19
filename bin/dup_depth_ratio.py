@@ -11,7 +11,10 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, TextIO
+from typing import Dict, Iterable, List, Optional, Set, TextIO, Tuple
+
+
+TARGET_CALLERS = {"manta", "tiddit"}
 
 
 @dataclass
@@ -21,6 +24,11 @@ class Duplication:
     start: int
     end: int
     variant_id: str
+    callers: str
+    pr_ref: Optional[int]
+    pr_alt: Optional[int]
+    sr_ref: Optional[int]
+    sr_alt: Optional[int]
 
 
 @dataclass
@@ -33,7 +41,7 @@ class RegionDepths:
 def main() -> None:
     args = parse_args()
 
-    duplications = list(read_duplications(args.vcf))
+    duplications = list(read_duplications(args.vcf, args.sample_index))
     if not duplications:
         write_results([], {}, args.output, args.ploidy)
         return
@@ -76,6 +84,12 @@ def parse_args() -> argparse.Namespace:
         default="mosdepth",
         help="Path to mosdepth executable. Default: mosdepth.",
     )
+    parser.add_argument(
+        "--sample-index",
+        type=int,
+        default=1,
+        help="1-based sample column index to parse PR/SR from. Default: 1.",
+    )
     return parser.parse_args()
 
 
@@ -85,7 +99,10 @@ def open_text(path: str) -> TextIO:
     return open(path, "r")
 
 
-def read_duplications(vcf_path: str) -> Iterable[Duplication]:
+def read_duplications(vcf_path: str, sample_index: int = 1) -> Iterable[Duplication]:
+    if sample_index < 1:
+        raise ValueError("--sample-index must be 1 or greater")
+
     with open_text(vcf_path) as handle:
         for idx, line in enumerate(handle, start=1):
             if line.startswith("#"):
@@ -102,6 +119,11 @@ def read_duplications(vcf_path: str) -> Iterable[Duplication]:
             if svtype != "DUP" and "<DUP>" not in alt:
                 continue
 
+            callers = parse_callers(str(info_dict.get("set", "")))
+            if not callers & TARGET_CALLERS:
+                continue
+
+            pr_ref, pr_alt, sr_ref, sr_alt = parse_pr_sr(fields, sample_index, idx)
             end = parse_end(info_dict, pos, idx)
             start = int(pos)
             if end < start:
@@ -113,6 +135,11 @@ def read_duplications(vcf_path: str) -> Iterable[Duplication]:
                 start=start,
                 end=end,
                 variant_id=variant_id,
+                callers="-".join(sorted(callers)),
+                pr_ref=pr_ref,
+                pr_alt=pr_alt,
+                sr_ref=sr_ref,
+                sr_alt=sr_alt,
             )
 
 
@@ -139,6 +166,43 @@ def parse_end(info: Dict[str, object], pos: str, line_number: int) -> int:
         svlen = abs(int(str(info["SVLEN"]).split(",", 1)[0]))
         return int(pos) + svlen - 1
     raise ValueError(f"DUP at input line {line_number} has neither END nor SVLEN in INFO")
+
+
+def parse_callers(set_value: str) -> Set[str]:
+    if not set_value or set_value == ".":
+        return set()
+    return {caller.strip().lower() for caller in set_value.split("-") if caller.strip()}
+
+
+def parse_pr_sr(
+    fields: List[str],
+    sample_index: int,
+    line_number: int,
+) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
+    if len(fields) < 10:
+        return None, None, None, None
+
+    sample_column = 8 + sample_index
+    if len(fields) <= sample_column:
+        raise ValueError(f"Input line {line_number} does not have sample column {sample_index}")
+
+    format_keys = fields[8].split(":")
+    sample_values = fields[sample_column].split(":")
+    sample_data = dict(zip(format_keys, sample_values))
+    pr_ref, pr_alt = parse_ref_alt_count(sample_data.get("PR"))
+    sr_ref, sr_alt = parse_ref_alt_count(sample_data.get("SR"))
+    return pr_ref, pr_alt, sr_ref, sr_alt
+
+
+def parse_ref_alt_count(value: Optional[str]) -> Tuple[Optional[int], Optional[int]]:
+    if value is None or value in (".", ""):
+        return None, None
+
+    counts = value.split(",")
+    if len(counts) < 2 or "." in counts[:2]:
+        return None, None
+
+    return int(counts[0]), int(counts[1])
 
 
 def region_name(dup: Duplication, region_type: str) -> str:
@@ -217,6 +281,7 @@ def write_results(
                     "start",
                     "end",
                     "id",
+                    "callers",
                     "variant_mean_depth",
                     "upstream_mean_depth",
                     "downstream_mean_depth",
@@ -224,6 +289,12 @@ def write_results(
                     "depth_ratio",
                     "rounded_depth_ratio",
                     "estimated_copy_number",
+                    "pr_ref_count",
+                    "pr_alt_count",
+                    "pr_alt_ref_ratio",
+                    "sr_ref_count",
+                    "sr_alt_count",
+                    "sr_alt_ref_ratio",
                 ]
             )
             + "\n"
@@ -235,6 +306,8 @@ def write_results(
             ratio = safe_divide(record_depths.variant, surrounding)
             rounded_ratio = nearest_int(ratio) if ratio is not None else None
             copy_number = nearest_int(ratio * ploidy) if ratio is not None else None
+            pr_ratio = safe_divide_ints(dup.pr_alt, dup.pr_ref)
+            sr_ratio = safe_divide_ints(dup.sr_alt, dup.sr_ref)
 
             out.write(
                 "\t".join(
@@ -243,6 +316,7 @@ def write_results(
                         str(dup.start),
                         str(dup.end),
                         dup.variant_id,
+                        dup.callers,
                         format_optional_float(record_depths.variant),
                         format_optional_float(record_depths.upstream),
                         format_optional_float(record_depths.downstream),
@@ -250,6 +324,12 @@ def write_results(
                         format_optional_float(ratio),
                         format_optional_int(rounded_ratio),
                         format_optional_int(copy_number),
+                        format_optional_int(dup.pr_ref),
+                        format_optional_int(dup.pr_alt),
+                        format_optional_float(pr_ratio),
+                        format_optional_int(dup.sr_ref),
+                        format_optional_int(dup.sr_alt),
+                        format_optional_float(sr_ratio),
                     ]
                 )
                 + "\n"
@@ -264,6 +344,12 @@ def mean_ignore_none(values: List[Optional[float]]) -> Optional[float]:
 
 
 def safe_divide(numerator: Optional[float], denominator: Optional[float]) -> Optional[float]:
+    if numerator is None or denominator in (None, 0):
+        return None
+    return numerator / denominator
+
+
+def safe_divide_ints(numerator: Optional[int], denominator: Optional[int]) -> Optional[float]:
     if numerator is None or denominator in (None, 0):
         return None
     return numerator / denominator
