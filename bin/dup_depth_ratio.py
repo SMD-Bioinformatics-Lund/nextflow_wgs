@@ -41,7 +41,7 @@ class RegionDepths:
 def main() -> None:
     args = parse_args()
 
-    duplications = list(read_duplications(args.vcf, args.sample_index))
+    duplications = list(read_duplications(args.vcf, args.proband_id, args.sample_index))
     if not duplications:
         write_results([], {}, args.output, args.ploidy)
         return
@@ -88,7 +88,11 @@ def parse_args() -> argparse.Namespace:
         "--sample-index",
         type=int,
         default=1,
-        help="1-based sample column index to parse PR/SR from. Default: 1.",
+        help="Fallback 1-based sample column index to parse PR/SR from. Default: 1.",
+    )
+    parser.add_argument(
+        "--proband-id",
+        help="VCF sample ID for the proband. When set, PR/SR are parsed from this sample.",
     )
     return parser.parse_args()
 
@@ -99,14 +103,29 @@ def open_text(path: str) -> TextIO:
     return open(path, "r")
 
 
-def read_duplications(vcf_path: str, sample_index: int = 1) -> Iterable[Duplication]:
+def read_duplications(
+    vcf_path: str,
+    proband_id: Optional[str] = None,
+    sample_index: int = 1,
+) -> Iterable[Duplication]:
     if sample_index < 1:
         raise ValueError("--sample-index must be 1 or greater")
 
+    selected_sample_index = sample_index
+    found_column_header = False
+
     with open_text(vcf_path) as handle:
         for idx, line in enumerate(handle, start=1):
+            if line.startswith("#CHROM"):
+                found_column_header = True
+                selected_sample_index = resolve_sample_index(line, proband_id, sample_index)
+                continue
+
             if line.startswith("#"):
                 continue
+
+            if not found_column_header:
+                raise ValueError("Could not find VCF #CHROM header before variant records")
 
             fields = line.rstrip("\n").split("\t")
             if len(fields) < 8:
@@ -123,7 +142,7 @@ def read_duplications(vcf_path: str, sample_index: int = 1) -> Iterable[Duplicat
             if not callers & TARGET_CALLERS:
                 continue
 
-            pr_ref, pr_alt, sr_ref, sr_alt = parse_pr_sr(fields, sample_index, idx)
+            pr_ref, pr_alt, sr_ref, sr_alt = parse_pr_sr(fields, selected_sample_index, idx)
             end = parse_end(info_dict, pos, idx)
             start = int(pos)
             if end < start:
@@ -141,6 +160,9 @@ def read_duplications(vcf_path: str, sample_index: int = 1) -> Iterable[Duplicat
                 sr_ref=sr_ref,
                 sr_alt=sr_alt,
             )
+
+    if not found_column_header:
+        raise ValueError("Could not find VCF #CHROM header")
 
 
 def parse_info(info: str) -> Dict[str, object]:
@@ -172,6 +194,29 @@ def parse_callers(set_value: str) -> Set[str]:
     if not set_value or set_value == ".":
         return set()
     return {caller.strip().lower() for caller in set_value.split("-") if caller.strip()}
+
+
+def resolve_sample_index(
+    column_header_line: str,
+    proband_id: Optional[str],
+    fallback_sample_index: int,
+) -> int:
+    fields = column_header_line.rstrip("\n").split("\t")
+    sample_ids = fields[9:]
+
+    if proband_id is None:
+        if sample_ids and fallback_sample_index > len(sample_ids):
+            raise ValueError(
+                f"--sample-index {fallback_sample_index} was requested, but VCF has {len(sample_ids)} samples"
+            )
+        return fallback_sample_index
+
+    if proband_id not in sample_ids:
+        raise ValueError(
+            f"Proband ID '{proband_id}' was not found in VCF samples: {', '.join(sample_ids)}"
+        )
+
+    return sample_ids.index(proband_id) + 1
 
 
 def parse_pr_sr(
