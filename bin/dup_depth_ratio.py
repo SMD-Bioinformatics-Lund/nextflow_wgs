@@ -50,12 +50,7 @@ def main() -> None:
         bed_path = Path(tmpdir) / "regions.bed"
         prefix = Path(tmpdir) / "mosdepth"
 
-        write_regions_bed(
-            duplications,
-            bed_path,
-            args.flank_size,
-            args.variant_window_size,
-        )
+        write_regions_bed(duplications, bed_path, args.flank_size)
         run_mosdepth(args.mosdepth, args.bam, bed_path, prefix)
         depths = read_mosdepth_regions(f"{prefix}.regions.bed.gz")
 
@@ -77,15 +72,6 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Flank size in bp. Defaults to the duplication length for each record.",
-    )
-    parser.add_argument(
-        "--variant-window-size",
-        type=int,
-        default=None,
-        help=(
-            "Use at most this many centered bp from each duplication for variant "
-            "coverage. Defaults to the full duplication."
-        ),
     )
     parser.add_argument(
         "--ploidy",
@@ -272,58 +258,29 @@ def write_regions_bed(
     duplications: List[Duplication],
     bed_path: Path,
     flank_size: Optional[int],
-    variant_window_size: Optional[int] = None,
 ) -> None:
-    if flank_size is not None and flank_size <= 0:
-        raise ValueError("--flank-size must be positive")
-    if variant_window_size is not None and variant_window_size <= 0:
-        raise ValueError("--variant-window-size must be positive")
-
     with open(bed_path, "w") as bed:
         for dup in duplications:
-            event_start = dup.start - 1
-            event_end = dup.end
-            event_length = event_end - event_start
-            flank = flank_size if flank_size is not None else event_length
-            variant_start, variant_end = centered_variant_window(
-                event_start,
-                event_end,
-                variant_window_size,
-            )
+            bed_start = dup.start - 1
+            bed_end = dup.end
+            flank = flank_size if flank_size is not None else bed_end - bed_start
+            if flank <= 0:
+                raise ValueError("--flank-size must be positive")
 
-            upstream_start = max(0, event_start - flank)
-            upstream_end = event_start
-            downstream_start = event_end
-            downstream_end = event_end + flank
+            upstream_start = max(0, bed_start - flank)
+            upstream_end = bed_start
+            downstream_start = bed_end
+            downstream_end = bed_end + flank
 
             if upstream_start < upstream_end:
                 bed.write(
                     f"{dup.chrom}\t{upstream_start}\t{upstream_end}\t{region_name(dup, 'upstream')}\n"
                 )
 
-            bed.write(
-                f"{dup.chrom}\t{variant_start}\t{variant_end}\t{region_name(dup, 'variant')}\n"
-            )
+            bed.write(f"{dup.chrom}\t{bed_start}\t{bed_end}\t{region_name(dup, 'variant')}\n")
             bed.write(
                 f"{dup.chrom}\t{downstream_start}\t{downstream_end}\t{region_name(dup, 'downstream')}\n"
             )
-
-
-def centered_variant_window(
-    event_start: int,
-    event_end: int,
-    variant_window_size: Optional[int],
-) -> Tuple[int, int]:
-    event_length = event_end - event_start
-    if event_length <= 0:
-        raise ValueError("Duplication interval length must be positive")
-    if variant_window_size is None or event_length <= variant_window_size:
-        return event_start, event_end
-
-    center = event_start + event_length // 2
-    window_start = center - variant_window_size // 2
-    window_end = window_start + variant_window_size
-    return window_start, window_end
 
 
 def run_mosdepth(mosdepth: str, bam: str, bed_path: Path, prefix: Path) -> None:
