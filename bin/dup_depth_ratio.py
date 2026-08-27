@@ -394,7 +394,7 @@ def copy_number_for_record(
                 f"DUP/TDUP at input line {idx} is merged with a CN-aware caller but "
                 f"does not have INFO/{copy_number_info_field}"
             )
-        return str(info_dict[copy_number_info_field])
+        return first_list_value(str(info_dict[copy_number_info_field]))
 
     if has_copy_number_caller:
         return None
@@ -523,6 +523,10 @@ def parse_callers(set_value: str) -> Set[str]:
 
 def parse_caller_list(callers: str) -> Set[str]:
     return {caller.strip().lower() for caller in callers.split(",") if caller.strip()}
+
+
+def first_list_value(value: str) -> str:
+    return value.split(",", 1)[0]
 
 
 def is_duplication_record(info: Dict[str, object], alt: str) -> bool:
