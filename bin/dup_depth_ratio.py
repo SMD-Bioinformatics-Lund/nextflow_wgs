@@ -214,12 +214,20 @@ def write_vcf(
     selected_sample_index = sample_index
     found_column_header = False
     has_cn_header = False
+    has_estimated_cn_header = False
     needs_cn_header = vcf_needs_cn_header(vcf_path, copy_number_callers, readpair_callers)
+    needs_estimated_cn_header = vcf_needs_estimated_cn_header(
+        vcf_path,
+        copy_number_callers,
+        readpair_callers,
+    )
 
     with open_text(vcf_path) as inp, open_output_text(output_path) as out:
         for idx, line in enumerate(inp, start=1):
             if line.startswith("##FORMAT=<ID=CN,"):
                 has_cn_header = True
+            if line.startswith("##INFO=<ID=ESTIMATED_CN,"):
+                has_estimated_cn_header = True
 
             if line.startswith("#CHROM"):
                 found_column_header = True
@@ -227,6 +235,12 @@ def write_vcf(
                 if needs_cn_header and not has_cn_header:
                     out.write(
                         '##FORMAT=<ID=CN,Number=.,Type=Integer,Description="Copy number">\n'
+                    )
+                if needs_estimated_cn_header and not has_estimated_cn_header:
+                    out.write(
+                        "##INFO=<ID=ESTIMATED_CN,Number=5,Type=Float,"
+                        'Description="Mosdepth-estimated copy number and mean coverage values: '
+                        'CN,variant,upstream_flank,downstream_flank,mean_flanks">\n'
                     )
                 out.write(line)
                 continue
@@ -257,6 +271,18 @@ def write_vcf(
             )
 
             if cn_value is not None:
+                estimated_cn_value = estimated_cn_info_for_record(
+                    idx,
+                    fields[4],
+                    info_dict,
+                    callers,
+                    depths,
+                    ploidy,
+                    copy_number_callers,
+                    readpair_callers,
+                )
+                if estimated_cn_value is not None:
+                    fields[7] = add_info_value(fields[7], "ESTIMATED_CN", estimated_cn_value)
                 fields = add_sample_format_value(fields, selected_sample_index, "CN", cn_value, idx)
                 out.write("\t".join(fields) + "\n")
             else:
@@ -307,6 +333,43 @@ def vcf_needs_cn_header(
     return False
 
 
+def vcf_needs_estimated_cn_header(
+    vcf_path: str,
+    copy_number_callers: Set[str],
+    readpair_callers: Set[str],
+) -> bool:
+    found_column_header = False
+
+    with open_text(vcf_path) as handle:
+        for idx, line in enumerate(handle, start=1):
+            if line.startswith("#CHROM"):
+                found_column_header = True
+                continue
+
+            if line.startswith("#"):
+                continue
+
+            if not found_column_header:
+                raise ValueError("Could not find VCF #CHROM header before variant records")
+
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) < 8:
+                raise ValueError(f"Malformed VCF record at input line {idx}: fewer than 8 columns")
+
+            info_dict = parse_info(fields[7])
+            callers = parse_callers(str(info_dict.get("set", "")))
+            if not is_duplication_record(info_dict, fields[4]):
+                continue
+
+            if not callers & copy_number_callers and callers & readpair_callers:
+                return True
+
+    if not found_column_header:
+        raise ValueError("Could not find VCF #CHROM header")
+
+    return False
+
+
 def copy_number_for_record(
     idx: int,
     alt: str,
@@ -341,6 +404,55 @@ def copy_number_for_record(
         return "." if copy_number is None else str(copy_number)
 
     return None
+
+
+def estimated_cn_info_for_record(
+    idx: int,
+    alt: str,
+    info_dict: Dict[str, object],
+    callers: Set[str],
+    depths: Dict[int, RegionDepths],
+    ploidy: int,
+    copy_number_callers: Set[str],
+    readpair_callers: Set[str],
+) -> Optional[str]:
+    if not is_duplication_record(info_dict, alt):
+        return None
+
+    has_copy_number_caller = bool(callers & copy_number_callers)
+    has_readpair_caller = bool(callers & readpair_callers)
+    if has_copy_number_caller or not has_readpair_caller:
+        return None
+
+    record_depths = depths.get(idx, RegionDepths())
+    return format_estimated_cn_info(record_depths, ploidy)
+
+
+def format_estimated_cn_info(record_depths: RegionDepths, ploidy: int) -> str:
+    surrounding = mean_ignore_none([record_depths.upstream, record_depths.downstream])
+    copy_number = estimate_copy_number(record_depths, ploidy)
+    return ",".join(
+        [
+            format_optional_int(copy_number),
+            format_optional_float(record_depths.variant),
+            format_optional_float(record_depths.upstream),
+            format_optional_float(record_depths.downstream),
+            format_optional_float(surrounding),
+        ]
+    )
+
+
+def add_info_value(info: str, key: str, value: str) -> str:
+    entries = [] if info in ("", ".") else info.split(";")
+    replaced = False
+    for entry_index, entry in enumerate(entries):
+        if entry == key or entry.startswith(f"{key}="):
+            entries[entry_index] = f"{key}={value}"
+            replaced = True
+            break
+    if not replaced:
+        entries.append(f"{key}={value}")
+    return ";".join(entries) if entries else "."
 
 
 def add_sample_format_value(
@@ -555,6 +667,18 @@ def safe_divide(numerator: Optional[float], denominator: Optional[float]) -> Opt
 
 def nearest_int(value: float) -> int:
     return math.floor(value + 0.5)
+
+
+def format_optional_float(value: Optional[float]) -> str:
+    if value is None:
+        return "."
+    return f"{value:.4f}"
+
+
+def format_optional_int(value: Optional[int]) -> str:
+    if value is None:
+        return "."
+    return str(value)
 
 
 if __name__ == "__main__":
