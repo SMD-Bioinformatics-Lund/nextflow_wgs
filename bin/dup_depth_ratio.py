@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Estimate duplication depth ratios from a VCF and BAM using mosdepth.
+Add copy-number estimates to duplication records in a VCF.
 """
 
 import argparse
@@ -14,21 +14,12 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, TextIO, Tuple
 
 
-TARGET_CALLERS = {"manta", "tiddit"}
-
-
 @dataclass
 class Duplication:
     idx: int
     chrom: str
     start: int
     end: int
-    variant_id: str
-    callers: str
-    pr_ref: Optional[int]
-    pr_alt: Optional[int]
-    sr_ref: Optional[int]
-    sr_alt: Optional[int]
 
 
 @dataclass
@@ -40,38 +31,76 @@ class RegionDepths:
 
 def main() -> None:
     args = parse_args()
+    copy_number_callers = parse_caller_list(args.copy_number_callers)
+    readpair_callers = parse_caller_list(args.readpair_callers)
 
-    duplications = list(read_duplications(args.vcf, args.proband_id, args.sample_index))
-    if not duplications:
-        write_results([], {}, args.output, args.ploidy)
-        return
-
-    with tempfile.TemporaryDirectory(prefix="dup_depth_ratio.") as tmpdir:
-        bed_path = Path(tmpdir) / "regions.bed"
-        prefix = Path(tmpdir) / "mosdepth"
-
-        write_regions_bed(
-            duplications,
-            bed_path,
-            args.flank_size,
-            args.variant_window_size,
+    duplications = list(
+        read_readpair_duplications(
+            args.vcf,
+            copy_number_callers,
+            readpair_callers,
         )
-        run_mosdepth(args.mosdepth, args.bam, bed_path, prefix)
-        depths = read_mosdepth_regions(f"{prefix}.regions.bed.gz")
+    )
 
-    write_results(duplications, depths, args.output, args.ploidy)
+    depths: Dict[int, RegionDepths] = {}
+    if duplications:
+        if args.bam is None:
+            raise ValueError("--bam is required when readpair-aware duplications need CN estimation")
+
+        with tempfile.TemporaryDirectory(prefix="dup_depth_ratio.") as tmpdir:
+            bed_path = Path(tmpdir) / "regions.bed"
+            prefix = Path(tmpdir) / "mosdepth"
+
+            write_regions_bed(
+                duplications,
+                bed_path,
+                args.flank_size,
+                args.variant_window_size,
+            )
+            run_mosdepth(args.mosdepth, args.bam, bed_path, prefix)
+            depths = read_mosdepth_regions(f"{prefix}.regions.bed.gz")
+
+    write_vcf(
+        args.vcf,
+        args.output,
+        depths,
+        args.ploidy,
+        copy_number_callers,
+        readpair_callers,
+        args.copy_number_info_field,
+        args.proband_id,
+        args.sample_index,
+    )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "For DUP records in a CNV VCF, calculate variant depth, flanking "
-            "depth, depth ratio, rounded ratio, and estimated copy number."
+            "For DUP/TDUP records in a VCF, add FORMAT/CN from either a "
+            "copy-number-aware caller INFO field or a mosdepth depth estimate."
         )
     )
-    parser.add_argument("--vcf", required=True, help="Input CNV VCF, optionally gzipped.")
-    parser.add_argument("--bam", required=True, help="Input indexed BAM/CRAM for mosdepth.")
-    parser.add_argument("--output", required=True, help="Output TSV path.")
+    parser.add_argument("--vcf", required=True, help="Input VCF, optionally gzipped.")
+    parser.add_argument(
+        "--bam",
+        help="Input indexed BAM/CRAM for mosdepth. Required for readpair-only duplications.",
+    )
+    parser.add_argument("--output", required=True, help="Output VCF path.")
+    parser.add_argument(
+        "--copy-number-callers",
+        default="gatk",
+        help="Comma-separated callers that already provide copy number. Default: gatk.",
+    )
+    parser.add_argument(
+        "--readpair-callers",
+        default="manta,tiddit",
+        help="Comma-separated readpair-aware callers to estimate CN for. Default: manta,tiddit.",
+    )
+    parser.add_argument(
+        "--copy-number-info-field",
+        default="gatkCN",
+        help="INFO field containing copy number for CN-aware merged calls. Default: gatkCN.",
+    )
     parser.add_argument(
         "--flank-size",
         type=int,
@@ -102,11 +131,11 @@ def parse_args() -> argparse.Namespace:
         "--sample-index",
         type=int,
         default=1,
-        help="Fallback 1-based sample column index to parse PR/SR from. Default: 1.",
+        help="Fallback 1-based sample column index to update with FORMAT/CN. Default: 1.",
     )
     parser.add_argument(
         "--proband-id",
-        help="VCF sample ID for the proband. When set, PR/SR are parsed from this sample.",
+        help="VCF sample ID to update with FORMAT/CN. Overrides --sample-index.",
     )
     return parser.parse_args()
 
@@ -117,22 +146,23 @@ def open_text(path: str) -> TextIO:
     return open(path, "r")
 
 
-def read_duplications(
-    vcf_path: str,
-    proband_id: Optional[str] = None,
-    sample_index: int = 1,
-) -> Iterable[Duplication]:
-    if sample_index < 1:
-        raise ValueError("--sample-index must be 1 or greater")
+def open_output_text(path: str) -> TextIO:
+    if path.endswith(".gz"):
+        return gzip.open(path, "wt")
+    return open(path, "w")
 
-    selected_sample_index = sample_index
+
+def read_readpair_duplications(
+    vcf_path: str,
+    copy_number_callers: Set[str],
+    readpair_callers: Set[str],
+) -> Iterable[Duplication]:
     found_column_header = False
 
     with open_text(vcf_path) as handle:
         for idx, line in enumerate(handle, start=1):
             if line.startswith("#CHROM"):
                 found_column_header = True
-                selected_sample_index = resolve_sample_index(line, proband_id, sample_index)
                 continue
 
             if line.startswith("#"):
@@ -145,38 +175,207 @@ def read_duplications(
             if len(fields) < 8:
                 raise ValueError(f"Malformed VCF record at input line {idx}: fewer than 8 columns")
 
-            chrom, pos, variant_id, _ref, alt, _qual, _filter, info = fields[:8]
+            chrom, pos, _variant_id, _ref, alt, _qual, _filter, info = fields[:8]
             info_dict = parse_info(info)
-            svtype = str(info_dict.get("SVTYPE", ""))
-
-            if svtype != "DUP" and "<DUP>" not in alt:
-                continue
-
             callers = parse_callers(str(info_dict.get("set", "")))
-            if not callers & TARGET_CALLERS:
+
+            if not is_duplication_record(info_dict, alt):
+                continue
+            if callers & copy_number_callers:
+                continue
+            if not callers & readpair_callers:
                 continue
 
-            pr_ref, pr_alt, sr_ref, sr_alt = parse_pr_sr(fields, selected_sample_index, idx)
             end = parse_end(info_dict, pos, idx)
             start = int(pos)
             if end < start:
-                raise ValueError(f"Malformed DUP at input line {idx}: END is smaller than POS")
+                raise ValueError(f"Malformed DUP/TDUP at input line {idx}: END is smaller than POS")
 
-            yield Duplication(
-                idx=idx,
-                chrom=chrom,
-                start=start,
-                end=end,
-                variant_id=variant_id,
-                callers="-".join(sorted(callers)),
-                pr_ref=pr_ref,
-                pr_alt=pr_alt,
-                sr_ref=sr_ref,
-                sr_alt=sr_alt,
-            )
+            yield Duplication(idx=idx, chrom=chrom, start=start, end=end)
 
     if not found_column_header:
         raise ValueError("Could not find VCF #CHROM header")
+
+
+def write_vcf(
+    vcf_path: str,
+    output_path: str,
+    depths: Dict[int, RegionDepths],
+    ploidy: int,
+    copy_number_callers: Set[str],
+    readpair_callers: Set[str],
+    copy_number_info_field: str,
+    proband_id: Optional[str],
+    sample_index: int,
+) -> None:
+    if sample_index < 1:
+        raise ValueError("--sample-index must be 1 or greater")
+
+    selected_sample_index = sample_index
+    found_column_header = False
+    has_cn_header = False
+    needs_cn_header = vcf_needs_cn_header(vcf_path, copy_number_callers, readpair_callers)
+
+    with open_text(vcf_path) as inp, open_output_text(output_path) as out:
+        for idx, line in enumerate(inp, start=1):
+            if line.startswith("##FORMAT=<ID=CN,"):
+                has_cn_header = True
+
+            if line.startswith("#CHROM"):
+                found_column_header = True
+                selected_sample_index = resolve_sample_index(line, proband_id, sample_index)
+                if needs_cn_header and not has_cn_header:
+                    out.write(
+                        '##FORMAT=<ID=CN,Number=.,Type=Integer,Description="Copy number">\n'
+                    )
+                out.write(line)
+                continue
+
+            if line.startswith("#"):
+                out.write(line)
+                continue
+
+            if not found_column_header:
+                raise ValueError("Could not find VCF #CHROM header before variant records")
+
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) < 8:
+                raise ValueError(f"Malformed VCF record at input line {idx}: fewer than 8 columns")
+
+            info_dict = parse_info(fields[7])
+            callers = parse_callers(str(info_dict.get("set", "")))
+            cn_value = copy_number_for_record(
+                idx,
+                fields[4],
+                info_dict,
+                callers,
+                depths,
+                ploidy,
+                copy_number_callers,
+                readpair_callers,
+                copy_number_info_field,
+            )
+
+            if cn_value is not None:
+                fields = add_sample_format_value(fields, selected_sample_index, "CN", cn_value, idx)
+                out.write("\t".join(fields) + "\n")
+            else:
+                out.write(line)
+
+    if not found_column_header:
+        raise ValueError("Could not find VCF #CHROM header")
+
+
+def vcf_needs_cn_header(
+    vcf_path: str,
+    copy_number_callers: Set[str],
+    readpair_callers: Set[str],
+) -> bool:
+    found_column_header = False
+
+    with open_text(vcf_path) as handle:
+        for idx, line in enumerate(handle, start=1):
+            if line.startswith("#CHROM"):
+                found_column_header = True
+                continue
+
+            if line.startswith("#"):
+                continue
+
+            if not found_column_header:
+                raise ValueError("Could not find VCF #CHROM header before variant records")
+
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) < 8:
+                raise ValueError(f"Malformed VCF record at input line {idx}: fewer than 8 columns")
+
+            info_dict = parse_info(fields[7])
+            callers = parse_callers(str(info_dict.get("set", "")))
+            if not is_duplication_record(info_dict, fields[4]):
+                continue
+
+            has_copy_number_caller = bool(callers & copy_number_callers)
+            has_readpair_caller = bool(callers & readpair_callers)
+            if has_copy_number_caller and callers - copy_number_callers:
+                return True
+            if not has_copy_number_caller and has_readpair_caller:
+                return True
+
+    if not found_column_header:
+        raise ValueError("Could not find VCF #CHROM header")
+
+    return False
+
+
+def copy_number_for_record(
+    idx: int,
+    alt: str,
+    info_dict: Dict[str, object],
+    callers: Set[str],
+    depths: Dict[int, RegionDepths],
+    ploidy: int,
+    copy_number_callers: Set[str],
+    readpair_callers: Set[str],
+    copy_number_info_field: str,
+) -> Optional[str]:
+    if not is_duplication_record(info_dict, alt):
+        return None
+
+    has_copy_number_caller = bool(callers & copy_number_callers)
+    has_readpair_caller = bool(callers & readpair_callers)
+    is_merged_copy_number_call = bool(callers - copy_number_callers)
+
+    if has_copy_number_caller and is_merged_copy_number_call:
+        if copy_number_info_field not in info_dict:
+            raise ValueError(
+                f"DUP/TDUP at input line {idx} is merged with a CN-aware caller but "
+                f"does not have INFO/{copy_number_info_field}"
+            )
+        return str(info_dict[copy_number_info_field])
+
+    if has_copy_number_caller:
+        return None
+
+    if has_readpair_caller:
+        copy_number = estimate_copy_number(depths.get(idx, RegionDepths()), ploidy)
+        return "." if copy_number is None else str(copy_number)
+
+    return None
+
+
+def add_sample_format_value(
+    fields: List[str],
+    sample_index: int,
+    key: str,
+    value: str,
+    line_number: int,
+) -> List[str]:
+    if len(fields) < 10:
+        raise ValueError(
+            f"Cannot add FORMAT/{key} at input line {line_number}: VCF record has no sample columns"
+        )
+
+    sample_column = 8 + sample_index
+    if len(fields) <= sample_column:
+        raise ValueError(f"Input line {line_number} does not have sample column {sample_index}")
+
+    format_keys = [] if fields[8] in (".", "") else fields[8].split(":")
+    if key in format_keys:
+        key_index = format_keys.index(key)
+    else:
+        format_keys.append(key)
+        key_index = len(format_keys) - 1
+        fields[8] = ":".join(format_keys)
+
+    for column in range(9, len(fields)):
+        sample_values = fields[column].split(":")
+        while len(sample_values) < len(format_keys):
+            sample_values.append(".")
+        if column == sample_column:
+            sample_values[key_index] = value
+        fields[column] = ":".join(sample_values)
+
+    return fields
 
 
 def parse_info(info: str) -> Dict[str, object]:
@@ -201,13 +400,22 @@ def parse_end(info: Dict[str, object], pos: str, line_number: int) -> int:
     if "SVLEN" in info:
         svlen = abs(int(str(info["SVLEN"]).split(",", 1)[0]))
         return int(pos) + svlen - 1
-    raise ValueError(f"DUP at input line {line_number} has neither END nor SVLEN in INFO")
+    raise ValueError(f"DUP/TDUP at input line {line_number} has neither END nor SVLEN in INFO")
 
 
 def parse_callers(set_value: str) -> Set[str]:
     if not set_value or set_value == ".":
         return set()
     return {caller.strip().lower() for caller in set_value.split("-") if caller.strip()}
+
+
+def parse_caller_list(callers: str) -> Set[str]:
+    return {caller.strip().lower() for caller in callers.split(",") if caller.strip()}
+
+
+def is_duplication_record(info: Dict[str, object], alt: str) -> bool:
+    svtype = str(info.get("SVTYPE", ""))
+    return svtype in {"DUP", "TDUP"} or "<DUP>" in alt or "<TDUP>" in alt
 
 
 def resolve_sample_index(
@@ -231,37 +439,6 @@ def resolve_sample_index(
         )
 
     return sample_ids.index(proband_id) + 1
-
-
-def parse_pr_sr(
-    fields: List[str],
-    sample_index: int,
-    line_number: int,
-) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]:
-    if len(fields) < 10:
-        return None, None, None, None
-
-    sample_column = 8 + sample_index
-    if len(fields) <= sample_column:
-        raise ValueError(f"Input line {line_number} does not have sample column {sample_index}")
-
-    format_keys = fields[8].split(":")
-    sample_values = fields[sample_column].split(":")
-    sample_data = dict(zip(format_keys, sample_values))
-    pr_ref, pr_alt = parse_ref_alt_count(sample_data.get("PR"))
-    sr_ref, sr_alt = parse_ref_alt_count(sample_data.get("SR"))
-    return pr_ref, pr_alt, sr_ref, sr_alt
-
-
-def parse_ref_alt_count(value: Optional[str]) -> Tuple[Optional[int], Optional[int]]:
-    if value is None or value in (".", ""):
-        return None, None
-
-    counts = value.split(",")
-    if len(counts) < 2 or "." in counts[:2]:
-        return None, None
-
-    return int(counts[0]), int(counts[1])
 
 
 def region_name(dup: Duplication, region_type: str) -> str:
@@ -355,73 +532,12 @@ def read_mosdepth_regions(regions_path: str) -> Dict[int, RegionDepths]:
     return depths
 
 
-def write_results(
-    duplications: List[Duplication],
-    depths: Dict[int, RegionDepths],
-    output_path: str,
-    ploidy: int,
-) -> None:
-    with open(output_path, "w") as out:
-        out.write(
-            "\t".join(
-                [
-                    "chrom",
-                    "start",
-                    "end",
-                    "id",
-                    "callers",
-                    "variant_mean_depth",
-                    "upstream_mean_depth",
-                    "downstream_mean_depth",
-                    "surrounding_mean_depth",
-                    "depth_ratio",
-                    "rounded_depth_ratio",
-                    "estimated_copy_number",
-                    "pr_ref_count",
-                    "pr_alt_count",
-                    "pr_alt_ref_ratio",
-                    "sr_ref_count",
-                    "sr_alt_count",
-                    "sr_alt_ref_ratio",
-                ]
-            )
-            + "\n"
-        )
-
-        for dup in duplications:
-            record_depths = depths.get(dup.idx, RegionDepths())
-            surrounding = mean_ignore_none([record_depths.upstream, record_depths.downstream])
-            ratio = safe_divide(record_depths.variant, surrounding)
-            rounded_ratio = nearest_int(ratio) if ratio is not None else None
-            copy_number = nearest_int(ratio * ploidy) if ratio is not None else None
-            pr_ratio = safe_divide_ints(dup.pr_alt, dup.pr_ref)
-            sr_ratio = safe_divide_ints(dup.sr_alt, dup.sr_ref)
-
-            out.write(
-                "\t".join(
-                    [
-                        dup.chrom,
-                        str(dup.start),
-                        str(dup.end),
-                        dup.variant_id,
-                        dup.callers,
-                        format_optional_float(record_depths.variant),
-                        format_optional_float(record_depths.upstream),
-                        format_optional_float(record_depths.downstream),
-                        format_optional_float(surrounding),
-                        format_optional_float(ratio),
-                        format_optional_int(rounded_ratio),
-                        format_optional_int(copy_number),
-                        format_optional_int(dup.pr_ref),
-                        format_optional_int(dup.pr_alt),
-                        format_optional_float(pr_ratio),
-                        format_optional_int(dup.sr_ref),
-                        format_optional_int(dup.sr_alt),
-                        format_optional_float(sr_ratio),
-                    ]
-                )
-                + "\n"
-            )
+def estimate_copy_number(record_depths: RegionDepths, ploidy: int) -> Optional[int]:
+    surrounding = mean_ignore_none([record_depths.upstream, record_depths.downstream])
+    ratio = safe_divide(record_depths.variant, surrounding)
+    if ratio is None:
+        return None
+    return nearest_int(ratio * ploidy)
 
 
 def mean_ignore_none(values: List[Optional[float]]) -> Optional[float]:
@@ -437,26 +553,8 @@ def safe_divide(numerator: Optional[float], denominator: Optional[float]) -> Opt
     return numerator / denominator
 
 
-def safe_divide_ints(numerator: Optional[int], denominator: Optional[int]) -> Optional[float]:
-    if numerator is None or denominator in (None, 0):
-        return None
-    return numerator / denominator
-
-
 def nearest_int(value: float) -> int:
     return math.floor(value + 0.5)
-
-
-def format_optional_float(value: Optional[float]) -> str:
-    if value is None:
-        return "NA"
-    return f"{value:.4f}"
-
-
-def format_optional_int(value: Optional[int]) -> str:
-    if value is None:
-        return "NA"
-    return str(value)
 
 
 if __name__ == "__main__":
