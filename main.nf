@@ -3403,7 +3403,6 @@ process postprocess_dup_copynumber {
 
 	output:
 		tuple val(group), path("${group}.cn_adjusted.vcf"), emit: adjusted_dup_cn
-		path "*versions.yml", emit: versions
 
 	script:
 		"""
