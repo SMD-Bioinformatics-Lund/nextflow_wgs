@@ -1,7 +1,27 @@
 #!/usr/bin/env python3
 
 """
+This script is needed to make geneticists aware of CN 4 and above
+which can be missed in single-analysis without parents.
+
 Add copy-number estimates to duplication records in a VCF.
+Uses different logic depending on what callers are merged.
+
+1. GATK-only should not be adjusted, since they should have CN
+2. GATK merged with manta and/or tiddit gets gatkCN -> format CN
+3. manta tiddit combinations gets new CN estimated from mosdepth
+   by calculating varcov/mean flank cov -> closest integer
+
+The script can take any variant callers by providing what cov-based
+caller with INFO-CN-flag and readpair based caller(s). 
+
+This script need to be run after SVDB merging of trio calls
+(postprocess_vep_sv). 
+
+Alternative to this method could be:
+only estimate manta calls. Let SVDB merge CN in format for all
+and then re-prioritize CN calls from GATK where possible. This
+would retain CN calls for parents where GATK is not the only caller
 """
 
 import argparse
