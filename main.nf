@@ -166,11 +166,11 @@ workflow NEXTFLOW_WGS {
 
 	take:
 	ch_samplesheet                             // channel: [ val(samplesheet_row) ]
-	val_bqsr_known_polymorphic_sites_vcf       // path: [ path(bqsr_known_polymorphic_sites_vcf) ]
-	val_bqsr_known_polymorphic_sites_vcf_index // path: [ path(bqsr_known_polymorphic_sites_vcf_index) ]
-	val_intersect_bed                          // path: [ path(intersect_bed) ]
-	val_vcfanno_config                         // path: [ path(vcfanno_config) ]
-	val_vcfanno_lua                            // path: [ path(vcfanno_lua) ]
+	val_bqsr_known_polymorphic_sites_vcf       // path:    [ path(bqsr_known_polymorphic_sites_vcf) ]
+	val_bqsr_known_polymorphic_sites_vcf_index // path:    [ path(bqsr_known_polymorphic_sites_vcf_index) ]
+	val_intersect_bed                          // path:    [ path(intersect_bed) ]
+	val_vcfanno_config                         // path:    [ path(vcfanno_config) ]
+	val_vcfanno_lua                            // path:    [ path(vcfanno_lua) ]
 	val_accessdir                              // string:  Base access path used in output metadata/INFO paths
 	val_analysis_mode                          // string:  Analysis mode derived from sample count, either "single" or "family"
 	val_expansionhunter_catalog                // path:    ExpansionHunter variant catalog JSON.
@@ -185,14 +185,14 @@ workflow NEXTFLOW_WGS {
 	val_align                                  // bool:    Whether alignment should be run
 	val_umi                                    // bool:    Whether UMI trimming should be run
 	val_annotate                               // bool:    Whether SNV annotation should be run
-  val_create_alt_affect_ped                  // bool:    Whether family runs should create alternate affected-parent PEDs
+	val_create_alt_affect_ped                  // bool:    Whether family runs should create alternate affected-parent PEDs
 	val_run_melt                               // bool:    Whether melt should be run?
 	val_skip_mito                              // bool:    Whether mitochondrial analysis should be skipped
 	val_skip_loqusdb                           // bool:    Whether loqusdb upload should be skipped
 	val_cdm_assay                              // string:  CDM assay name used when creating QC cron files.
 	val_results_output_dir                     // string:  Full result base directory under which pipeline results are published.
 	val_skip_cdm_cron                          // bool:    Whether to skip creating CDM QC cron files.        
-	val_run_cftr                               // bool:    Whether to rescore CFTR 5T/TG homopolymer variant.sw
+	val_run_cftr                               // bool:    Whether to rescore CFTR 5T/TG homopolymer variants.
 
 	main:
 	// Output channels:
