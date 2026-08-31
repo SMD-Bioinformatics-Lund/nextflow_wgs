@@ -2030,9 +2030,6 @@ process fastgnomad {
 	output:
 		tuple val(group), path("${group}.SNPs.vcf.gz"), emit: vcf
 
-	when:
-		params.antype == "wgs"
-
 	script:
 		"""
 		fastgnomad -g $params.FASTGNOMAD_REF -i ${vcf} | bgzip -c > ${group}.SNPs.vcf.gz
