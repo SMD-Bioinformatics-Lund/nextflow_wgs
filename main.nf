@@ -342,7 +342,7 @@ workflow NEXTFLOW_WGS {
 			val_vcfanno_lua,
 			val_run_freebayes
 		)
-		SPLIT_NORMALIZE_SNVS(CALL_SNVS.out.group_vcf_tbi, val_intersect_bed)
+		SPLIT_NORMALIZE_SNVS(CALL_SNVS.out.group_vcf_tbi, val_intersect_bed, val_genome_fasta)
 		ch_snv_vcf_tbi_full = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_full
 		ch_snv_vcf_tbi_intersected = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
 		ch_sample_gvcf_tbi = CALL_SNVS.out.sample_gvcf_tbi
