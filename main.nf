@@ -731,7 +731,8 @@ workflow NEXTFLOW_WGS {
 		annotsv(tdup_to_dup.out.renamed_vcf)
 		vep_sv(tdup_to_dup.out.renamed_vcf)
 		postprocess_vep_sv(vep_sv.out.vep_sv_vcf)
-		artefact(postprocess_vep_sv.out.merged_processed_vcf)
+		postprocess_dup_copynumber(postprocess_vep_sv.out.merged_processed_vcf.join(ch_bam_bai, by:[0,1]))
+		artefact(postprocess_dup_copynumber.out.adjusted_dup_cn)
 		bcftools_annotate_dbvar(artefact.out.vcf)
 
 		ch_versions = ch_versions.mix(annotsv.out.versions.first())
@@ -3354,7 +3355,7 @@ process postprocess_vep_sv {
 		tuple val(group), val(id), path(vcf)
 
 	output:
-		tuple val(group), path("${group}.vep.clean.merge.vcf"), emit: merged_processed_vcf
+		tuple val(group), val(id), path("${group}.vep.clean.merge.vcf"), emit: merged_processed_vcf
 		path "*versions.yml", emit: versions
 
 	script:
@@ -3389,6 +3390,38 @@ def postprocess_vep_sv_version(task) {
 	END_VERSIONS
 	"""
 }
+
+process postprocess_dup_copynumber {
+	cpus 2
+	tag "$group"
+	time '1h'
+	memory '20 GB'
+	container "${params.container_panel_cov}"
+
+	input:
+		tuple val(group), val(proband_id), path(vcf), path(bam), path(bai)
+
+	output:
+		tuple val(group), path("${group}.cn_adjusted.vcf"), emit: adjusted_dup_cn
+
+	script:
+		"""
+		postprocess_dup_copynumber.py \\
+			--vcf $vcf \\
+			--bam $bam \\
+			--output ${group}.cn_adjusted.vcf \\
+			--copy-number-callers gatk \\
+			--readpair-callers manta,tiddit \\
+			--copy-number-info-field gatkCN \\
+			--proband-id $proband_id
+		"""
+
+	stub:
+		"""
+		touch ${group}.cn_adjusted.vcf
+		"""
+}
+
 
 // Query artefact db
 process artefact {

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+### 3.28.1
+* Restore duplication GATK CN calls for manta merged variants
+* Estimate CN call via mosdepth for non-GATK dups
+
 ### 3.28.0
 
 #### Added 
