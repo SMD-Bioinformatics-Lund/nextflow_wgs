@@ -1566,10 +1566,7 @@ process sentieon_mitochondrial_qc {
 	output:
     	tuple val(group), val(id), path("${id}_mito_coverage.tsv"), emit: qc_tsv
 		path "*versions.yml", emit: versions
-
-	when:
-	    params.antype == "wgs"
-
+	
 	script:
 		"""
 		sentieon driver \\
