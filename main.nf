@@ -768,7 +768,10 @@ workflow NEXTFLOW_WGS {
 				tuple(group, type, ped, penalty_vcf)
 			}
 		add_geneticmodels_to_svvcf(ch_add_geneticmodels_to_svvcf_input)
-		score_sv(add_geneticmodels_to_svvcf.out.annotated_sv_vcf, val_analysis_mode)
+		score_sv(
+            add_geneticmodels_to_svvcf.out.annotated_sv_vcf,
+            analysis_mode == "family" && analysis_type == "wgs"
+        )
 		bgzip_scored_genmod(score_sv.out.scored_vcf.mix(ch_panel_svs_absent))
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
 
@@ -3661,15 +3664,18 @@ process score_sv {
 	container  "${params.container_genmod}"
 
 	input:
-		tuple val(group), val(type), path(in_vcf)
-		val analysis_mode
+	    tuple val(group), val(type), path(in_vcf)
+        val use_family_wgs_scoring
+
 
 	output:
 		tuple val(group), val(type), path("*.sv.scored.vcf"), emit: scored_vcf
 		path "*versions.yml", emit: versions
 
 	script:
-		def model = (analysis_mode == "family" && params.antype == "wgs") ? params.svrank_model : params.svrank_model_s
+        // TODO: Decide on model outside of the process and pass it as an input to model
+        // instead of the conditional below:
+		def model = use_family_wgs_scoring ? params.svrank_model : params.svrank_model_s
 		def group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
 		"""
 		genmod score --family_id ${group_score} --score_config ${model} --rank_results --outfile "${group_score}.sv.scored.vcf" ${in_vcf}
