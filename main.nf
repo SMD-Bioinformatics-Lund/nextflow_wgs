@@ -93,6 +93,7 @@ workflow {
 		"${params.outdir}/${params.subdir}",
 		params.noupload,
         params.cftr
+        params.antype,
         params.antype == "wgs"
 	)
 
@@ -194,6 +195,7 @@ workflow NEXTFLOW_WGS {
 	val_results_output_dir                     // string:  Full result base directory under which pipeline results are published.
 	val_skip_cdm_cron                          // bool:    Whether to skip creating CDM QC cron files.        
 	val_run_cftr                               // bool:    Whether to rescore CFTR 5T/TG homopolymer variants.
+    val_analysis_type                          // string:  Analysis type, either "panel" or "wgs" 
     val_run_contamination_qc                   // bool:    Whether to run contamination QC
 
 	main:
@@ -299,7 +301,7 @@ workflow NEXTFLOW_WGS {
 			if (val_run_melt && !qc.ins_size) {
 				error "Missing required MELT QC value 'ins_size' for ${id}"
 			}
-			if ((val_run_melt || params.antype == "panel") && !qc.mean_depth) {
+			if ((val_run_melt || val_analysis_type == "panel") && !qc.mean_depth) {
 				error "Missing required QC value 'mean_coverage' for ${id}"
 			}
 
@@ -469,8 +471,8 @@ workflow NEXTFLOW_WGS {
 		ch_peddy2cdm = peddy.out.peddy_files.join(ch_peddy2cdm_input)
 			
 		peddy2cdm(ch_peddy2cdm)
-		
-		if (params.antype == "wgs") {
+
+		if (val_analysis_type == "wgs") {
 			// fastgnomad
 			fastgnomad(
                 ch_snv_vcf_tbi_full
@@ -628,7 +630,7 @@ workflow NEXTFLOW_WGS {
 
 
 		ch_manta_out = channel.empty()
-		if (params.antype == "wgs") {
+		if (val_analysis_type == "wgs") {
 			manta(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta.out.vcf)
 			tiddit(ch_bam_bai)
@@ -667,7 +669,7 @@ workflow NEXTFLOW_WGS {
 		
 		ch_cnvkit_cns_cnr = channel.empty()
 
-        if (params.antype == "panel") {
+        if (val_analysis_type == "panel" && params.sv) {
 			ch_panel_merge = channel.empty()
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
@@ -803,7 +805,7 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(bgzip_scored_genmod.out.versions.first())
 
 		// TODO: streamline if-conditions:
-		if(params.antype == "wgs" && val_is_trio && val_analysis_mode == "family") {
+		if(val_analysis_type == "wgs" && val_is_trio && val_analysis_mode == "family") {
 			ch_plot_pod_in = fastgnomad.out.vcf
 				.join(bgzip_scored_genmod.out.sv_rescore_vcf, by: [0])
 				.join(ch_ped_base, by: [0])
