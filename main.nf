@@ -93,6 +93,7 @@ workflow {
 		"${params.outdir}/${params.subdir}",
 		params.noupload,
         params.cftr
+        params.antype == "wgs"
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
@@ -193,6 +194,7 @@ workflow NEXTFLOW_WGS {
 	val_results_output_dir                     // string:  Full result base directory under which pipeline results are published.
 	val_skip_cdm_cron                          // bool:    Whether to skip creating CDM QC cron files.        
 	val_run_cftr                               // bool:    Whether to rescore CFTR 5T/TG homopolymer variants.
+    val_run_contamination_qc                   // bool:    Whether to run contamination QC
 
 	main:
 	// Output channels:
@@ -353,7 +355,7 @@ workflow NEXTFLOW_WGS {
     ch_rename_mito_contigs_in = channel.empty() 
 
 	// CONTAMINATION //
-	if (params.antype == "wgs") {
+	if (val_run_contamination_qc) {
 		verifybamid2(ch_bam_bai)
 		ch_qc_json = ch_qc_json.mix(verifybamid2.out.contamination_json)
 		ch_versions = ch_versions.mix(verifybamid2.out.versions.first())
