@@ -4,12 +4,13 @@ workflow SPLIT_NORMALIZE_SNVS {
     ch_family_snv_vcf_idx // channel: [val(group_id), path(family_vcf), path(family_tbi)]
     val_intersect_bed     // path value: BED file used for intersecting normalized SNVs.
     val_genome_fasta      // path value: Reference FASTA used by bcftools norm.
+    val_genome_fai        // path value: Reference FASTA index used by bcftools norm.
 
     main:
     ch_versions = channel.empty()
     
     vcflib_vcfbreakmulti(ch_family_snv_vcf_idx)
-    bcftools_norm_sort(vcflib_vcfbreakmulti.out.vcf_tbi, val_genome_fasta)
+    bcftools_norm_sort(vcflib_vcfbreakmulti.out.vcf_tbi, val_genome_fasta, val_genome_fai)
     vcflib_vcfuniq(bcftools_norm_sort.out.vcf_tbi)
     wgs_dpaf_filter(vcflib_vcfuniq.out.vcf_tbi)
     bedtools_intersect(wgs_dpaf_filter.out.vcf_tbi, val_intersect_bed)
@@ -77,6 +78,7 @@ process bcftools_norm_sort {
     input:
         tuple val(group), path(vcf), path(idx)
         path genome_fasta
+        path genome_fai
     
     output:
 	    tuple val(group), path("${group}.norm.vcf.gz"), path("${group}.norm.vcf.gz.tbi"), emit: vcf_tbi
