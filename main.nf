@@ -92,7 +92,7 @@ workflow {
 		params.cdm_assay,
 		"${params.outdir}/${params.subdir}",
 		params.noupload,
-        params.cftr
+        params.cftr,
         params.antype,
         params.antype == "wgs"
 	)
