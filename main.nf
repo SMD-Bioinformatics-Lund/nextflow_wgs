@@ -2740,9 +2740,6 @@ process manta_panel {
 		tuple val(group), val(id), path("${id}.manta.vcf.gz"), emit: vcf
 		path "*versions.yml", emit: versions
 
-	when:
-		params.sv && params.antype == "panel"
-
 	script:
 		"""
 		configManta.py --bam $bam --reference ${params.genome_file} --runDir . --exome --callRegions $params.bedgz --generateEvidenceBam
