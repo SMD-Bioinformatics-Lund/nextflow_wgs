@@ -491,7 +491,7 @@ workflow NEXTFLOW_WGS {
 				}
 
 			// upd
-            // TODO: upd process creates dummy files is not in trio mode, used later in
+            // TODO: upd process creates dummy files if not run in trio mode, used later in
             //       a long gens input channel join. move upd into block below and find
             //       better solution for skipping upd inputs to gens
 			upd(fastgnomad.out.vcf, ch_upd_meta, val_analysis_mode, val_is_trio)
