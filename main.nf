@@ -3030,8 +3030,9 @@ process tiddit {
 		path "*versions.yml", emit: versions
 
 
+    
 	when:
-		params.sv && params.antype == "wgs"
+		params.sv
 
 	script:
 		"""
