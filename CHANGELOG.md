@@ -1,5 +1,10 @@
 # CHANGELOG
 
+### [Unreleased]
+
+#### Changed
+* Pass the CFTR annotation flag through `NEXTFLOW_WGS` into `SNV_ANNOTATE` instead of reading `params.cftr` inside named workflows
+
 ### 3.28.0
 
 #### Added 
@@ -44,6 +49,7 @@
 * code style change
 * changed all input-channels to a standardized format
 * joined channels properly so that batch starts should be further supported
+
 ### 3.26.3
 * Use boolean values for `publishDir overwrite`
 

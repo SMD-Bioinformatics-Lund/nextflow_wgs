@@ -6,10 +6,11 @@ workflow SNV_ANNOTATE {
 
 
 	take:
-	ch_bam
-	ch_snv_indels_vcf
-	ch_ped
-	val_analysis_mode
+	ch_bam_bai         // ch:    [ val(group), path(bam), path(bai) ]
+	ch_snv_indels_vcf  // ch:    [ val(group), path(vcf) ]
+	ch_ped             // ch:    [ val(group), val(type), path(ped) ]
+	val_use_family_wgs_genmod_scoring  // bool:  Use family WGS rank model and penalized genmod compound scoring.
+	val_run_cftr                       // bool:  Whether to rescore CFTR 5T/TG homopolymer variants.
 
 	main:
 	ch_versions = channel.empty()
@@ -44,11 +45,11 @@ workflow SNV_ANNOTATE {
 	inher_models(ch_inher_models_input)
 
 	// SCORE VARIANTS //
-	genmodscore(inher_models.out.vcf, val_analysis_mode)
+	genmodscore(inher_models.out.vcf, val_use_family_wgs_genmod_scoring)
 	vcf_completion_ch = channel.empty()
-	if (params.cftr) {
+	if (val_run_cftr) {
 		bgzip_index_vcf(genmodscore.out.scored_vcf)
-		cftr_ch = bgzip_index_vcf.out.compressed_indexed_vcf.join(ch_bam)
+		cftr_ch = bgzip_index_vcf.out.compressed_indexed_vcf.join(ch_bam_bai)
 
 		adjust_cftr_homopolymer_repeat_scores(cftr_ch)
 		vcf_completion_ch = adjust_cftr_homopolymer_repeat_scores.out.rescored
@@ -477,7 +478,7 @@ process genmodscore {
 
 	input:
 		tuple val(group), val(type), path(vcf)
-		val analysis_mode
+		val use_family_wgs_genmod_scoring
 
 	output:
 		tuple val(group), val(type), path("${group_score}.scored.vcf"), emit: scored_vcf
@@ -487,8 +488,8 @@ process genmodscore {
 		group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
 
         // TODO: Break up this process into subprocesses
-        // TODO: Add a more specific bool-flag for whatever params.antype == wgs does.
-		if ( analysis_mode == "family" && params.antype == "wgs" ) {
+        // TODO: Pass the selected rank model in from the workflow call.
+		if ( use_family_wgs_genmod_scoring ) {
 			"""
 			genmod score -i $group_score -c $params.rank_model -r $vcf -o ${group_score}.only_rankscore.vcf
 			genmod compound \
