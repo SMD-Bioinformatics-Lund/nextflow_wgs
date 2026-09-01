@@ -777,7 +777,11 @@ workflow NEXTFLOW_WGS {
 			.map { group, sv_vcf, _proband_id, meta ->
 				tuple(group, sv_vcf, meta)
 			}
-		svvcf_to_bed(ch_svvcf_to_bed_in)
+        
+        if(val_analysis_type != "panel") {
+            svvcf_to_bed(ch_svvcf_to_bed_in)
+        }
+		
 
         ch_cnvkit_plot_snvs = ch_snv_vcf_tbi_intersected
             .map { group, vcf, _tbi -> [ group, vcf ] }
@@ -3825,10 +3829,6 @@ process svvcf_to_bed {
 
 	output:
 		path("${group}.sv.bed")
-
-	when:
-		params.antype != "panel"
-
 
 	script:
 		"""
