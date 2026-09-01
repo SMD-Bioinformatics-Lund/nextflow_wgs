@@ -437,7 +437,7 @@ workflow NEXTFLOW_WGS {
 
         ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_start)
         
-		val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
+		val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && val_analysis_type == "wgs"
 		SNV_ANNOTATE(
             ch_bam_bai_snv_annotate_in,
             ch_snv_annotate_in,
