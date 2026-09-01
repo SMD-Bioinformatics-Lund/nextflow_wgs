@@ -876,7 +876,10 @@ workflow NEXTFLOW_WGS {
 	// OUTPUT INFO
 	output_files(ch_output_info.groupTuple())
 	// SCOUT YAML
-	create_yaml(ch_proband_meta.join(ch_ped_base).join(output_files.out.yaml_INFO))
+	create_yaml(
+        ch_proband_meta.join(ch_ped_base).join(output_files.out.yaml_INFO),
+        val_analysis_type
+    )
 	emit:
 		versions = ch_versions
 }
@@ -3879,7 +3882,8 @@ process create_yaml {
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(id), val(meta), val(type), path(ped), path(INFO)
+	tuple val(group), val(id), val(meta), val(type), path(ped), path(INFO)
+    val analysis_type
 
 	output:
 		tuple val(group), path("${group}.yaml*"), emit: scout_yaml
@@ -3895,7 +3899,7 @@ process create_yaml {
 			--ped "$ped" \\
 			--files "$INFO" \\
 			--assay "$assay" \\
-			--antype "$params.antype" \\
+	        --antype "${analysis_type}" \\
 			--status "${meta.priority}" \\
 			--extra_panels "$params.extra_panels"
 		"""
