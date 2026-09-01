@@ -770,7 +770,7 @@ workflow NEXTFLOW_WGS {
 		add_geneticmodels_to_svvcf(ch_add_geneticmodels_to_svvcf_input)
 		score_sv(
             add_geneticmodels_to_svvcf.out.annotated_sv_vcf,
-            analysis_mode == "family" && analysis_type == "wgs"
+            val_analysis_mode == "family" && val_analysis_type == "wgs"
         )
 		bgzip_scored_genmod(score_sv.out.scored_vcf.mix(ch_panel_svs_absent))
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
