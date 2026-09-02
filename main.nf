@@ -64,6 +64,9 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
+    val_run_contamination_qc = params.antype == "wgs"
+    val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
+
 	NEXTFLOW_WGS(
 		ch_samplesheet,
 		params.bqsr_known_polymorphic_sites_vcf,
@@ -94,7 +97,8 @@ workflow {
 		params.noupload,
         params.cftr,
         params.antype,
-        params.antype == "wgs"
+        val_run_contamination_qc,
+        val_use_family_wgs_genmod_scoring
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
@@ -197,6 +201,7 @@ workflow NEXTFLOW_WGS {
 	val_run_cftr                               // bool:    Whether to rescore CFTR 5T/TG homopolymer variants.
     val_analysis_type                          // string:  Analysis type, either "panel" or "wgs" 
     val_run_contamination_qc                   // bool:    Whether to run contamination QC
+    val_use_family_wgs_genmod_scoring          // bool:    Whether SNV and SV scoring should use family WGS genmod/rank-model behavior.
 
 	main:
 	// Output channels:
@@ -427,7 +432,7 @@ workflow NEXTFLOW_WGS {
         
 	// SNV ANNOTATION
 	if (val_annotate) {
-		
+
 		// bam channel for SNV annotate, special case //
 		ch_bam_bai_snv_annotate_in = ch_bam_bai
 			.join(ch_proband_meta, by: [0,1])
@@ -436,8 +441,7 @@ workflow NEXTFLOW_WGS {
 		    }
 
         ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_start)
-        
-		val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && val_analysis_type == "wgs"
+
 		SNV_ANNOTATE(
             ch_bam_bai_snv_annotate_in,
             ch_snv_annotate_in,
@@ -469,7 +473,7 @@ workflow NEXTFLOW_WGS {
 		// add peddy output to each trio case, make sure it is matched on group
 		// combine does not do this and join will only take first entry
 		ch_peddy2cdm = peddy.out.peddy_files.join(ch_peddy2cdm_input)
-			
+
 		peddy2cdm(ch_peddy2cdm)
 
 		if (val_analysis_type == "wgs") {
@@ -770,7 +774,7 @@ workflow NEXTFLOW_WGS {
 		add_geneticmodels_to_svvcf(ch_add_geneticmodels_to_svvcf_input)
 		score_sv(
             add_geneticmodels_to_svvcf.out.annotated_sv_vcf,
-            val_analysis_mode == "family" && val_analysis_type == "wgs"
+            val_use_family_wgs_genmod_scoring
         )
 		bgzip_scored_genmod(score_sv.out.scored_vcf.mix(ch_panel_svs_absent))
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
