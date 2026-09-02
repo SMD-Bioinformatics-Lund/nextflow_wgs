@@ -3661,7 +3661,7 @@ def add_geneticmodels_to_svvcf_version(task) {
 }
 
 process score_sv {
-	tag "$group $analysis_mode"
+	tag "$group"
 	cpus 2
 	memory '10 GB'
 	time '2h'
