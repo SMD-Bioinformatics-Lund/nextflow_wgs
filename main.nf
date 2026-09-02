@@ -1455,7 +1455,7 @@ process bamtoyaml {
 /////////////// MITOCHONDRIA SNV CALLING ///////////////
 ///////////////                          ///////////////
 
-nprocess rename_mito_contigs {
+process rename_mito_contigs {
 	cpus 2
 	publishDir "${val_results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf'
 	tag "$group"
