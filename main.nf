@@ -67,6 +67,8 @@ workflow {
 
     val_run_contamination_qc = params.antype == "wgs"
     val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
+    val_run_mito_qc = params.antype == "wgs"
+    val_run_mito_mutect2 = !params.onco
 
 	NEXTFLOW_WGS(
 		ch_samplesheet,
@@ -100,8 +102,8 @@ workflow {
         params.antype,
         val_run_contamination_qc,
         val_use_family_wgs_genmod_scoring,
-		params.antype == "wgs",
-		!params.onco,
+		val_run_mito_qc,
+		val_run_mito_mutect2,
 		params.rCRS_fasta,
 		"/access/${params.subdir}/bam"
 	)
