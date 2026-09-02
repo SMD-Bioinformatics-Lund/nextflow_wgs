@@ -19,6 +19,8 @@ workflow MITOCHONDRIAL_ANALYSIS {
 	ch_qc_json     = channel.empty()
 	ch_merged_vcf = channel.empty()
 
+	// TODO: Split the MT BAM extraction/QC, mitochondrial SNV calling,
+    // and eKLIPse deletion calling into smaller subworkflows.
 	fetch_MTseqs(ch_bam_bai, val_results_output_dir, val_mito_bam_accessdir)
 	ch_output_info = ch_output_info.mix(fetch_MTseqs.out.mtBAM_INFO)
 	ch_versions = ch_versions.mix(fetch_MTseqs.out.versions.first())
@@ -32,6 +34,8 @@ workflow MITOCHONDRIAL_ANALYSIS {
 	}
 
 	if (val_run_mito_mutect2) {
+		// TODO: Decide whether disabled mitochondrial Mutect2 should fall back to
+        // ch_snv_vcf_tbi_intersected instead of emitting an empty merged_vcf channel.
 		ch_mutect2_input = fetch_MTseqs.out.bam_bai.groupTuple()
 		run_mutect2(ch_mutect2_input, val_genome_fasta, val_results_output_dir)
 
@@ -124,6 +128,7 @@ process fetch_MTseqs {
 	memory '10GB'
 	time '1h'
 	tag "$id"
+	// TODO: Add an explicit container for sambamba/samtools.
 	publishDir "${val_results_output_dir}/bam", mode: 'copy', overwrite: true, pattern: '*.bam*'
 
 	input:
@@ -221,6 +226,7 @@ process build_mitochondrial_qc_json {
 	cpus 2
 	tag "$id"
 	time "1h"
+	// TODO: Add an explicit container for mito_tsv_to_json.py.
 
 	input:
 		tuple val(group), val(id), path(mito_qc_file)
@@ -243,6 +249,7 @@ process run_mutect2 {
 	memory '50 GB'
 	time '1h'
 	tag "$group"
+	// TODO: Add an explicit GATK container and remove the conda activate dependency.
 	publishDir "${val_results_output_dir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf'
 
 	input:
@@ -292,6 +299,7 @@ process split_normalize_mito {
 	cpus 2
 	memory '1GB'
 	time '1h'
+	// TODO: Add an explicit container for bcftools/tabix/filter_mutect2_mito.pl.
 
 	input:
 		tuple val(group), val(id), val(meta), path(mito_snv_vcf)
@@ -343,6 +351,7 @@ process run_hmtnote {
 	cpus 2
 	memory '5GB'
 	time '1h'
+	// TODO: Add an explicit container for HmtNote and remove the conda activate dependency.
 
 	input:
 		tuple val(group), path(vcf)
@@ -383,6 +392,7 @@ process run_haplogrep {
 	time '1h'
 	memory '50 GB'
 	cpus 2
+	// TODO: Add an explicit container for bcftools, Haplogrep, graphviz, ghostscript, and montage.
 	publishDir "${val_results_output_dir}/plots/mito", mode: 'copy', overwrite: true, pattern: '*.png'
 
 	input:
@@ -440,6 +450,8 @@ process run_eklipse {
 	tag "$id"
 	cpus 2
 	// in rare cases with samples above 50 000x this can peak at 500+ GB of VMEM. Add downsampling!
+	// TODO: Add an explicit eKLIPse container and remove the conda activate dependency.
+	// TODO: Split deletion calling, plotting, and hetplasmid frequency post-processing into separate processes.
 	memory '100GB'
 	time '60m'
 	publishDir "${val_results_output_dir}/plots/mito", mode: 'copy', overwrite: true, pattern: '*.txt'
