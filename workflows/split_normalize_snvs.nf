@@ -2,16 +2,18 @@ workflow SPLIT_NORMALIZE_SNVS {
 
     take:
     ch_family_snv_vcf_idx // channel: [val(group_id), path(family_vcf), path(family_tbi)]
-    bed_intersect         // value:   [path(bed_intersect)]
+    val_intersect_bed     // path value: BED file used for intersecting normalized SNVs.
+    val_genome_fasta      // path value: Reference FASTA used by bcftools norm.
+    val_genome_fai        // path value: Reference FASTA index used by bcftools norm.
 
     main:
     ch_versions = channel.empty()
     
     vcflib_vcfbreakmulti(ch_family_snv_vcf_idx)
-    bcftools_norm_sort(vcflib_vcfbreakmulti.out.vcf_tbi)
+    bcftools_norm_sort(vcflib_vcfbreakmulti.out.vcf_tbi, val_genome_fasta, val_genome_fai)
     vcflib_vcfuniq(bcftools_norm_sort.out.vcf_tbi)
     wgs_dpaf_filter(vcflib_vcfuniq.out.vcf_tbi)
-    bedtools_intersect(wgs_dpaf_filter.out.vcf_tbi, bed_intersect)
+    bedtools_intersect(wgs_dpaf_filter.out.vcf_tbi, val_intersect_bed)
     bgzip_tabix(bedtools_intersect.out.intersected_vcf)
     
     ch_versions = ch_versions.mix(vcflib_vcfbreakmulti.out.versions.first())
@@ -74,7 +76,10 @@ process bcftools_norm_sort {
     publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz'
     
     input:
-		tuple val(group), path(vcf), path(idx)
+        tuple val(group), path(vcf), path(idx)
+        path genome_fasta
+        path genome_fai
+    
     output:
 	    tuple val(group), path("${group}.norm.vcf.gz"), path("${group}.norm.vcf.gz.tbi"), emit: vcf_tbi
         path "*versions.yml", emit: versions
@@ -83,7 +88,7 @@ process bcftools_norm_sort {
     //        and adding --rm-dup flag to norm
     script:
     """
-    bcftools norm -m-both -c w -f ${params.genome_file} ${vcf} |\
+    bcftools norm -m-both -c w -f ${genome_fasta} ${vcf} |\
         bcftools sort -O z --write-index=tbi -o ${group}.norm.vcf.gz
 
     ${bcftools_norm_version(task)}

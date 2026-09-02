@@ -64,6 +64,9 @@ workflow {
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
 
+    val_run_contamination_qc = params.antype == "wgs"
+    val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
+
 	NEXTFLOW_WGS(
 		ch_samplesheet,
 		params.bqsr_known_polymorphic_sites_vcf,
@@ -92,7 +95,10 @@ workflow {
 		params.cdm_assay,
 		"${params.outdir}/${params.subdir}",
 		params.noupload,
-        params.cftr
+        params.cftr,
+        params.antype,
+        val_run_contamination_qc,
+        val_use_family_wgs_genmod_scoring
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
@@ -193,6 +199,9 @@ workflow NEXTFLOW_WGS {
 	val_results_output_dir                     // string:  Full result base directory under which pipeline results are published.
 	val_skip_cdm_cron                          // bool:    Whether to skip creating CDM QC cron files.        
 	val_run_cftr                               // bool:    Whether to rescore CFTR 5T/TG homopolymer variants.
+    val_analysis_type                          // string:  Analysis type, either "panel" or "wgs" 
+    val_run_contamination_qc                   // bool:    Whether to run contamination QC
+    val_use_family_wgs_genmod_scoring          // bool:    Whether SNV and SV scoring should use family WGS genmod/rank-model behavior.
 
 	main:
 	// Output channels:
@@ -297,7 +306,7 @@ workflow NEXTFLOW_WGS {
 			if (val_run_melt && !qc.ins_size) {
 				error "Missing required MELT QC value 'ins_size' for ${id}"
 			}
-			if ((val_run_melt || params.antype == "panel") && !qc.mean_depth) {
+			if ((val_run_melt || val_analysis_type == "panel") && !qc.mean_depth) {
 				error "Missing required QC value 'mean_coverage' for ${id}"
 			}
 
@@ -342,7 +351,7 @@ workflow NEXTFLOW_WGS {
 			val_vcfanno_lua,
 			val_run_freebayes
 		)
-		SPLIT_NORMALIZE_SNVS(CALL_SNVS.out.group_vcf_tbi, val_intersect_bed)
+		SPLIT_NORMALIZE_SNVS(CALL_SNVS.out.group_vcf_tbi, val_intersect_bed, val_genome_fasta, val_genome_fai)
 		ch_snv_vcf_tbi_full = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_full
 		ch_snv_vcf_tbi_intersected = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
 		ch_sample_gvcf_tbi = CALL_SNVS.out.sample_gvcf_tbi
@@ -353,7 +362,7 @@ workflow NEXTFLOW_WGS {
     ch_rename_mito_contigs_in = channel.empty() 
 
 	// CONTAMINATION //
-	if (params.antype == "wgs") {
+	if (val_run_contamination_qc) {
 		verifybamid2(ch_bam_bai)
 		ch_qc_json = ch_qc_json.mix(verifybamid2.out.contamination_json)
 		ch_versions = ch_versions.mix(verifybamid2.out.versions.first())
@@ -423,7 +432,7 @@ workflow NEXTFLOW_WGS {
         
 	// SNV ANNOTATION
 	if (val_annotate) {
-		
+
 		// bam channel for SNV annotate, special case //
 		ch_bam_bai_snv_annotate_in = ch_bam_bai
 			.join(ch_proband_meta, by: [0,1])
@@ -432,8 +441,7 @@ workflow NEXTFLOW_WGS {
 		    }
 
         ch_snv_annotate_in = ch_snv_annotate_in.mix(ch_vcf_start)
-        
-		val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
+
 		SNV_ANNOTATE(
             ch_bam_bai_snv_annotate_in,
             ch_snv_annotate_in,
@@ -465,10 +473,10 @@ workflow NEXTFLOW_WGS {
 		// add peddy output to each trio case, make sure it is matched on group
 		// combine does not do this and join will only take first entry
 		ch_peddy2cdm = peddy.out.peddy_files.join(ch_peddy2cdm_input)
-			
+
 		peddy2cdm(ch_peddy2cdm)
-		
-		if (params.antype == "wgs") {
+
+		if (val_analysis_type == "wgs") {
 			// fastgnomad
 			fastgnomad(
                 ch_snv_vcf_tbi_full
@@ -487,7 +495,7 @@ workflow NEXTFLOW_WGS {
 				}
 
 			// upd
-            // TODO: upd process creates dummy files is not in trio mode, used later in
+            // TODO: upd process creates dummy files if not run in trio mode, used later in
             //       a long gens input channel join. move upd into block below and find
             //       better solution for skipping upd inputs to gens
 			upd(fastgnomad.out.vcf, ch_upd_meta, val_analysis_mode, val_is_trio)
@@ -626,7 +634,7 @@ workflow NEXTFLOW_WGS {
 
 
 		ch_manta_out = channel.empty()
-		if (params.antype == "wgs") {
+		if (val_analysis_type == "wgs") {
 			manta(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta.out.vcf)
 			tiddit(ch_bam_bai)
@@ -665,7 +673,7 @@ workflow NEXTFLOW_WGS {
 		
 		ch_cnvkit_cns_cnr = channel.empty()
 
-        if (params.antype == "panel") {
+        if (val_analysis_type == "panel" && params.sv) {
 			ch_panel_merge = channel.empty()
 			manta_panel(ch_bam_bai)
 			ch_manta_out = ch_manta_out.mix(manta_panel.out.vcf)
@@ -764,7 +772,10 @@ workflow NEXTFLOW_WGS {
 				tuple(group, type, ped, penalty_vcf)
 			}
 		add_geneticmodels_to_svvcf(ch_add_geneticmodels_to_svvcf_input)
-		score_sv(add_geneticmodels_to_svvcf.out.annotated_sv_vcf, val_analysis_mode)
+		score_sv(
+            add_geneticmodels_to_svvcf.out.annotated_sv_vcf,
+            val_use_family_wgs_genmod_scoring
+        )
 		bgzip_scored_genmod(score_sv.out.scored_vcf.mix(ch_panel_svs_absent))
 		ch_output_info = ch_output_info.mix(bgzip_scored_genmod.out.sv_INFO)
 
@@ -773,7 +784,11 @@ workflow NEXTFLOW_WGS {
 			.map { group, sv_vcf, _proband_id, meta ->
 				tuple(group, sv_vcf, meta)
 			}
-		svvcf_to_bed(ch_svvcf_to_bed_in)
+        
+        if(val_analysis_type != "panel") {
+            svvcf_to_bed(ch_svvcf_to_bed_in)
+        }
+		
 
         ch_cnvkit_plot_snvs = ch_snv_vcf_tbi_intersected
             .map { group, vcf, _tbi -> [ group, vcf ] }
@@ -801,7 +816,7 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(bgzip_scored_genmod.out.versions.first())
 
 		// TODO: streamline if-conditions:
-		if(params.antype == "wgs" && val_is_trio && val_analysis_mode == "family") {
+		if(val_analysis_type == "wgs" && val_is_trio && val_analysis_mode == "family") {
 			ch_plot_pod_in = fastgnomad.out.vcf
 				.join(bgzip_scored_genmod.out.sv_rescore_vcf, by: [0])
 				.join(ch_ped_base, by: [0])
@@ -868,7 +883,10 @@ workflow NEXTFLOW_WGS {
 	// OUTPUT INFO
 	output_files(ch_output_info.groupTuple())
 	// SCOUT YAML
-	create_yaml(ch_proband_meta.join(ch_ped_base).join(output_files.out.yaml_INFO))
+	create_yaml(
+        ch_proband_meta.join(ch_ped_base).join(output_files.out.yaml_INFO),
+        val_analysis_type
+    )
 	emit:
 		versions = ch_versions
 }
@@ -1566,10 +1584,7 @@ process sentieon_mitochondrial_qc {
 	output:
     	tuple val(group), val(id), path("${id}_mito_coverage.tsv"), emit: qc_tsv
 		path "*versions.yml", emit: versions
-
-	when:
-	    params.antype == "wgs"
-
+	
 	script:
 		"""
 		sentieon driver \\
@@ -2029,9 +2044,6 @@ process fastgnomad {
 
 	output:
 		tuple val(group), path("${group}.SNPs.vcf.gz"), emit: vcf
-
-	when:
-		params.antype == "wgs"
 
 	script:
 		"""
@@ -2735,9 +2747,6 @@ process manta_panel {
 		tuple val(group), val(id), path("${id}.manta.vcf.gz"), emit: vcf
 		path "*versions.yml", emit: versions
 
-	when:
-		params.sv && params.antype == "panel"
-
 	script:
 		"""
 		configManta.py --bam $bam --reference ${params.genome_file} --runDir . --exome --callRegions $params.bedgz --generateEvidenceBam
@@ -3028,8 +3037,9 @@ process tiddit {
 		path "*versions.yml", emit: versions
 
 
+    
 	when:
-		params.sv && params.antype == "wgs"
+		params.sv
 
 	script:
 		"""
@@ -3658,15 +3668,18 @@ process score_sv {
 	container  "${params.container_genmod}"
 
 	input:
-		tuple val(group), val(type), path(in_vcf)
-		val analysis_mode
+	    tuple val(group), val(type), path(in_vcf)
+        val use_family_wgs_scoring
+
 
 	output:
 		tuple val(group), val(type), path("*.sv.scored.vcf"), emit: scored_vcf
 		path "*versions.yml", emit: versions
 
 	script:
-		def model = (analysis_mode == "family" && params.antype == "wgs") ? params.svrank_model : params.svrank_model_s
+        // TODO: Decide on model outside of the process and pass it as an input to model
+        // instead of the conditional below:
+		def model = use_family_wgs_scoring ? params.svrank_model : params.svrank_model_s
 		def group_score = ( type == "ma" || type == "fa" ) ? "${group}_${type}" : group
 		"""
 		genmod score --family_id ${group_score} --score_config ${model} --rank_results --outfile "${group_score}.sv.scored.vcf" ${in_vcf}
@@ -3828,10 +3841,6 @@ process svvcf_to_bed {
 	output:
 		path("${group}.sv.bed")
 
-	when:
-		params.antype != "panel"
-
-
 	script:
 		"""
 		cnv2bed.pl --cnv ${vcf} --pb ${meta.id} > ${group}.sv.bed
@@ -3881,7 +3890,8 @@ process create_yaml {
 	memory '1 GB'
 
 	input:
-		tuple val(group), val(id), val(meta), val(type), path(ped), path(INFO)
+	tuple val(group), val(id), val(meta), val(type), path(ped), path(INFO)
+    val analysis_type
 
 	output:
 		tuple val(group), path("${group}.yaml*"), emit: scout_yaml
@@ -3897,7 +3907,7 @@ process create_yaml {
 			--ped "$ped" \\
 			--files "$INFO" \\
 			--assay "$assay" \\
-			--antype "$params.antype" \\
+	        --antype "${analysis_type}" \\
 			--status "${meta.priority}" \\
 			--extra_panels "$params.extra_panels"
 		"""
