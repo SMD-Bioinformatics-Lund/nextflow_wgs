@@ -1332,11 +1332,10 @@ process sentieon_qc_postprocess {
 		tuple val(group), val(id), path("${id}_qc.json"), emit: qc_json
 
 	script:
-		assay = analysis_type
 		"""
 		qc_sentieon.pl \\
 			--SID ${id} \\
-			--type ${assay} \\
+			--type ${analysis_type} \\
 			--align_metrics_file ${aln_metrics} \\
 			--insert_file ${is_metrics} \\
 			--dedup_metrics_file ${dedup_metrics} \\
