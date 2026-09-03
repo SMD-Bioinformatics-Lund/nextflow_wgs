@@ -96,6 +96,8 @@ workflow {
 		params.skip_mito,
 		params.skip_loqusdb,
 		params.cdm_assay,
+		params.crondir,
+		params.idsnps,
 		"${params.outdir}/${params.subdir}",
 		params.noupload,
         params.cftr,
@@ -199,6 +201,8 @@ workflow NEXTFLOW_WGS {
 	val_skip_mito                              // bool:    Whether mitochondrial analysis should be skipped
 	val_skip_loqusdb                           // bool:    Whether loqusdb upload should be skipped
 	val_cdm_assay                              // string:  CDM assay name used when creating QC cron files.
+	val_cron_output_dir                        // string:  Base directory for cron input files.
+	val_idsnp_config                           // map:     ID-SNP reference paths.
 	val_results_output_dir                     // string:  Full result base directory under which pipeline results are published.
 	val_skip_cdm_cron                          // bool:    Whether to skip creating CDM QC cron files.        
 	val_run_cftr                               // bool:    Whether to rescore CFTR 5T/TG homopolymer variants.
@@ -318,8 +322,13 @@ workflow NEXTFLOW_WGS {
 	ch_qc_mean_depth = ch_qc_parsed.map { group, id, qc -> tuple(group, id, qc.mean_depth) }
 	ch_qc_ins_size = ch_qc_parsed.map { group, id, qc -> tuple(group, id, qc.ins_size) }
 
-	IDSNP_CALL(ch_bam_bai, params.idsnps)
-	IDSNP_VCF_TO_JSON(IDSNP_CALL.out.vcf.join(ch_sample_meta, by:[0,1]))
+	IDSNP_CALL(ch_bam_bai, val_idsnp_config)
+	IDSNP_VCF_TO_JSON(
+		IDSNP_CALL.out.vcf.join(ch_sample_meta, by:[0,1]),
+		val_results_output_dir,
+		val_cron_output_dir,
+		val_cdm_assay
+	)
 	ch_versions = ch_versions.mix(IDSNP_CALL.out.versions.first())
 
 	// COVERAGE //
