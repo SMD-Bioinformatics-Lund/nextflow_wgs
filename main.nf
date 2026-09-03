@@ -21,7 +21,10 @@ nextflow.enable.dsl=2
 workflow {
 	// Validate all configured parameters
 	parameters_to_validate = params.global_parameters_to_validate + params.profile_parameters_to_validate
-	VALIDATE_PARAMETERS(parameters_to_validate)
+	parameter_values_to_validate = parameters_to_validate
+		.findAll { key -> params.containsKey(key) }
+		.collectEntries { key -> [(key): params[key]] }
+	VALIDATE_PARAMETERS(parameters_to_validate, parameter_values_to_validate)
 	// Print startup and conf output dirs and modes.
 
 	// TODO: Params assignment inside workflow block is a temp solution:
