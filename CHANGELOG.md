@@ -14,6 +14,8 @@
 
 #### Removed
 * Analysis mode (single/trio) from score_sv tag
+* Pass the PED publication directory through explicit workflow and process inputs
+* Make the Madeline stub independent of the deployment Conda environment
 
 ### 3.28.0
 

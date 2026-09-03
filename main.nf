@@ -272,7 +272,13 @@ workflow NEXTFLOW_WGS {
 	ch_bam_bai = ch_bam_bai.mix(copy_bam.out.bam_bai)
 
 	// PED //
-	PED(ch_proband_meta, val_analysis_mode, val_create_alt_affect_ped, val_accessdir)
+	PED(
+		ch_proband_meta,
+		val_analysis_mode,
+		val_create_alt_affect_ped,
+		val_accessdir,
+		val_results_output_dir
+	)
 	ch_ped_base = PED.out.ped_base
 	ch_ped_trio_affected_permutations = PED.out.ped_trio_affected_permutations
 	ch_versions = ch_versions.mix(PED.out.versions)

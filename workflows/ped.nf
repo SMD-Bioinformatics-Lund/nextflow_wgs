@@ -5,12 +5,13 @@ workflow PED {
 	val_mode                   // string:  Analysis mode.
 	val_create_alt_affect_ped  // bool:    Whether family runs should create alternate affected-parent PEDs.
 	val_accessdir              // string:  Access base directory used in Scout INFO outputs.
+	val_results_output_dir     // string:  Full result base directory under which PED files are published.
 
 	main:
 	ch_versions = channel.empty()
 	ch_output_info = channel.empty()
 
-	create_ped(ch_proband_meta)
+	create_ped(ch_proband_meta, val_results_output_dir)
 	ch_ped_base = create_ped.out.ped_base
 
 	ch_ped_trio_affected_permutations = channel.empty()
@@ -23,7 +24,8 @@ workflow PED {
 
 		madeline(
 			ch_ped_trio_affected_permutations,
-			val_accessdir
+			val_accessdir,
+			val_results_output_dir
 		)
 
 		ch_versions = ch_versions.mix(madeline.out.versions.first())
@@ -42,11 +44,12 @@ workflow PED {
 process create_ped {
 	tag "${meta.group}"
 	time '20m'
-	publishDir "${params.outdir}/${params.subdir}/ped", mode: 'copy' , overwrite: true
+	publishDir "${val_results_output_dir}/ped", mode: 'copy' , overwrite: true
 	memory '1 GB'
     container "${params.container_perl}"
 	input:
 		tuple val(group), val(id), val(meta)
+		val val_results_output_dir
 
 	output:
 		tuple val(meta.group), val(meta.type), path("${meta.group}_base.ped"), emit: ped_base
@@ -70,7 +73,7 @@ process create_ped {
 
 // Madeline ped, run if family mode
 process madeline {
-	publishDir "${params.outdir}/${params.subdir}/ped", mode: 'copy' , overwrite: true, pattern: '*.xml'
+	publishDir "${val_results_output_dir}/ped", mode: 'copy' , overwrite: true, pattern: '*.xml'
 	memory '1 GB'
 	time '1h'
 	cpus 2
@@ -79,6 +82,7 @@ process madeline {
 	input:
 		tuple val(group), val(type), path(ped)
 		val(accessdir)
+		val val_results_output_dir
 
 	output:
 		path("${ped}.madeline.xml")
@@ -103,7 +107,6 @@ process madeline {
 
 	stub:
 		"""
-		source activate tools
 		touch "${group}_madde.INFO"
 		touch "${ped}.madeline.xml"
 
