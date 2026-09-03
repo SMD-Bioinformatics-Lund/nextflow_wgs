@@ -79,6 +79,7 @@ workflow {
 		params.expansionhunter_catalog,
 		"${params.genome_file}.fai",
 		params.genome_file,
+		params.intervals,
 		val_is_trio,
 		params.run_freebayes,
 		val_run_gatkcov,
@@ -182,6 +183,7 @@ workflow NEXTFLOW_WGS {
 	val_expansionhunter_catalog                // path:    ExpansionHunter variant catalog JSON.
 	val_genome_fai                             // path:    Reference FASTA index.
 	val_genome_fasta                           // path:    Reference FASTA.
+	val_intervals                              // path:    Target intervals used for panel QC.
 	val_is_trio                                // bool:    Whether the input CSV contains enough samples for trio analysis
 	val_run_freebayes                          // bool:    Whether Freebayes should be run
 	val_run_gatkcov                            // bool:    Should gatkcov run (GENS entrypoint)
@@ -281,13 +283,14 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// POST SEQ QC //
-	sentieon_qc(ch_bam_bai)
+	sentieon_qc(ch_bam_bai, val_genome_fasta, val_intervals, val_analysis_type)
 	ch_versions = ch_versions.mix(sentieon_qc.out.versions.first())
 
 	ch_dedup_stats = ch_dedup_stats.mix(ch_bam_start_dedup_dummy)
 
 	sentieon_qc_postprocess(
-		sentieon_qc.out.sentieon_qc_metrics.join(ch_dedup_stats, by: [0,1])
+		sentieon_qc.out.sentieon_qc_metrics.join(ch_dedup_stats, by: [0,1]),
+		val_analysis_type
 	)
 
 	ch_qc_json = ch_qc_json.mix(sentieon_qc_postprocess.out.qc_json)
@@ -1230,6 +1233,9 @@ process sentieon_qc {
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
+		val val_genome_fasta
+		val val_intervals
+		val val_analysis_type
 
 	output:
 		tuple (
@@ -1255,15 +1261,15 @@ process sentieon_qc {
 		panel_command = "touch cov_metrics.txt cov_metrics.txt.sample_summary"
 		cov = "WgsMetricsAlgo assay_metrics.txt"
 
-		if (params.onco || params.exome) {
-			target = "--interval $params.intervals"
+		if (val_analysis_type == "panel") {
+			target = "--interval ${val_intervals}"
 			cov = "CoverageMetrics --cov_thresh 1 --cov_thresh 10 --cov_thresh 30 --cov_thresh 100 --cov_thresh 250 --cov_thresh 500 cov_metrics.txt"
-			panel_command = "sentieon driver -r ${params.genome_file} -t ${task.cpus} -i ${bam} --algo HsMetricAlgo --targets_list ${params.intervals} --baits_list ${params.intervals} assay_metrics.txt"
+			panel_command = "sentieon driver -r ${val_genome_fasta} -t ${task.cpus} -i ${bam} --algo HsMetricAlgo --targets_list ${val_intervals} --baits_list ${val_intervals} assay_metrics.txt"
 		}
 
 		"""
 		sentieon driver \\
-			-r ${params.genome_file} $target \\
+			-r ${val_genome_fasta} $target \\
 			-t ${task.cpus} \\
 			-i $bam \\
 			--algo MeanQualityByCycle mq_metrics.txt \\
@@ -1321,11 +1327,12 @@ process sentieon_qc_postprocess {
 			path(cov_metrics_sample_summary),
 			path(dedup_metrics)
 		)
+		val val_analysis_type
 	output:
 		tuple val(group), val(id), path("${id}_qc.json"), emit: qc_json
 
 	script:
-		assay = (params.onco || params.exome) ? "panel" : "wgs"
+		assay = val_analysis_type
 		"""
 		qc_sentieon.pl \\
 			--SID ${id} \\
