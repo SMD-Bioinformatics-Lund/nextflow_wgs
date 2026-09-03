@@ -1233,9 +1233,9 @@ process sentieon_qc {
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
-		val val_genome_fasta
-		val val_intervals
-		val val_analysis_type
+		val genome_fasta
+		val intervals
+		val analysis_type
 
 	output:
 		tuple (
@@ -1261,15 +1261,15 @@ process sentieon_qc {
 		panel_command = "touch cov_metrics.txt cov_metrics.txt.sample_summary"
 		cov = "WgsMetricsAlgo assay_metrics.txt"
 
-		if (val_analysis_type == "panel") {
-			target = "--interval ${val_intervals}"
+		if (analysis_type == "panel") {
+			target = "--interval ${intervals}"
 			cov = "CoverageMetrics --cov_thresh 1 --cov_thresh 10 --cov_thresh 30 --cov_thresh 100 --cov_thresh 250 --cov_thresh 500 cov_metrics.txt"
-			panel_command = "sentieon driver -r ${val_genome_fasta} -t ${task.cpus} -i ${bam} --algo HsMetricAlgo --targets_list ${val_intervals} --baits_list ${val_intervals} assay_metrics.txt"
+			panel_command = "sentieon driver -r ${genome_fasta} -t ${task.cpus} -i ${bam} --algo HsMetricAlgo --targets_list ${intervals} --baits_list ${intervals} assay_metrics.txt"
 		}
 
 		"""
 		sentieon driver \\
-			-r ${val_genome_fasta} $target \\
+			-r ${genome_fasta} $target \\
 			-t ${task.cpus} \\
 			-i $bam \\
 			--algo MeanQualityByCycle mq_metrics.txt \\
@@ -1327,12 +1327,12 @@ process sentieon_qc_postprocess {
 			path(cov_metrics_sample_summary),
 			path(dedup_metrics)
 		)
-		val val_analysis_type
+		val analysis_type
 	output:
 		tuple val(group), val(id), path("${id}_qc.json"), emit: qc_json
 
 	script:
-		assay = val_analysis_type
+		assay = analysis_type
 		"""
 		qc_sentieon.pl \\
 			--SID ${id} \\
