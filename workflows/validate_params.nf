@@ -4,6 +4,7 @@ workflow VALIDATE_PARAMETERS {
 
 	take:
 	params_to_validate
+	parameter_values
 
 	main:
 
@@ -11,10 +12,10 @@ workflow VALIDATE_PARAMETERS {
 
 	params_to_validate.each { key ->
 		
-		if (!params.containsKey(key)) {
-			log.info "Parameter '${key}' is listed in params_to_validate but is not defined in params."
+		if (!parameter_values.containsKey(key)) {
+			log.info "Parameter '${key}' is listed for validation but is not defined in the pipeline configuration."
 		} else {
-			validatePathValue(key, params[key])
+			validatePathValue(key, parameter_values[key])
 		}
 
 	}
