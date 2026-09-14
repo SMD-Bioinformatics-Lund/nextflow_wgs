@@ -11,12 +11,10 @@ workflow ALIGN_READS {
 
 	minibwa_index(ch_genome)
 
-	ch_genome_index = ch_genome.combine(minibwa_index.out.index)
-	ch_fastq_with_index = ch_fastq.combine(ch_genome_index)
+	ch_fastq_with_index = ch_fastq.combine(minibwa_index.out.index)
 
 	minibwa_align(ch_fastq_with_index)
-	ch_sam_with_genome = minibwa_align.out.sam.combine(ch_genome)
-	sam_to_sorted_bam(ch_sam_with_genome)
+	sam_to_sorted_bam(minibwa_align.out.sam)
 	markdup(sam_to_sorted_bam.out.bam_bai)
 
 	ch_versions = minibwa_index.out.versions.first()
@@ -44,20 +42,20 @@ process minibwa_index {
 		path genome_file
 
 	output:
-		tuple path("*.l2b"), path("*.mbw"), emit: index
+		tuple path("${genome_file.name}.l2b"), path("${genome_file.name}.mbw"), emit: index
 		path "*versions.yml", emit: versions
 
 	script:
 		"""
-		minibwa index -t${task.cpus} ${genome_file}
+		minibwa index -t ${task.cpus} "${genome_file.name}"
 
 		${minibwa_index_versions(task)}
 		"""
 
 	stub:
 		"""
-		touch "${genome_file}.l2b"
-		touch "${genome_file}.mbw"
+		touch "${genome_file.name}.l2b"
+		touch "${genome_file.name}.mbw"
 
 		${minibwa_index_versions(task)}
 		"""
@@ -67,7 +65,7 @@ def minibwa_index_versions(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    minibwa: \$(echo \$(minibwa --version 2>&1))
+	    minibwa: \$(minibwa version)
 	END_VERSIONS
 	"""
 }
@@ -82,19 +80,22 @@ process minibwa_align {
 	container "${params.container_minibwa}"
 
 	input:
-		tuple val(group), val(id), path(fastq_r1), path(fastq_r2), path(genome_file), path(index_l2b), path(index_mbw)
+		tuple val(group), val(id), path(fastq_r1), path(fastq_r2), path(index_l2b), path(index_mbw)
 
 	output:
 		tuple val(group), val(id), path("${id}.sam"), emit: sam
 		path "*versions.yml", emit: versions
 
 	script:
+		// Mapping loads both index files from their shared prefix; no FASTA is needed.
+		def index_prefix = index_l2b.baseName
 		"""
 		minibwa map \\
-			-t${task.cpus} \\
-			-R '@RG\\tID:${id}\\tSM:${id}\\tPL:illumina' \\
-			-o ${id}.sam \\
-			${genome_file} ${fastq_r1} ${fastq_r2}
+			-t ${task.cpus} \\
+			-b MD \\
+			-R '@RG\\tID:${id}\\tSM:${id}\\tPL:ILLUMINA' \\
+			-o "${id}.sam" \\
+			"${index_prefix}" "${fastq_r1.name}" "${fastq_r2.name}"
 
 		${minibwa_align_versions(task)}
 		"""
@@ -111,7 +112,7 @@ def minibwa_align_versions(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    minibwa: \$(echo \$(minibwa --version 2>&1))
+	    minibwa: \$(minibwa version)
 	END_VERSIONS
 	"""
 }
@@ -123,10 +124,10 @@ process sam_to_sorted_bam {
 	stageInMode 'copy'
 	stageOutMode 'copy'
 	tag "$id"
-	container "/fs1/resources/containers/depot.galaxyproject.org-singularity-samtools-1.22.1--h96c455f_0.img"
+	container "${params.container_samtools}"
 
 	input:
-		tuple val(group), val(id), path(sam), path(genome_file)
+		tuple val(group), val(id), path(sam)
 
 	output:
 		tuple val(group), val(id), path("${id}_merged.bam"), path("${id}_merged.bam.bai"), emit: bam_bai
@@ -134,15 +135,9 @@ process sam_to_sorted_bam {
 
 	script:
 		"""
-		rg_line=\$(printf '@RG\\tID:%s\\tSM:%s\\tPL:illumina' "${id}" "${id}")
+		samtools sort -@ ${task.cpus} -o "${id}_merged.bam" "${sam.name}"
 
-		samtools view -@ ${task.cpus} -T ${genome_file} -u ${sam} \\
-			| samtools addreplacerg -@ ${task.cpus} \\
-				-r "\${rg_line}" \\
-				-u - \\
-			| samtools sort -@ ${task.cpus} -o ${id}_merged.bam -
-
-		samtools index -@ ${task.cpus} -b ${id}_merged.bam
+		samtools index -@ ${task.cpus} -b "${id}_merged.bam"
 
 		${sam_to_sorted_bam_versions(task)}
 		"""

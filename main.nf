@@ -266,7 +266,7 @@ workflow NEXTFLOW_WGS {
 	// ALIGN //
 	ch_dedup_stats = channel.empty()
 	if (val_align) {
-		ALIGN_READS(ch_fastq_start, params.genome_file)
+		ALIGN_READS(ch_fastq_start, val_genome_fasta)
 		ch_dedup_stats = ch_dedup_stats.mix(ALIGN_READS.out.dedup_metrics)
 		ch_output_info = ch_output_info.mix(ALIGN_READS.out.dedup_bam_INFO)
 		ch_bam_bai = ch_bam_bai.mix(ALIGN_READS.out.dedup_bam_bai)
