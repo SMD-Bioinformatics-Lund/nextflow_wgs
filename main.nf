@@ -68,6 +68,7 @@ workflow {
 		.splitCsv(header: true)
 
     val_run_contamination_qc = params.antype == "wgs"
+    val_use_targeted_qc = params.antype == "panel"
     val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
 
 	NEXTFLOW_WGS(
@@ -102,6 +103,7 @@ workflow {
         params.cftr,
         params.antype,
         val_run_contamination_qc,
+        val_use_targeted_qc,
         val_use_family_wgs_genmod_scoring
 	)
 
@@ -206,6 +208,7 @@ workflow NEXTFLOW_WGS {
 	val_run_cftr                               // bool:    Whether to rescore CFTR 5T/TG homopolymer variants.
     val_analysis_type                          // string:  Analysis type, either "panel" or "wgs" 
     val_run_contamination_qc                   // bool:    Whether to run contamination QC
+    val_use_targeted_qc                        // bool:    Whether to restrict QC to target intervals and collect coverage and hybrid-selection metrics.
     val_use_family_wgs_genmod_scoring          // bool:    Whether SNV and SV scoring should use family WGS genmod/rank-model behavior.
 
 	main:
@@ -286,7 +289,7 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// POST SEQ QC //
-	sentieon_qc(ch_bam_bai, val_genome_fasta, val_intervals, val_analysis_type)
+	sentieon_qc(ch_bam_bai, val_genome_fasta, val_intervals, val_use_targeted_qc)
 	ch_versions = ch_versions.mix(sentieon_qc.out.versions.first())
 
 	ch_dedup_stats = ch_dedup_stats.mix(ch_bam_start_dedup_dummy)
@@ -1238,7 +1241,7 @@ process sentieon_qc {
 		tuple val(group), val(id), path(bam), path(bai)
 		val genome_fasta
 		val intervals
-		val analysis_type
+		val use_targeted_qc
 
 	output:
 		tuple (
@@ -1264,7 +1267,7 @@ process sentieon_qc {
 		panel_command = "touch cov_metrics.txt cov_metrics.txt.sample_summary"
 		cov = "WgsMetricsAlgo assay_metrics.txt"
 
-		if (analysis_type == "panel") {
+		if (use_targeted_qc) {
 			target = "--interval ${intervals}"
 			cov = "CoverageMetrics --cov_thresh 1 --cov_thresh 10 --cov_thresh 30 --cov_thresh 100 --cov_thresh 250 --cov_thresh 500 cov_metrics.txt"
 			panel_command = "sentieon driver -r ${genome_fasta} -t ${task.cpus} -i ${bam} --algo HsMetricAlgo --targets_list ${intervals} --baits_list ${intervals} assay_metrics.txt"
