@@ -188,7 +188,7 @@ workflow NEXTFLOW_WGS {
 	val_expansionhunter_catalog                // path:    ExpansionHunter variant catalog JSON.
 	val_genome_fai                             // path:    Reference FASTA index.
 	val_genome_fasta                           // path:    Reference FASTA.
-	val_intervals                              // path:    Target intervals used for panel QC.
+	val_qc_interval_list                       // path:    Picard interval list used for QC regions, targets, and baits.
 	val_is_trio                                // bool:    Whether the input CSV contains enough samples for trio analysis
 	val_run_freebayes                          // bool:    Whether Freebayes should be run
 	val_run_gatkcov                            // bool:    Should gatkcov run (GENS entrypoint)
@@ -289,7 +289,7 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// POST SEQ QC //
-	sentieon_qc(ch_bam_bai, val_genome_fasta, val_intervals, val_use_targeted_qc)
+	sentieon_qc(ch_bam_bai, val_genome_fasta, val_qc_interval_list, val_use_targeted_qc)
 	ch_versions = ch_versions.mix(sentieon_qc.out.versions.first())
 
 	ch_dedup_stats = ch_dedup_stats.mix(ch_bam_start_dedup_dummy)
@@ -1240,7 +1240,7 @@ process sentieon_qc {
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
 		val genome_fasta
-		val intervals
+		val qc_interval_list
 		val use_targeted_qc
 
 	output:
@@ -1268,9 +1268,9 @@ process sentieon_qc {
 		cov = "WgsMetricsAlgo assay_metrics.txt"
 
 		if (use_targeted_qc) {
-			target = "--interval ${intervals}"
+			target = "--interval ${qc_interval_list}"
 			cov = "CoverageMetrics --cov_thresh 1 --cov_thresh 10 --cov_thresh 30 --cov_thresh 100 --cov_thresh 250 --cov_thresh 500 cov_metrics.txt"
-			panel_command = "sentieon driver -r ${genome_fasta} -t ${task.cpus} -i ${bam} --algo HsMetricAlgo --targets_list ${intervals} --baits_list ${intervals} assay_metrics.txt"
+			panel_command = "sentieon driver -r ${genome_fasta} -t ${task.cpus} -i ${bam} --algo HsMetricAlgo --targets_list ${qc_interval_list} --baits_list ${qc_interval_list} assay_metrics.txt"
 		}
 
 		"""
