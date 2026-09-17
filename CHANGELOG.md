@@ -11,6 +11,7 @@
 * Pass analysis type through workflow/process inputs instead of reading `params.antype` from global params
 * Pass selected parameter values explicitly into `VALIDATE_PARAMETERS`
 * Pass ID-SNP references and output configuration through explicit workflow and process inputs
+* Control onco panel-depth calculation with an explicit flag and pass its reference files through workflow and process inputs
 
 #### Removed
 * Analysis mode (single/trio) from score_sv tag

@@ -69,6 +69,7 @@ workflow {
 		.splitCsv(header: true)
 
     val_run_contamination_qc = params.antype == "wgs"
+    val_run_onco_depth = params.onco
     val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
     val_run_mito_qc = params.antype == "wgs"
     val_run_mito_mutect2 = !params.onco
@@ -106,6 +107,9 @@ workflow {
         params.cftr,
         params.antype,
         val_run_contamination_qc,
+        val_run_onco_depth,
+        params.scoutbed,
+        params.gene_regions,
         val_use_family_wgs_genmod_scoring,
 		val_run_mito_qc,
 		val_run_mito_mutect2,
@@ -215,6 +219,9 @@ workflow NEXTFLOW_WGS {
 	val_run_cftr                               // bool:    Whether to rescore CFTR 5T/TG homopolymer variants.
     val_analysis_type                          // string:  Analysis type, either "panel" or "wgs" 
     val_run_contamination_qc                   // bool:    Whether to run contamination QC
+    val_run_onco_depth                         // bool:    Whether to calculate onco panel depth.
+    val_scout_bed                              // path:    Target regions used for onco panel depth.
+    val_gene_regions                           // path:    Gene regions used to annotate low-coverage intervals.
     val_use_family_wgs_genmod_scoring          // bool:    Whether SNV and SV scoring should use family WGS genmod/rank-model behavior.
 	val_run_mito_qc                            // bool:    Whether to run mitochondrial coverage QC.
 	val_run_mito_mutect2                       // bool:    Whether to run mitochondrial Mutect2 SNV calling.
@@ -352,8 +359,8 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(gatkcov.out.versions.first())
 	}
 
-	if (params.assay == "swea") {
-		depth_onco(ch_bam_bai)
+	if (val_run_onco_depth) {
+		depth_onco(ch_bam_bai, val_scout_bed, val_gene_regions)
 	}
 
 
@@ -1358,14 +1365,16 @@ process depth_onco {
 	tag "$id"
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
+		val scout_bed
+		val gene_regions
 
 	output:
 		path("${id}.lowcov.overlapping.bed"), emit: cov_onco
 
 	script:
 		"""
-		panel_depth.pl $bam $params.scoutbed > ${id}.lowcov.bed
-		overlapping_genes.pl ${id}.lowcov.bed $params.gene_regions > ${id}.lowcov.overlapping.bed
+		panel_depth.pl $bam $scout_bed > ${id}.lowcov.bed
+		overlapping_genes.pl ${id}.lowcov.bed $gene_regions > ${id}.lowcov.overlapping.bed
 		"""
 
 	stub:
