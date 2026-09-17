@@ -1,5 +1,19 @@
 # CHANGELOG
 
+### [Unreleased]
+
+#### Added
+* Add workflow `MITOCHONDRIAL_ANALYSIS`
+
+#### Changed
+* Pass the CFTR annotation flag through `NEXTFLOW_WGS` into `SNV_ANNOTATE` instead of reading `params.cftr` inside named workflows
+* Pass SNV split/normalize reference FASTA and index through workflow inputs instead of reading the reference FASTA from global params
+* Pass analysis type through workflow/process inputs instead of reading `params.antype` from global params
+* Pass selected parameter values explicitly into `VALIDATE_PARAMETERS`
+
+#### Removed
+* Analysis mode (single/trio) from score_sv tag
+
 ### 3.28.0
 
 #### Added 
@@ -44,6 +58,7 @@
 * code style change
 * changed all input-channels to a standardized format
 * joined channels properly so that batch starts should be further supported
+
 ### 3.26.3
 * Use boolean values for `publishDir overwrite`
 
