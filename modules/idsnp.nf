@@ -62,11 +62,14 @@ process IDSNP_VCF_TO_JSON {
     label 'process_single'
     tag "${id}"
     container "${params.container_python}"
-	publishDir "${params.outdir}/${params.subdir}/qc", mode: 'copy' , overwrite: true, pattern: '*.json'
-    publishDir "${params.crondir}/idsnp", mode: 'copy' , overwrite: true, pattern: '*.pairgen'
+	publishDir "${val_results_output_dir}/qc", mode: 'copy' , overwrite: true, pattern: '*.json'
+    publishDir "${val_cron_output_dir}/idsnp", mode: 'copy' , overwrite: true, pattern: '*.pairgen'
 
     input:
         tuple val(group), val(id), path(vcf), val(meta)
+		val val_results_output_dir
+		val val_cron_output_dir
+		val val_cdm_assay
     
     output:
         tuple val(group), val(id), path("*.json"),    emit: json
@@ -77,7 +80,7 @@ process IDSNP_VCF_TO_JSON {
     """
         set -eo pipefail
         genotype_to_json.py "${vcf}" "${prefix}.genotypes.json"
-        echo "--overwrite --sample-id $id --sequencing-run ${meta.sequencing_run} --assay ${params.cdm_assay} --id-snp ${params.outdir}/${params.subdir}/qc/${prefix}.genotypes.json" > ${prefix}.${params.cdm_assay}.pairgen 
+        echo "--overwrite --sample-id $id --sequencing-run ${meta.sequencing_run} --assay ${val_cdm_assay} --id-snp ${val_results_output_dir}/qc/${prefix}.genotypes.json" > ${prefix}.${val_cdm_assay}.pairgen
     """
 
     stub:
@@ -85,6 +88,6 @@ process IDSNP_VCF_TO_JSON {
     """
         set -eo pipefail
         touch "${prefix}.genotypes.json"
-        echo "--overwrite --sample-id $id --sequencing-run ${meta.sequencing_run} --assay ${params.cdm_assay} --id-snp ${params.outdir}/${params.subdir}/qc/${prefix}.genotypes.json" > ${prefix}.${params.cdm_assay}.pairgen 
+        echo "--overwrite --sample-id $id --sequencing-run ${meta.sequencing_run} --assay ${val_cdm_assay} --id-snp ${val_results_output_dir}/qc/${prefix}.genotypes.json" > ${prefix}.${val_cdm_assay}.pairgen
     """
 }
