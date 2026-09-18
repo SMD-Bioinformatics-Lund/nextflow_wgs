@@ -21,6 +21,7 @@ def main():
     mane_gtf = args.gtf
     ignore_y_genes_in_summary = args.sex == "F"
     partial_cds_genes_to_skip = set()
+    probe_check_genes = set()
     # Panel
     if args.design_bed:
         design_bed = args.design_bed
@@ -30,6 +31,8 @@ def main():
             caveat_genes = read_caveat_gene_list(args.caveat_genes)
             partial_cds_genes_to_skip = caveat_genes
             mark_partial_cds_genes(gene_gtf, caveat_genes)
+        if args.probe_check_genes:
+            probe_check_genes = set(read_gene_list(args.probe_check_genes))
     # WGS
     else:
         gene_filter = args.gene_filter
@@ -65,6 +68,7 @@ def main():
             args.threshold,
             ignore_y_chromosome_genes=ignore_y_genes_in_summary,
             partial_cds_genes_to_skip=partial_cds_genes_to_skip,
+            probe_check_genes=probe_check_genes,
         )
         mongolike["summary"] = summary
         if args.summary_output:
@@ -107,6 +111,14 @@ def parse_arguments():
         )
     )
     parser.add_argument(
+        '--probe_check_genes',
+        type=str,
+        help=(
+            "gene list for which every assigned design probe must meet the coverage "
+            "threshold(s). Probe results are reported separately in the summary"
+        )
+    )
+    parser.add_argument(
         '-s', '--sample_id',
         type=str,
         required=True,
@@ -129,7 +141,10 @@ def parse_arguments():
         '-t', '--threshold',
         default=500.0,
         type=parse_thresholds,
-        help="Mean CDS coverage threshold(s) for summary. Use comma-separated values for multiple thresholds. Default: 500"
+        help=(
+            "Coverage threshold(s) for mean CDS coverage and selected probe checks. "
+            "Use comma-separated values for multiple thresholds. Default: 500"
+        )
     )
     parser.add_argument(
         '--summary_output',
@@ -154,6 +169,8 @@ def parse_arguments():
         exit("Please provide either design_bed or gene_filter")
     elif args.caveat_genes and not args.design_bed:
         exit("caveat_genes can only be used together with design_bed")
+    elif args.probe_check_genes and not args.design_bed:
+        exit("probe_check_genes can only be used together with design_bed")
     return args
 
 def parse_sex(value):
@@ -328,17 +345,119 @@ def summarize_threshold_results(gene_results, threshold):
         "genes_not_covered_by_at_least_threshold_mean_cds_coverage": genes_below_threshold,
     }
 
+def summarize_probe_coverage(
+    genes,
+    genes_to_include,
+    probe_check_genes,
+    thresholds,
+    ignored_genes=None,
+):
+    """Assess every probe for selected genes, independently of the CDS assessment."""
+    ignored_genes = set(ignored_genes or [])
+    genes_to_include_set = set(genes_to_include)
+    selected_genes = [
+        gene
+        for gene in genes_to_include
+        if gene in probe_check_genes and gene not in ignored_genes
+    ]
+    primary_threshold = thresholds[0]
+    results = []
+
+    for gene in selected_genes:
+        gene_record = genes.get(gene)
+        probes = gene_record.get("probes", {}) if gene_record is not None else {}
+        probes_without_coverage = [
+            probe_name for probe_name, probe in probes.items() if "cov" not in probe
+        ]
+        below_by_threshold = {
+            str(threshold): [
+                probe_name
+                for probe_name, probe in probes.items()
+                if region_coverage(probe) < threshold
+            ]
+            for threshold in thresholds
+        }
+
+        if gene_record is None:
+            assessment = "missing_gene"
+        elif not probes:
+            assessment = "no_probes_found"
+        else:
+            assessment = "assessed"
+
+        covered_by_threshold = {
+            str(threshold): bool(probes) and not below_by_threshold[str(threshold)]
+            for threshold in thresholds
+        }
+        results.append(
+            {
+                "gene": gene,
+                "found": gene_record is not None,
+                "probe_coverage_assessment": assessment,
+                "probes": len(probes),
+                "probes_without_coverage": probes_without_coverage,
+                "covered_by_probe_coverage_threshold": covered_by_threshold[
+                    str(primary_threshold)
+                ],
+                "covered_by_probe_coverage_thresholds": covered_by_threshold,
+                "probes_below_threshold": below_by_threshold[str(primary_threshold)],
+                "probes_below_thresholds": below_by_threshold,
+            }
+        )
+
+    threshold_summaries = []
+    for threshold in thresholds:
+        threshold_key = str(threshold)
+        failed_genes = [
+            result["gene"]
+            for result in results
+            if not result["covered_by_probe_coverage_thresholds"][threshold_key]
+        ]
+        genes_with_low_probes = [
+            result["gene"]
+            for result in results
+            if result["probes_below_thresholds"][threshold_key]
+        ]
+        threshold_summaries.append(
+            {
+                "threshold": threshold,
+                "genes_assessed_for_probe_coverage": len(results),
+                "genes_covered_by_probe_coverage_threshold": len(results) - len(failed_genes),
+                "genes_not_covered_by_probe_coverage_threshold": failed_genes,
+                "genes_with_probes_below_threshold": genes_with_low_probes,
+            }
+        )
+
+    primary_summary = threshold_summaries[0]
+    summary = {
+        **primary_summary,
+        "genes_with_no_probes": [
+            result["gene"]
+            for result in results
+            if result["probe_coverage_assessment"] == "no_probes_found"
+        ],
+        "probe_check_genes_not_in_summary": sorted(
+            set(probe_check_genes) - genes_to_include_set
+        ),
+        "probe_assessment_results": results,
+    }
+    if len(thresholds) > 1:
+        summary["probe_threshold_summaries"] = threshold_summaries
+    return summary
+
 def summarize_coverage(
     coverage_data,
     genes_to_include,
     threshold,
     ignore_y_chromosome_genes=False,
     partial_cds_genes_to_skip=None,
+    probe_check_genes=None,
 ):
     thresholds = normalize_thresholds(threshold)
     primary_threshold = thresholds[0]
     genes = coverage_data.get("genes", {})
     partial_cds_genes_to_skip = set(partial_cds_genes_to_skip or [])
+    probe_check_genes = set(probe_check_genes or [])
 
     gene_results = []
     threshold_assessment_records = []
@@ -529,6 +648,17 @@ def summarize_coverage(
     if len(thresholds) > 1:
         summary["thresholds"] = thresholds
         summary["threshold_summaries"] = threshold_summaries
+
+    if probe_check_genes:
+        summary.update(
+            summarize_probe_coverage(
+                genes,
+                genes_to_include,
+                probe_check_genes,
+                thresholds,
+                ignored_genes=y_chromosome_genes,
+            )
+        )
 
     return summary
 
