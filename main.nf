@@ -69,6 +69,7 @@ workflow {
 		.splitCsv(header: true)
 
     val_run_contamination_qc = params.antype == "wgs"
+    val_use_targeted_qc = params.antype == "panel"
     val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
     val_run_mito_qc = params.antype == "wgs"
     val_run_mito_mutect2 = !params.onco
@@ -85,6 +86,7 @@ workflow {
 		params.expansionhunter_catalog,
 		"${params.genome_file}.fai",
 		params.genome_file,
+		params.intervals,
 		val_is_trio,
 		params.run_freebayes,
 		val_run_gatkcov,
@@ -110,7 +112,8 @@ workflow {
 		val_run_mito_qc,
 		val_run_mito_mutect2,
 		params.rCRS_fasta,
-		"/access/${params.subdir}/bam"
+		"/access/${params.subdir}/bam",
+        val_use_targeted_qc
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
@@ -194,6 +197,7 @@ workflow NEXTFLOW_WGS {
 	val_expansionhunter_catalog                // path:    ExpansionHunter variant catalog JSON.
 	val_genome_fai                             // path:    Reference FASTA index.
 	val_genome_fasta                           // path:    Reference FASTA.
+	val_qc_interval_list                       // path:    Picard interval list used for QC regions, targets, and baits.
 	val_is_trio                                // bool:    Whether the input CSV contains enough samples for trio analysis
 	val_run_freebayes                          // bool:    Whether Freebayes should be run
 	val_run_gatkcov                            // bool:    Should gatkcov run (GENS entrypoint)
@@ -220,6 +224,7 @@ workflow NEXTFLOW_WGS {
 	val_run_mito_mutect2                       // bool:    Whether to run mitochondrial Mutect2 SNV calling.
 	val_rcrs_fasta                             // path:    Mitochondrial rCRS FASTA.
 	val_mito_bam_accessdir                     // string:  Access path used in mitochondrial BAM output metadata.
+    val_use_targeted_qc                        // bool:    Whether to restrict QC to target intervals and collect coverage and hybrid-selection metrics.
 
 	main:
 	// Output channels:
@@ -299,13 +304,14 @@ workflow NEXTFLOW_WGS {
 	}
 
 	// POST SEQ QC //
-	sentieon_qc(ch_bam_bai)
+	sentieon_qc(ch_bam_bai, val_genome_fasta, val_qc_interval_list, val_use_targeted_qc)
 	ch_versions = ch_versions.mix(sentieon_qc.out.versions.first())
 
 	ch_dedup_stats = ch_dedup_stats.mix(ch_bam_start_dedup_dummy)
 
 	sentieon_qc_postprocess(
-		sentieon_qc.out.sentieon_qc_metrics.join(ch_dedup_stats, by: [0,1])
+		sentieon_qc.out.sentieon_qc_metrics.join(ch_dedup_stats, by: [0,1]),
+		val_analysis_type
 	)
 
 	ch_qc_json = ch_qc_json.mix(sentieon_qc_postprocess.out.qc_json)
@@ -1175,6 +1181,9 @@ process sentieon_qc {
 
 	input:
 		tuple val(group), val(id), path(bam), path(bai)
+		val genome_fasta
+		val qc_interval_list
+		val use_targeted_qc
 
 	output:
 		tuple (
@@ -1200,15 +1209,15 @@ process sentieon_qc {
 		panel_command = "touch cov_metrics.txt cov_metrics.txt.sample_summary"
 		cov = "WgsMetricsAlgo assay_metrics.txt"
 
-		if (params.onco || params.exome) {
-			target = "--interval $params.intervals"
+		if (use_targeted_qc) {
+			target = "--interval ${qc_interval_list}"
 			cov = "CoverageMetrics --cov_thresh 1 --cov_thresh 10 --cov_thresh 30 --cov_thresh 100 --cov_thresh 250 --cov_thresh 500 cov_metrics.txt"
-			panel_command = "sentieon driver -r ${params.genome_file} -t ${task.cpus} -i ${bam} --algo HsMetricAlgo --targets_list ${params.intervals} --baits_list ${params.intervals} assay_metrics.txt"
+			panel_command = "sentieon driver -r ${genome_fasta} -t ${task.cpus} -i ${bam} --algo HsMetricAlgo --targets_list ${qc_interval_list} --baits_list ${qc_interval_list} assay_metrics.txt"
 		}
 
 		"""
 		sentieon driver \\
-			-r ${params.genome_file} $target \\
+			-r ${genome_fasta} $target \\
 			-t ${task.cpus} \\
 			-i $bam \\
 			--algo MeanQualityByCycle mq_metrics.txt \\
@@ -1266,15 +1275,15 @@ process sentieon_qc_postprocess {
 			path(cov_metrics_sample_summary),
 			path(dedup_metrics)
 		)
+		val analysis_type
 	output:
 		tuple val(group), val(id), path("${id}_qc.json"), emit: qc_json
 
 	script:
-		assay = (params.onco || params.exome) ? "panel" : "wgs"
 		"""
 		qc_sentieon.pl \\
 			--SID ${id} \\
-			--type ${assay} \\
+			--type ${analysis_type} \\
 			--align_metrics_file ${aln_metrics} \\
 			--insert_file ${is_metrics} \\
 			--dedup_metrics_file ${dedup_metrics} \\
