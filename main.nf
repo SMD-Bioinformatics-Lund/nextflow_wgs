@@ -8,6 +8,7 @@ include { IDSNP_VCF_TO_JSON      } from './modules/idsnp.nf'
 include { MELT                   } from './workflows/melt.nf'
 include { MITOCHONDRIAL_ANALYSIS } from './workflows/mitochondrial.nf'
 include { PED                  } from './workflows/ped.nf'
+include { PEDDY_QC             } from './workflows/peddy_qc.nf'
 include { QC_TO_CDM              } from './workflows/qc_to_cdm.nf'
 include { SNV_ANNOTATE           } from './workflows/annotate_snvs.nf'
 include { SPLIT_NORMALIZE_SNVS   } from './workflows/split_normalize_snvs.nf'
@@ -73,6 +74,7 @@ workflow {
     val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
     val_run_mito_qc = params.antype == "wgs"
     val_run_mito_mutect2 = !params.onco
+    val_run_peddy_qc = !params.annotate_only && params.run_peddy
 
 	NEXTFLOW_WGS(
 		ch_samplesheet,
@@ -113,7 +115,8 @@ workflow {
 		val_run_mito_mutect2,
 		params.rCRS_fasta,
 		"/access/${params.subdir}/bam",
-        val_use_targeted_qc
+        val_use_targeted_qc,
+        val_run_peddy_qc
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
@@ -225,6 +228,7 @@ workflow NEXTFLOW_WGS {
 	val_rcrs_fasta                             // path:    Mitochondrial rCRS FASTA.
 	val_mito_bam_accessdir                     // string:  Access path used in mitochondrial BAM output metadata.
     val_use_targeted_qc                        // bool:    Whether to restrict QC to target intervals and collect coverage and hybrid-selection metrics.
+    val_run_peddy_qc                           // bool:    Whether to run Peddy QC and its CDM conversion.
 
 	main:
 	// Output channels:
@@ -445,29 +449,18 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
 		ch_output_info = ch_output_info.mix(SNV_ANNOTATE.out.output_info)
 
-		// SNPs
-		ch_peddy_input_vcf = SNV_ANNOTATE.out.annotated_snv_vcf
-			.filter { it ->
-				def type = it[1]
-				type == "proband"
-			}
-
-		// TODO: Move this guy to QC:
-		peddy(ch_peddy_input_vcf.join(ch_ped_base, by: [0,1]))
-		ch_output_info = ch_output_info.mix(peddy.out.peddy_INFO)
-		ch_versions = ch_versions.mix(peddy.out.versions.first())
-
-
-		ch_peddy2cdm_input = ch_samplesheet
-			.map { row ->
-				tuple(row.group, row.id, row.sequencing_run)
-			}.groupTuple()
-
-		// add peddy output to each trio case, make sure it is matched on group
-		// combine does not do this and join will only take first entry
-		ch_peddy2cdm = peddy.out.peddy_files.join(ch_peddy2cdm_input)
-
-		peddy2cdm(ch_peddy2cdm)
+		if (val_run_peddy_qc) {
+			PEDDY_QC(
+				SNV_ANNOTATE.out.annotated_snv_vcf,
+				ch_ped_base,
+				ch_samplesheet,
+				val_results_output_dir,
+				val_accessdir,
+				val_cdm_assay
+			)
+			ch_output_info = ch_output_info.mix(PEDDY_QC.out.output_info)
+			ch_versions = ch_versions.mix(PEDDY_QC.out.versions)
+		}
 
 		if (val_analysis_type == "wgs") {
 			// fastgnomad
@@ -1520,95 +1513,6 @@ def rename_mito_contigs_version(task) {
 	"""
 }
 
-process peddy {
-
-	publishDir "${params.outdir}/${params.subdir}/ped", mode: 'copy' , overwrite: true, pattern: '*.ped'
-	publishDir "${params.outdir}/${params.subdir}/ped", mode: 'copy' , overwrite: true, pattern: '*.csv'
-
-	cpus 4
-	tag "$group"
-	time '1h'
-	memory '20GB'
-
-	input:
-		tuple val(group), val(type), path(vcf), path(idx), path(ped)
-
-	output:
-		tuple val(group), path("${group}.ped_check.csv"),path("${group}.peddy.ped"), path("${group}.sex_check.csv"), emit: peddy_files
-		tuple val(group), path("${group}_peddy.INFO"), emit: peddy_INFO
-		path "*versions.yml", emit: versions
-
-	when:
-		!params.annotate_only && params.run_peddy
-
-	script:
-		"""
-		source activate py3-env
-		python -m peddy --sites hg38 -p ${task.cpus} $vcf $ped --prefix $group
-		echo "PEDDY	${params.accessdir}/ped/${group}.ped_check.csv,${params.accessdir}/ped/${group}.peddy.ped,${params.accessdir}/ped/${group}.sex_check.csv" > ${group}_peddy.INFO
-
-		${peddy_version(task)}
-		"""
-
-	stub:
-		"""
-		source activate py3-env
-		touch "${group}.ped_check.csv"
-		touch "${group}.peddy.ped"
-		touch "${group}.sex_check.csv"
-		touch "${group}_peddy.INFO"
-
-		${peddy_version(task)}
-		"""
-}
-def peddy_version(task) {
-	"""
-	cat <<-END_VERSIONS > ${task.process}_versions.yml
-	${task.process}:
-	    peddy: \$(echo \$(python -m peddy --version 2>&1) | sed 's/^.*peddy, version //')
-	END_VERSIONS
-	"""
-}
-
-process peddy2cdm {
-	cpus 2
-	memory '20 MB'
-	tag "$group"
-	publishDir "${params.outdir}/${params.subdir}/qc", mode: 'copy', overwrite: true, pattern: '*.json'
-	publishDir "${params.crondir}/peddy", mode: 'copy' , overwrite: true, pattern: '*.peddy2cdm'
-	container "${params.container_pysam_cmdvcf}"
-	time '20m'
-
-	input:
-		tuple val(group), path(ped_check),path(peddy_ped), path(sex_check), val(id), val(sequencing_run)
-
-	output:
-		tuple val(group), path("*peddy.json"), emit: json
-		tuple val(group), path("*peddy2cdm"), emit: cdm
-
-	script:
-		def sample_arg = [id, sequencing_run]
-			.transpose()
-			.collect { sample_id, run_id -> "${sample_id}:${run_id}" }
-			.join(' --sample ')
-			
-		"""
-		peddy2cdm.py \
-		--ped $ped_check \
-		--sex $sex_check \
-		--sample $sample_arg \
-		--cdmassay $params.cdm_assay \
-		--results_dir ${params.outdir}/${params.subdir}/qc
-		"""
-		
-
-	stub:
-		"""
-		touch "${group}_peddy.json"
-		touch "${group}.peddy2cdm"
-	    """
-
-}
 
 // Extract all variants (
 process fastgnomad {
