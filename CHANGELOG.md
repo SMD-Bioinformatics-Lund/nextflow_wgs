@@ -3,6 +3,7 @@
 ### [Unreleased]
 
 #### Added
+* Extract Peddy QC and CDM conversion into `PEDDY_QC`, with explicit configuration and a dedicated run flag
 * Add workflow `MITOCHONDRIAL_ANALYSIS`
 
 #### Changed
