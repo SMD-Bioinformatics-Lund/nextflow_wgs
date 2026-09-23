@@ -3,45 +3,33 @@ workflow PEDDY_QC {
     ch_annotated_vcf        // [group, type, vcf, index]
     ch_ped                  // [group, type, ped]
     ch_samplesheet          // Samplesheet rows, including group, id and sequencing_run.
-    val_run_peddy_qc
     val_results_output_dir
     val_accessdir
     val_cdm_assay
 
     main:
-    ch_output_info = channel.empty()
-    ch_versions = channel.empty()
-    ch_json = channel.empty()
-    ch_cdm = channel.empty()
+    ch_peddy_input = ch_annotated_vcf
+        .filter { group, type, vcf, index -> type == "proband" }
+        .join(ch_ped, by: [0, 1])
 
-    if (val_run_peddy_qc) {
-        ch_peddy_input = ch_annotated_vcf
-            .filter { group, type, vcf, index -> type == "proband" }
-            .join(ch_ped, by: [0, 1])
+    peddy(ch_peddy_input, val_accessdir)
 
-        peddy(ch_peddy_input, val_accessdir)
+    ch_sample_runs = ch_samplesheet
+        .map { row -> tuple(row.group, row.id, row.sequencing_run) }
+        .groupTuple()
 
-        ch_sample_runs = ch_samplesheet
-            .map { row -> tuple(row.group, row.id, row.sequencing_run) }
-            .groupTuple()
-
-        peddy2cdm(
-            peddy.out.peddy_files.join(ch_sample_runs, by: [0]),
-            val_results_output_dir,
-            val_cdm_assay
-        )
-
-        ch_output_info = peddy.out.peddy_INFO
-        ch_versions = peddy.out.versions.first()
-        ch_json = peddy2cdm.out.json
-        ch_cdm = peddy2cdm.out.cdm
-    }
+    peddy2cdm(
+        peddy.out.peddy_files.join(ch_sample_runs, by: [0]),
+        val_results_output_dir,
+        val_cdm_assay
+    )
 
     emit:
-    output_info = ch_output_info
-    versions = ch_versions
-    json = ch_json
-    cdm = ch_cdm
+    peddy_files = peddy.out.peddy_files // [group, ped_check.csv, peddy.ped, sex_check.csv]
+    output_info = peddy.out.peddy_INFO
+    versions = peddy.out.versions.first()
+    json = peddy2cdm.out.json
+    cdm = peddy2cdm.out.cdm
 }
 
 process peddy {

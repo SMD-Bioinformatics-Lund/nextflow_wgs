@@ -449,17 +449,18 @@ workflow NEXTFLOW_WGS {
 		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
 		ch_output_info = ch_output_info.mix(SNV_ANNOTATE.out.output_info)
 
-		PEDDY_QC(
-			SNV_ANNOTATE.out.annotated_snv_vcf,
-			ch_ped_base,
-			ch_samplesheet,
-			val_run_peddy_qc,
-			val_results_output_dir,
-			val_accessdir,
-			val_cdm_assay
-		)
-		ch_output_info = ch_output_info.mix(PEDDY_QC.out.output_info)
-		ch_versions = ch_versions.mix(PEDDY_QC.out.versions)
+		if (val_run_peddy_qc) {
+			PEDDY_QC(
+				SNV_ANNOTATE.out.annotated_snv_vcf,
+				ch_ped_base,
+				ch_samplesheet,
+				val_results_output_dir,
+				val_accessdir,
+				val_cdm_assay
+			)
+			ch_output_info = ch_output_info.mix(PEDDY_QC.out.output_info)
+			ch_versions = ch_versions.mix(PEDDY_QC.out.versions)
+		}
 
 		if (val_analysis_type == "wgs") {
 			// fastgnomad
