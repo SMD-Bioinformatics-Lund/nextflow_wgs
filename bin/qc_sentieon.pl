@@ -113,13 +113,13 @@ if ($type eq "wgs") {
 
 	}elsif( /^(\d+)\s+(\d+)/ ){
             $sum += $2;
-            if( $sum >= $pct25_obs and not $quartiles{ 'R_25' } ){
+            if( $sum >= $pct25_obs and not defined $quartiles{ 'R_25' } ){
                 $quartiles{ 'R_25' } = $1;
             }
-            if( $sum >= $pct50_obs and not $quartiles{ 'R_50' } ){
+            if( $sum >= $pct50_obs and not defined $quartiles{ 'R_50' } ){
                 $quartiles{ 'R_50' } = $1;
             }
-            if( $sum >= $pct75_obs and not $quartiles{ 'R_75' } ){
+            if( $sum >= $pct75_obs and not defined $quartiles{ 'R_75' } ){
                 $quartiles{ 'R_75' } = $1;
             }
         }

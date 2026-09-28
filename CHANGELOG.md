@@ -13,6 +13,9 @@
 * Pass ID-SNP references and output configuration through explicit workflow and process inputs
 * Pass general QC analysis type, reference FASTA, and target intervals through explicit process inputs
 
+#### Fixed
+* Retain zero-depth quartiles when calculating Sentieon WGS coverage IQR
+
 #### Removed
 * Analysis mode (single/trio) from score_sv tag
 
