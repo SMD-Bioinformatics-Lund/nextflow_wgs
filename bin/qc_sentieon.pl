@@ -126,6 +126,13 @@ if ($type eq "wgs") {
     }
     close HS;
     $results{'iqr'} = ( $quartiles{ 'R_75' } - $quartiles{ 'R_25' } );
+    if ( defined $quartiles{ 'R_25' } && defined $quartiles{ 'R_75' }
+         && defined $results{'median_cov'} ) {
+        my $median_cov = sprintf '%s', $results{'median_cov'};
+        if ( $median_cov > 0 ) {
+            $results{'coverage_uniformity'} = $results{'iqr'} / $median_cov;
+        }
+    }
 
     open( GC, $gcsummary_file );
     while( <GC> ) {

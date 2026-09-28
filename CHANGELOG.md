@@ -4,6 +4,7 @@
 
 #### Added
 * Add workflow `MITOCHONDRIAL_ANALYSIS`
+* Add WGS coverage uniformity (IQR divided by median coverage) to Sentieon QC output for CDM
 
 #### Changed
 * Pass the CFTR annotation flag through `NEXTFLOW_WGS` into `SNV_ANNOTATE` instead of reading `params.cftr` inside named workflows
