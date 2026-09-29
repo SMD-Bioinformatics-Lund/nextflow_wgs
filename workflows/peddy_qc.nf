@@ -1,6 +1,6 @@
 workflow PEDDY_QC {
     take:
-    ch_annotated_vcf        // [group, type, vcf, index]
+    ch_group_vcf            // [group, vcf, index]
     ch_ped                  // [group, type, ped]
     ch_samplesheet          // Samplesheet rows, including group, id and sequencing_run.
     val_results_output_dir
@@ -8,9 +8,10 @@ workflow PEDDY_QC {
     val_cdm_assay
 
     main:
-    ch_peddy_input = ch_annotated_vcf
-        .filter { group, type, vcf, index -> type == "proband" }
-        .join(ch_ped, by: [0, 1])
+    ch_base_ped = ch_ped
+        .filter { group, type, ped -> type == "proband" }
+        .map { group, type, ped -> tuple(group, ped) }
+    ch_peddy_input = ch_group_vcf.join(ch_base_ped, by: 0)
 
     peddy(ch_peddy_input, val_accessdir)
 
@@ -43,7 +44,7 @@ process peddy {
 	memory '20GB'
 
 	input:
-		tuple val(group), val(type), path(vcf), path(idx), path(ped)
+		tuple val(group), path(vcf), path(idx), path(ped)
 		val accessdir
 
 	output:

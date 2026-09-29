@@ -74,7 +74,7 @@ workflow {
     val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
     val_run_mito_qc = params.antype == "wgs"
     val_run_mito_mutect2 = !params.onco
-    val_run_peddy_qc = !params.annotate_only && params.run_peddy
+    val_run_peddy_qc = !params.annotate_only && params.run_peddy && params.run_snv_calling
 
 	NEXTFLOW_WGS(
 		ch_samplesheet,
@@ -368,6 +368,7 @@ workflow NEXTFLOW_WGS {
 
 
 	// SNV CALLING //
+	ch_snv_vcf_tbi_normalized_unique = channel.empty()
 	ch_snv_vcf_tbi_full = channel.empty()
 	ch_snv_vcf_tbi_intersected = channel.empty()
 	ch_sample_gvcf_tbi = channel.empty()
@@ -385,6 +386,7 @@ workflow NEXTFLOW_WGS {
 			val_run_freebayes
 		)
 		SPLIT_NORMALIZE_SNVS(CALL_SNVS.out.group_vcf_tbi, val_intersect_bed, val_genome_fasta, val_genome_fai)
+		ch_snv_vcf_tbi_normalized_unique = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_normalized_unique
 		ch_snv_vcf_tbi_full = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_full
 		ch_snv_vcf_tbi_intersected = SPLIT_NORMALIZE_SNVS.out.vcf_tbi_intersected
 		ch_sample_gvcf_tbi = CALL_SNVS.out.sample_gvcf_tbi
@@ -451,7 +453,7 @@ workflow NEXTFLOW_WGS {
 
 		if (val_run_peddy_qc) {
 			PEDDY_QC(
-				SNV_ANNOTATE.out.annotated_snv_vcf,
+				ch_snv_vcf_tbi_normalized_unique,
 				ch_ped_base,
 				ch_samplesheet,
 				val_results_output_dir,
