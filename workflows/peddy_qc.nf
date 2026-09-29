@@ -3,9 +3,9 @@ workflow PEDDY_QC {
     ch_group_vcf            // [group, vcf, index]
     ch_ped                  // [group, type, ped]
     ch_samplesheet          // Samplesheet rows, including group, id and sequencing_run.
-    val_results_output_dir
-    val_accessdir
-    val_cdm_assay
+    val_results_output_dir  // string: Results base directory containing the published QC files.
+    val_accessdir           // string: Access path used in Peddy INFO output metadata.
+    val_cdm_assay           // string: CDM assay name passed to peddy2cdm.py.
 
     main:
     ch_base_ped = ch_ped
@@ -28,9 +28,9 @@ workflow PEDDY_QC {
     emit:
     peddy_files = peddy.out.peddy_files // [group, ped_check.csv, peddy.ped, sex_check.csv]
     output_info = peddy.out.peddy_INFO
-    versions = peddy.out.versions.first()
-    json = peddy2cdm.out.json
-    cdm = peddy2cdm.out.cdm
+    versions    = peddy.out.versions.first()
+    json        = peddy2cdm.out.json
+    cdm         = peddy2cdm.out.cdm
 }
 
 process peddy {
