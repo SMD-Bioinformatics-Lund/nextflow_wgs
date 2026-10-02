@@ -113,19 +113,26 @@ if ($type eq "wgs") {
 
 	}elsif( /^(\d+)\s+(\d+)/ ){
             $sum += $2;
-            if( $sum >= $pct25_obs and not $quartiles{ 'R_25' } ){
+            if( $sum >= $pct25_obs and not defined $quartiles{ 'R_25' } ){
                 $quartiles{ 'R_25' } = $1;
             }
-            if( $sum >= $pct50_obs and not $quartiles{ 'R_50' } ){
+            if( $sum >= $pct50_obs and not defined $quartiles{ 'R_50' } ){
                 $quartiles{ 'R_50' } = $1;
             }
-            if( $sum >= $pct75_obs and not $quartiles{ 'R_75' } ){
+            if( $sum >= $pct75_obs and not defined $quartiles{ 'R_75' } ){
                 $quartiles{ 'R_75' } = $1;
             }
         }
     }
     close HS;
     $results{'iqr'} = ( $quartiles{ 'R_75' } - $quartiles{ 'R_25' } );
+    if ( defined $quartiles{ 'R_25' } && defined $quartiles{ 'R_75' }
+         && defined $results{'median_cov'} ) {
+        my $median_cov = sprintf '%s', $results{'median_cov'};
+        if ( $median_cov > 0 ) {
+            $results{'coverage_uniformity'} = $results{'iqr'} / $median_cov;
+        }
+    }
 
     open( GC, $gcsummary_file );
     while( <GC> ) {

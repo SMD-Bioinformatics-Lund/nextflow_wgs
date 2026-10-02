@@ -4,6 +4,7 @@
 
 #### Added
 * Add workflow `MITOCHONDRIAL_ANALYSIS`
+* Add WGS coverage uniformity (IQR divided by median coverage) to Sentieon QC output for CDM
 
 #### Changed
 * Pass the CFTR annotation flag through `NEXTFLOW_WGS` into `SNV_ANNOTATE` instead of reading `params.cftr` inside named workflows
@@ -12,6 +13,9 @@
 * Pass selected parameter values explicitly into `VALIDATE_PARAMETERS`
 * Pass ID-SNP references and output configuration through explicit workflow and process inputs
 * Pass general QC analysis type, reference FASTA, and target intervals through explicit process inputs
+
+#### Fixed
+* Retain zero-depth quartiles when calculating Sentieon WGS coverage IQR
 
 #### Removed
 * Analysis mode (single/trio) from score_sv tag
