@@ -25,6 +25,7 @@ workflow SPLIT_NORMALIZE_SNVS {
 
     emit:
     vcf_multi_nonfiltered   = bcftools_norm_sort.out.vcf_tbi // channel: [ val(group), path(vcf), path(tbi)]
+    vcf_tbi_normalized_unique = vcflib_vcfuniq.out.vcf_tbi   // channel: [ val(group), path(vcf), path(tbi)]
     vcf_tbi_full            = wgs_dpaf_filter.out.vcf_tbi    // channel: [ val(group), path(vcf), path(tbi)]
     vcf_tbi_intersected     = bgzip_tabix.out.vcf_tbi        // channel: [ val(group), path(vcf), path(tbi)]
     versions                = ch_versions                    // channel: [ path(versions) ]

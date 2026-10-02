@@ -3,10 +3,12 @@
 ### [Unreleased]
 
 #### Added
+* Extract Peddy QC and CDM conversion into `PEDDY_QC`, with explicit configuration and a dedicated run flag
 * Add workflow `MITOCHONDRIAL_ANALYSIS`
 * Add WGS coverage uniformity (IQR divided by median coverage) to Sentieon QC output for CDM
 
 #### Changed
+* Run Peddy on the normalized, deduplicated joint VCF before DPAF filtering and BED intersection
 * Pass the CFTR annotation flag through `NEXTFLOW_WGS` into `SNV_ANNOTATE` instead of reading `params.cftr` inside named workflows
 * Pass SNV split/normalize reference FASTA and index through workflow inputs instead of reading the reference FASTA from global params
 * Pass analysis type through workflow/process inputs instead of reading `params.antype` from global params
