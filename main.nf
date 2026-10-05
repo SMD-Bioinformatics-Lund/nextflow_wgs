@@ -1381,8 +1381,8 @@ process depth_onco {
 
 	script:
 		"""
-		panel_depth.pl $bam $scout_bed > ${id}.lowcov.bed
-		overlapping_genes.pl ${id}.lowcov.bed $gene_regions > ${id}.lowcov.overlapping.bed
+	    panel_depth.pl ${bam} ${scout_bed} > ${id}.lowcov.bed
+		overlapping_genes.pl ${id}.lowcov.bed ${gene_regions} > ${id}.lowcov.overlapping.bed
 		"""
 
 	stub:
