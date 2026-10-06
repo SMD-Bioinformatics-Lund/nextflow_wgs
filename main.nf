@@ -3,8 +3,8 @@
 
 include { CALL_AND_ANNOTATE_STRS } from './workflows/call_and_annotate_strs.nf'
 include { CALL_SNVS              } from './workflows/call_snvs.nf'
-include { IDSNP_CALL             } from './modules/idsnp.nf'
-include { IDSNP_VCF_TO_JSON      } from './modules/idsnp.nf'
+include { IDSNP_CALL             } from './modules/local/idsnp.nf'
+include { IDSNP_VCF_TO_JSON      } from './modules/local/idsnp.nf'
 include { MELT                   } from './workflows/melt.nf'
 include { MITOCHONDRIAL_ANALYSIS } from './workflows/mitochondrial.nf'
 include { PED                  } from './workflows/ped.nf'
