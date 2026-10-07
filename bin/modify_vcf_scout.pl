@@ -27,51 +27,6 @@ my %clinmod = (
 );
 
 
-my %rank = (
-    'transcript_ablation' => 1,
-    'initiator_codon_variant' => 2,
-    'frameshift_variant' => 3,
-    'stop_gained' => 4,
-    'start_lost' => 5,
-    'stop_lost' => 6,
-    'splice_acceptor_variant' => 7,
-    'splice_donor_variant' => 8,
-    'inframe_deletion' => 9,
-    'transcript_amplification' => 10,
-    'splice_donor_5th_base_variant' => 11,
-    'splice_region_variant' => 12,
-    'splice_donor_region_variant' => 13,
-    'splice_polypyrimidine_tract_variant' => 14,
-    'missense_variant' => 15,
-    'protein_altering_variant' => 16,
-    'inframe_insertion' => 17,
-    'incomplete_terminal_codon_variant' => 18,
-    'non_coding_transcript_exon_variant' => 19,
-    'synonymous_variant' => 20,
-    'mature_mirna_variant' => 21,
-    'non_coding_transcript_variant' => 22,
-    'regulatory_region_variant' => 23,
-    'upstream_gene_variant' => 24,
-    'regulatory_region_amplification' => 25,
-    'tfbs_amplification' => 26,
-    '5_prime_utr_variant' => 27,
-    'intron_variant' => 28,
-    '3_prime_utr_variant' => 29,
-    'feature_truncation' => 30,
-    'coding_transcript_variant' => 31,
-    'tf_binding_site_variant' => 32,
-    'start_retained_variant' => 33,
-    'stop_retained_variant' => 34,
-    'feature_elongation' => 35,
-    'regulatory_region_ablation' => 36,
-    'tfbs_ablation' => 37,
-    'coding_sequence_variant' => 38,
-    'downstream_gene_variant' => 39,
-    'nmd_transcript_variant' => 40,
-    'intergenic_variant' => 41,
-    'sequence_variant' => 42
-    );
-
 my $vep_csq;
 
 while( <VEP>) {
@@ -91,7 +46,6 @@ while( <VEP>) {
         print "##INFO=<ID=dbNSFP_phyloP100way_vertebrate,Number=1,Type=Float,Description=\"phyloP100 score\">\n";
         print "##INFO=<ID=dbNSFP_phastCons100way_vertebrate,Number=1,Type=Float,Description=\"phastcons score\">\n";
         print "##INFO=<ID=CLNSIG_MOD,Number=.,Type=String,Description=\"Modified Variant Clinical Significance, for genmod score _0_ - Uncertain significance, _1_ - not provided, _2_ - Benign, _3_ - Likely benign, _4_ - Likely pathogenic, _5_ - Pathogenic, _6_ - drug response, _7_ - histocompatibility, _255_ - other\">\n";
-        print "##INFO=<ID=most_severe_consequence,Number=.,Type=String,Description=\"Most severe genomic consequence.\">\n";
         print "##INFO=<ID=CADD,Number=.,Type=String,Description=\"CADD phred score\">\n";
         print "##INFO=<ID=nhomalt,Number=.,Type=Integer,Description=\"number of alt allele homozygous individuals in gnomad\">\n";
 	    print;
@@ -225,16 +179,6 @@ while( <VEP>) {
             }
             push @add_info_field, "CLNSIG_MOD=".join('|',@mods);
         }
-        ## MOST SEVERE CONSEQUENCE
-        my $csq_ref = $doobi->{INFO}->{CSQ};
-        my $m_s_c = CSQ($csq_ref);
-        my $most_severe = ".";
-        if (@$m_s_c) {
-            $_ = lc for @$m_s_c;
-		    $most_severe = (sort { $rank{$a} <=> $rank{$b} } @$m_s_c)[0];
-        }
-        push @add_info_field, "most_severe_consequence=".$most_severe;
-
         #Add new info field information
         push @info_field, @add_info_field;
         #print new and old information
@@ -418,19 +362,3 @@ sub excel_float {
 #      2 _protective
 #     11 _risk_factor
 #     37 risk_factor
-
-
-sub CSQ {
-	my ($csq) = shift;
-    my @all_csq;
-    foreach my $b (@$csq) {
-        ## if canon pick consensus conseqeunce or if equal most severe ^
-            my $tmp = $b->{Consequence};
-            foreach my $conq (@$tmp) {
-               push @all_csq, $conq;
-            }
-    
-    }
-    return \@all_csq; 
-
-}

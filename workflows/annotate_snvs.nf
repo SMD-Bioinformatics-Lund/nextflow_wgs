@@ -1,5 +1,6 @@
 #!/usr/bin/env nextflow
 include { bgzip_index_vcf } from './util.nf'
+include { CUSTOM_ADDMOSTSEVERECONSEQUENCE as ADDMOSTSEVERECONSEQUENCE_SNV } from '../modules/nf-core/custom/addmostsevereconsequence/main.nf'
 
 
 workflow SNV_ANNOTATE {
@@ -11,6 +12,7 @@ workflow SNV_ANNOTATE {
 	ch_ped             // ch:    [ val(group), val(type), path(ped) ]
 	val_use_family_wgs_genmod_scoring  // bool:  Use family WGS rank model and penalized genmod compound scoring.
 	val_run_cftr                       // bool:  Whether to rescore CFTR 5T/TG homopolymer variants.
+	val_variant_consequences           // path:  Shared consequences in Perl rank order with VEP capitalization.
 
 	main:
 	ch_versions = channel.empty()
@@ -18,7 +20,11 @@ workflow SNV_ANNOTATE {
 
 	annotate_vep(ch_snv_indels_vcf)
 	vcfanno(annotate_vep.out.vcf)
-	modify_vcf(vcfanno.out.vcf)
+	ADDMOSTSEVERECONSEQUENCE_SNV(
+		vcfanno.out.vcf.map { group, vcf -> tuple([id: group], vcf) },
+		channel.value(tuple([id: 'variant_consequences'], val_variant_consequences))
+	)
+	modify_vcf(ADDMOSTSEVERECONSEQUENCE_SNV.out.vcf.map { meta, vcf -> tuple(meta.id, vcf) })
 	mark_splice(modify_vcf.out.vcf)
 
 	// INDELS //
@@ -177,7 +183,6 @@ def vcfanno_version(task) {
 }
 
 
-// Extracting most severe consequence:
 // Modifying annotations by VEP-plugins, and adding to info-field:
 // Modifying CLNSIG field to allow it to be used by genmod score properly:
 // TODO: give process better name
@@ -195,7 +200,7 @@ process modify_vcf {
 
 	script:
 		"""
-		modify_vcf_scout.pl $vcf > ${group}.mod.vcf
+		gzip -dc "$vcf" | modify_vcf_scout.pl - > ${group}.mod.vcf
 		"""
 
 	stub:
