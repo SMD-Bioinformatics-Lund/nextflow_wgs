@@ -14,10 +14,12 @@ include { SPLIT_NORMALIZE_SNVS   } from './workflows/split_normalize_snvs.nf'
 include { VALIDATE_PARAMETERS    } from './workflows/validate_params.nf'
 include { VALIDATE_SAMPLES_CSV   } from './workflows/validate_csv.nf'
 include { PREPARE_INPUT_AND_META_CHANNELS } from './workflows/prepare_input_and_meta_channels.nf'
+include { CUSTOM_ADDMOSTSEVERECONSEQUENCE as ADDMOSTSEVERECONSEQUENCE_SV } from './modules/nf-core/custom/addmostsevereconsequence/main.nf'
 
 include { vcfHasVariants } from './workflows/util.nf'
 
 nextflow.enable.dsl=2
+nextflow.enable.moduleBinaries = true
 
 workflow {
 	// Validate all configured parameters
@@ -73,6 +75,7 @@ workflow {
     val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
     val_run_mito_qc = params.antype == "wgs"
     val_run_mito_mutect2 = !params.onco
+    val_variant_consequences = file("${projectDir}/rank_models/live/variant_consequences.txt", checkIfExists: true)
 
 	NEXTFLOW_WGS(
 		ch_samplesheet,
@@ -113,7 +116,8 @@ workflow {
 		val_run_mito_mutect2,
 		params.rCRS_fasta,
 		"/access/${params.subdir}/bam",
-        val_use_targeted_qc
+        val_use_targeted_qc,
+        val_variant_consequences
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
@@ -225,6 +229,7 @@ workflow NEXTFLOW_WGS {
 	val_rcrs_fasta                             // path:    Mitochondrial rCRS FASTA.
 	val_mito_bam_accessdir                     // string:  Access path used in mitochondrial BAM output metadata.
     val_use_targeted_qc                        // bool:    Whether to restrict QC to target intervals and collect coverage and hybrid-selection metrics.
+    val_variant_consequences                   // path:    Shared consequences in Perl rank order with VEP capitalization.
 
 	main:
 	// Output channels:
@@ -440,7 +445,8 @@ workflow NEXTFLOW_WGS {
             ch_snv_annotate_in,
             ch_ped_trio_affected_permutations,
             val_use_family_wgs_genmod_scoring,
-            val_run_cftr
+            val_run_cftr,
+            val_variant_consequences
         )
 		ch_versions = ch_versions.mix(SNV_ANNOTATE.out.versions)
 		ch_output_info = ch_output_info.mix(SNV_ANNOTATE.out.output_info)
@@ -755,7 +761,19 @@ workflow NEXTFLOW_WGS {
 		add_omim_morbid_to_svvcf(add_annotsv_to_svvcf.out.vcf)
 		add_callerpenalties_to_svvcf(add_omim_morbid_to_svvcf.out.vcf)
 
-		ch_add_geneticmodels_to_svvcf_input = add_callerpenalties_to_svvcf.out.vcf.cross(ch_ped_prescore)
+		ADDMOSTSEVERECONSEQUENCE_SV(
+			add_callerpenalties_to_svvcf.out.vcf.map { group, vcf -> tuple([id: group], vcf) },
+			channel.value(tuple([id: 'variant_consequences'], val_variant_consequences))
+		)
+		ch_versions = ch_versions.mix(moduleVersionsToYaml(
+			ADDMOSTSEVERECONSEQUENCE_SV.out.versions_addmostsevereconsequence.first()
+				.mix(ADDMOSTSEVERECONSEQUENCE_SV.out.versions_bgzip.first()),
+			'sv_consequence_versions.yml'
+		))
+
+		ch_add_geneticmodels_to_svvcf_input = ADDMOSTSEVERECONSEQUENCE_SV.out.vcf
+			.map { meta, vcf -> tuple(meta.id, vcf) }
+			.cross(ch_ped_prescore)
 			.map{
 				item ->
 				def group = item[0][0]

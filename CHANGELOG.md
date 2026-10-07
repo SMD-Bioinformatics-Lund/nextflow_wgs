@@ -3,10 +3,12 @@
 ### [Unreleased]
 
 #### Added
+* Annotate SNV/indel and SV VCFs with the unchanged `custom/addmostsevereconsequence` module using a shared consequence list in Perl rank order with VEP capitalization
 * Add workflow `MITOCHONDRIAL_ANALYSIS`
 * Add WGS coverage uniformity (IQR divided by median coverage) to Sentieon QC output for CDM
 
 #### Changed
+* Replace the variant-wide Perl consequence annotation with the module's per-HGNC consequence annotations while retaining existing panel/WGS scoring models
 * Pass the CFTR annotation flag through `NEXTFLOW_WGS` into `SNV_ANNOTATE` instead of reading `params.cftr` inside named workflows
 * Pass SNV split/normalize reference FASTA and index through workflow inputs instead of reading the reference FASTA from global params
 * Pass analysis type through workflow/process inputs instead of reading `params.antype` from global params
