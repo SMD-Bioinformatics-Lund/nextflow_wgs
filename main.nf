@@ -69,6 +69,7 @@ workflow {
 		.splitCsv(header: true)
 
     val_run_contamination_qc = params.antype == "wgs"
+    val_use_targeted_qc = params.antype == "panel"
     val_run_onco_depth = params.onco
     val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
     val_run_mito_qc = params.antype == "wgs"
