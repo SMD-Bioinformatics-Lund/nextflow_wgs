@@ -74,6 +74,7 @@ workflow {
     val_use_family_wgs_genmod_scoring = val_analysis_mode == "family" && params.antype == "wgs"
     val_run_mito_qc = params.antype == "wgs"
     val_run_mito_mutect2 = !params.onco
+    val_run_loqusdb_cron = !params.skip_loqusdb && !params.noupload && !params.reanalyze
 
 	NEXTFLOW_WGS(
 		ch_samplesheet,
@@ -100,7 +101,7 @@ workflow {
 		params.create_alt_affect_ped,
 		params.run_melt,
 		params.skip_mito,
-		params.skip_loqusdb,
+		val_run_loqusdb_cron,
 		params.cdm_assay,
 		params.crondir,
 		params.idsnps,
@@ -117,7 +118,8 @@ workflow {
 		val_run_mito_mutect2,
 		params.rCRS_fasta,
 		"/access/${params.subdir}/bam",
-        val_use_targeted_qc
+        val_use_targeted_qc,
+        params.loqusdb
 	)
 
 	ch_versions = ch_versions.mix(NEXTFLOW_WGS.out.versions).collect()
@@ -214,7 +216,7 @@ workflow NEXTFLOW_WGS {
 	val_create_alt_affect_ped                  // bool:    Whether family runs should create alternate affected-parent PEDs
 	val_run_melt                               // bool:    Whether melt should be run?
 	val_skip_mito                              // bool:    Whether mitochondrial analysis should be skipped
-	val_skip_loqusdb                           // bool:    Whether loqusdb upload should be skipped
+	val_run_loqusdb_cron                       // bool:    Whether to generate LoqusDB cron input files.
 	val_cdm_assay                              // string:  CDM assay name used when creating QC cron files.
 	val_cron_output_dir                        // string:  Base directory for cron input files.
 	val_idsnp_config                           // map:     ID-SNP reference paths.
@@ -232,6 +234,7 @@ workflow NEXTFLOW_WGS {
 	val_rcrs_fasta                             // path:    Mitochondrial rCRS FASTA.
 	val_mito_bam_accessdir                     // string:  Access path used in mitochondrial BAM output metadata.
     val_use_targeted_qc                        // bool:    Whether to restrict QC to target intervals and collect coverage and hybrid-selection metrics.
+    val_loqusdb_database                       // string:  Database passed to the LoqusDB cron load command.
 
 	main:
 	// Output channels:
@@ -865,9 +868,11 @@ workflow NEXTFLOW_WGS {
 			tuple(group, type, ped, vcf_snvs, vcf_svs)
 		}
 
-    if(!val_skip_loqusdb) {
+    if(val_run_loqusdb_cron) {
 	    add_to_loqusdb(
-		    ch_loqusdb_input
+		    ch_loqusdb_input,
+            val_loqusdb_database,
+            val_accessdir
 	    )
 	}
 
@@ -2776,20 +2781,19 @@ process add_to_loqusdb {
 	time '25m'
 	input:
 		tuple val(group), val(type), path(ped), path(vcf_snvs), path(vcf_svs)
+		val loqusdb_database
+		val accessdir
 
 	output:
 		path("${group}*.loqus"), emit: loqusdb_done
 
-	when:
-		!params.noupload && !params.reanalyze
-
 	script:
 
-		def sv_variants_arg = vcf_svs ?  "--sv-variants ${params.accessdir}/sv_vcf/merged/${vcf_svs}" : ""
+		def sv_variants_arg = vcf_svs ?  "--sv-variants ${accessdir}/sv_vcf/merged/${vcf_svs}" : ""
 
 
 		"""
-		echo "-db $params.loqusdb load -f ${params.accessdir}/ped/${ped} --variant-file ${params.accessdir}/vcf/${vcf_snvs} ${sv_variants_arg}" > "${group}.loqus"
+		echo "-db $loqusdb_database load -f ${accessdir}/ped/${ped} --variant-file ${accessdir}/vcf/${vcf_snvs} ${sv_variants_arg}" > "${group}.loqus"
 		"""
 
 	stub:
