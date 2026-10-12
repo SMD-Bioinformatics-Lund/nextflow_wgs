@@ -8,6 +8,7 @@
 * Add WGS coverage uniformity (IQR divided by median coverage) to Sentieon QC output for CDM
 
 #### Changed
+* Gate LoqusDB cron generation in the caller with an explicit flag and pass its database and access directory through process inputs
 * Pass the CFTR annotation flag through `NEXTFLOW_WGS` into `SNV_ANNOTATE` instead of reading `params.cftr` inside named workflows
 * Pass SNV split/normalize reference FASTA and index through workflow inputs instead of reading the reference FASTA from global params
 * Pass analysis type through workflow/process inputs instead of reading `params.antype` from global params
