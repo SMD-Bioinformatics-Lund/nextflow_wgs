@@ -16,10 +16,12 @@
 * Pass selected parameter values explicitly into `VALIDATE_PARAMETERS`
 * Pass ID-SNP references and output configuration through explicit workflow and process inputs
 * Pass general QC analysis type, reference FASTA, and target intervals through explicit process inputs
+* Update fastp to v1.4.0
 
 #### Fixed
 * Retain zero-depth quartiles when calculating Sentieon WGS coverage IQR
 * Control onco panel-depth calculation with an explicit flag and pass its reference files through workflow and process inputs
+* fastp runs now produce consistent outputs for onco runs on reruns
 
 #### Removed
 * Analysis mode (single/trio) from score_sv tag
