@@ -23,6 +23,7 @@
 
 #### Removed
 * Analysis mode (single/trio) from score_sv tag
+* Remove TIDDIT's redundant process-level `when` guard.
 
 ### 3.28.0
 
