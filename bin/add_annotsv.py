@@ -5,6 +5,7 @@ import cmdvcf
 import argparse
 import csv
 from collections import defaultdict
+from annotsv_join import AnnotSVTable
 
 def main(args: object):
     """
@@ -20,6 +21,8 @@ def main(args: object):
         annotsv_variants, annotsv_headers = read_annotsv_vcf(args.annotsv)
     
     vcf_header = join_headers(original_header,annotsv_headers)
+    if args.annotsv_keys:
+        vcf_header.add_meta('OLWGS_ANNOTSV_JOIN', 'original_allele_v1')
     vcf_out = VariantFile(args.out_vcf, "w", header=vcf_header)
     ## Using the built in print function of pysam, need to close filehandle. 
     ## Will use cmdvcf.py print function to write to the same output later
@@ -33,9 +36,12 @@ def main(args: object):
             # AnnotSV treats TDUP as DUP
             if svtype == "TDUP":
                 svtype = "DUP"
-            simple_id = f"{var.chrom}_{var.pos}_{var.stop}_{svtype}"
-            if simple_id in annotsv_variants:
-                var_dict['INFO'] = add_annotsv_annotations(var_dict['INFO'],annotsv_variants[simple_id]['INFO'])
+            if args.annotsv_keys:
+                annotation = annotsv_variants.lookup(var)
+            else:
+                simple_id = f"{var.chrom}_{var.pos}_{var.stop}_{svtype}"
+                annotation = annotsv_variants.get(simple_id, {}).get('INFO', {})
+            var_dict['INFO'] = add_annotsv_annotations(var_dict['INFO'], annotation)
             vcf_str = cmdvcf.vcf_string(var_dict,vcf_object.header)
             vcf_out.write(vcf_str)
             
@@ -103,19 +109,8 @@ def read_annotsv_tsv(annotsv_tsv: str, keys: str):
     from tsv.
     """
     add_keys = keys.split('-')
-    annotsv_variants = defaultdict(dict)
+    annotsv_variants = AnnotSVTable.read(annotsv_tsv, add_keys)
     headers = []
-    # Read TSV file into a dictionary
-    with open(annotsv_tsv, mode="r", encoding="utf-8") as file:
-        reader = csv.DictReader(file, delimiter="\t")
-        for row in reader:
-            info_dict = {}
-            simple_id = f"{row['SV_chrom']}_{row['SV_start']}_{row['SV_end']}_{row['SV_type']}"
-            for key in row:
-                if key in add_keys:
-                    if len(row[key]) > 0:
-                        info_dict[key] = row[key]
-            annotsv_variants[simple_id]['INFO'] = info_dict
     for key in add_keys:
         info_dict = {}
         info_dict['key'] = key
@@ -156,8 +151,9 @@ def parse_arguments():
         help="name of output.vcf"
     )
     args = parser.parse_args()
+    args.annotsv_keys = None
     if args.annotsv_tsv:
-        file_keys = args.annotsv_tsv.split(':')
+        file_keys = args.annotsv_tsv.rsplit(':', 1)
         args.annotsv = file_keys[0]
         args.annotsv_keys = file_keys[1]
     elif args.annotsv_vcf:

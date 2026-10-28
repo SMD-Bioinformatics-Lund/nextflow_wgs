@@ -758,7 +758,7 @@ workflow NEXTFLOW_WGS {
 		
 		ch_ped_prescore = ch_ped_trio_affected_permutations
 		ch_add_annotsv_input = bcftools_annotate_dbvar.out.vcf.join(annotsv.out.annotsv_tsv) // ch: group,  path(vcf), path(tbi), path(annotsv_tsv)
-		add_annotsv_to_svvcf(ch_add_annotsv_input)
+		add_annotsv_to_svvcf(ch_add_annotsv_input, channel.value(file("${projectDir}/bin/annotsv_join.py")))
 		add_omim_morbid_to_svvcf(add_annotsv_to_svvcf.out.vcf)
 		add_callerpenalties_to_svvcf(add_omim_morbid_to_svvcf.out.vcf)
 
@@ -3120,6 +3120,7 @@ process add_annotsv_to_svvcf {
 
 	input:
 		tuple val(group), path(vcf), path(tbi), path(tsv)
+		path annotsv_join_code
 
 	output:
 		tuple val(group), path("${group}.sv.annotatedSV.vcf"), emit: vcf

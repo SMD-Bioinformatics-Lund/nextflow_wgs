@@ -75,6 +75,39 @@ Additional useful arguments:
 * `-resume` If possible, continue a previous run and only rerun required steps.
 * `-w` Specify the location of the work folder (default is in the same folder as `main.nf`)
 
+### Refresh SV results after the AnnotSV join repair
+
+The TSV join now verifies original variant IDs, alleles and positions instead
+of requiring AnnotSV's derived deletion endpoint to equal the VCF REF span.
+It also supports exact allele matches after IDs change, skips split-mode rows,
+and rejects conflicting annotations. Missing classes remain missing. This does
+not change the scoring model, variant alleles, genotypes or calling settings.
+
+Deploy `main.nf`, `bin/add_annotsv.py` and `bin/annotsv_join.py` together. The join
+module is an explicit task input so its changes invalidate the cached join.
+No container rebuild is required: it uses the existing Python/pysam/cmdvcf
+dependencies and the scripts from the pipeline checkout.
+
+Resume the original production command with its original configuration, inputs,
+launch directory, work directory and `-resume` (or the original run/session ID).
+Nextflow can reuse alignment, callers, VEP, database queries and AnnotSV TSVs.
+The required refresh starts at `add_annotsv_to_svvcf`, then runs its downstream
+OMIM, caller-penalty, genetic-model and `score_sv` stages, compression/indexing,
+and dependent final exports. Existing AnnotSV TSVs already contain the classes;
+they do not need regenerating solely for this join repair.
+
+The joined VCF contains `##OLWGS_ANNOTSV_JOIN=original_allele_v1`. Keep baseline
+outputs separately if a published output directory would otherwise overwrite
+them. Update downstream comparison/report inputs to the refreshed scored VCFs;
+already imported cases require the site's normal refresh/reimport to show new
+scores. Re-running reports against old scored VCFs does not apply the fix.
+
+Validate the join helper with:
+
+```bash
+python -m pytest -q tests/test_annotsv_join.py
+```
+
 ### Running as a batch script
 
 Note that if you are running jobs on Hopper in CMD, Lund, production jobs should be started using the `start_nextflow_analysis.pl` script.
