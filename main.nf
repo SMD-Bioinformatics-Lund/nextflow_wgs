@@ -238,7 +238,7 @@ workflow NEXTFLOW_WGS {
 	val_mito_bam_accessdir                     // string:  Access path used in mitochondrial BAM output metadata.
     val_use_targeted_qc                        // bool:    Whether to restrict QC to target intervals and collect coverage and hybrid-selection metrics.
     val_run_peddy_qc                           // bool:    Whether to run Peddy QC and its CDM conversion.
-    val_loqusdb_dbname                       // string:  Database passed to the LoqusDB cron load command.
+    val_loqusdb_database_name                  // string:  Database passed to the LoqusDB cron load command.
 
 	main:
 	// Output channels:
@@ -866,7 +866,7 @@ workflow NEXTFLOW_WGS {
     if(val_run_loqusdb_cron) {
 	    add_to_loqusdb(
 		    ch_loqusdb_input,
-            val_loqusdb_dbname,
+            val_loqusdb_database_name,
             val_accessdir
 	    )
 	}
@@ -2687,7 +2687,7 @@ process add_to_loqusdb {
 	time '25m'
 	input:
 		tuple val(group), val(type), path(ped), path(vcf_snvs), path(vcf_svs)
-		val loqusdb_database
+		val loqusdb_database_name
 		val accessdir
 
 	output:
@@ -2699,7 +2699,7 @@ process add_to_loqusdb {
 
 
 		"""
-		echo "-db $loqusdb_database load -f ${accessdir}/ped/${ped} --variant-file ${accessdir}/vcf/${vcf_snvs} ${sv_variants_arg}" > "${group}.loqus"
+		echo "-db $loqusdb_database_name load -f ${accessdir}/ped/${ped} --variant-file ${accessdir}/vcf/${vcf_snvs} ${sv_variants_arg}" > "${group}.loqus"
 		"""
 
 	stub:
