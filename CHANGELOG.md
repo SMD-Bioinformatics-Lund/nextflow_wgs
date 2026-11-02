@@ -6,6 +6,7 @@
 
 #### Changed
 * Update fastp to v1.4.0
+* Migrate loqusdb cron inputs from global params to workflows inputs 
 
 #### Fixed
 * fastp runs now produce consistent outputs for onco runs on reruns
