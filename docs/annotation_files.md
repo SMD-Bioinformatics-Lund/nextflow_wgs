@@ -44,6 +44,29 @@ GATK
 artefacts                                                                                                                                                                                                                                    |
 ## Preparing annotation files
 
+### Tentative gnomAD SV annotation
+
+`GNOMAD_SV` supplies the gnomAD sites VCF for an SVDB query before VEP,
+following Nallo's separation of population matching and consequence annotation.
+Each source record must contain numeric `AC` and `AF`, plus `END` or `SVLEN`.
+Older slim resources produced by `bin/reference_tools/banta_gnomad_sv.py` omit
+`AC`: regenerate them with the updated script, or supply a sites VCF containing
+both fields. The workflow checks that SVDB retains every query record.
+
+The query writes `gnomad_svAF` and `gnomad_svAC` to INFO. Both live SV rank
+models read `gnomad_svAF`; their score thresholds are unchanged. Deploy the
+updated models together with this workflow, including any external copies.
+The former VEP custom fields (`CSQ/gnomad`, `gnomad_AF`, `gnomad_FREQ_HOMALT`
+and `gnomad_SVTYPE`) are no longer produced by this annotation step.
+
+Matching explicitly uses Nallo's SVDB 2.8 query defaults: same variant type,
+overlap 0.6, both breakpoints within 10,000 bp, and insertion distance 50 bp.
+For DEL/DUP/INV, this version measures overlap as intersection divided by the
+span covering both intervals, not 70% reciprocal overlap. Frequency and count
+come from the best geometric match, not the maximum AF among qualifying
+matches. Source FILTER values are not restricted by this query. The existing
+OLWGS SVDB container and local artefact-frequency lookup are unchanged.
+
 This is a non-comprehensive documentation on how some of the reference files can be prepared. If you miss instructions for some annotation file, please open an issue in the [GitHub repository](https://github.com/Clinical-Genomics-Lund/nextflow_wgs/issues).
 
 ### Preparing reference and indexes

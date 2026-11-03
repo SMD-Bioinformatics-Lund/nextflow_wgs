@@ -5,6 +5,7 @@
 #### Added 
 
 #### Changed
+* Tentatively annotate gnomAD SV frequencies with SVDB before VEP and use INFO/gnomad_svAF in the live SV rank models.
 * Update fastp to v1.4.0
 
 #### Fixed

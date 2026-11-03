@@ -5,6 +5,7 @@ include { CALL_AND_ANNOTATE_STRS } from './workflows/call_and_annotate_strs.nf'
 include { CALL_SNVS              } from './workflows/call_snvs.nf'
 include { IDSNP_CALL             } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON      } from './modules/idsnp.nf'
+include { gnomad_sv             } from './modules/gnomad_sv.nf'
 include { MELT                   } from './workflows/melt.nf'
 include { MITOCHONDRIAL_ANALYSIS } from './workflows/mitochondrial.nf'
 include { PED                  } from './workflows/ped.nf'
@@ -741,12 +742,14 @@ workflow NEXTFLOW_WGS {
 		filter_proband_null_calls(ch_filter_proband_null_calls_in)
 		tdup_to_dup(filter_proband_null_calls.out.filtered_vcf)
 		annotsv(tdup_to_dup.out.renamed_vcf)
-		vep_sv(tdup_to_dup.out.renamed_vcf)
+		gnomad_sv(tdup_to_dup.out.renamed_vcf, file(params.GNOMAD_SV, checkIfExists: true))
+		vep_sv(gnomad_sv.out.vcf)
 		postprocess_vep_sv(vep_sv.out.vep_sv_vcf)
 		artefact(postprocess_vep_sv.out.merged_processed_vcf)
 		bcftools_annotate_dbvar(artefact.out.vcf)
 
 		ch_versions = ch_versions.mix(annotsv.out.versions.first())
+		ch_versions = ch_versions.mix(gnomad_sv.out.versions.first())
 		ch_versions = ch_versions.mix(vep_sv.out.versions.first())
 		ch_versions = ch_versions.mix(postprocess_vep_sv.out.versions.first())
 		ch_versions = ch_versions.mix(artefact.out.versions.first())
@@ -2731,7 +2734,7 @@ process filter_proband_null_calls {
 }
 
 process tdup_to_dup {
-	// in order for vep_sv to match on SVTYPE for gnomadSV TDUP needs to go
+	// Normalize SVTYPE before population matching and consequence annotation.
 	tag "$group"
 	cpus 2
 	memory '5 GB'
@@ -2834,7 +2837,6 @@ process vep_sv {
 			--dir_plugins $params.VEP_PLUGINS \\
 			--max_sv_size $params.VEP_MAX_SV_SIZE \\
 			--distance $params.VEP_TRANSCRIPT_DISTANCE \\
-			--custom file=$params.GNOMAD_SV,short_name=gnomad,fields=AF%FREQ_HOMALT%SVTYPE,format=vcf,reciprocal=1,overlap_cutoff=70,same_type=1 \\
 			-cache \\
 			--format vcf
 

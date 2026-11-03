@@ -15,6 +15,7 @@ KEYS_TO_KEEP = [
     "SVLEN",
     "SVTYPE",
     "AF",
+    "AC",
     "N_HOMREF",
     "N_HET",
     "N_HOMALT",
