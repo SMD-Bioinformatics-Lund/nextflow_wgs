@@ -6,6 +6,7 @@
 
 #### Changed
 * Update fastp to v1.4.0
+* Pass Gens inputs through workflow inputs
 
 #### Fixed
 * fastp runs now produce consistent outputs for onco runs on reruns
