@@ -44,6 +44,36 @@ GATK
 artefacts                                                                                                                                                                                                                                    |
 ## Preparing annotation files
 
+### gnomAD SV annotation
+
+`GNOMAD_SV` points to the existing slim gnomAD sites VCF produced by
+`bin/reference_tools/banta_gnomad_sv.py`. No regeneration or `AC` field is
+required. Each record must contain scalar numeric `N_HET` and `AF`; the
+workflow validates these before querying so SVDB cannot silently skip records
+with missing annotations. Empty references are rejected.
+
+The gnomAD step uses its own `container_gnomad_sv`, pinned to SVDB 2.12.2.
+The configured BioContainers image is downloaded and cached by Singularity;
+the parameter can also point to a locally provisioned SIF. Other SVDB steps
+continue to use `container_svdb`.
+
+SVDB copies `N_HET` to `INFO/gnomad_svN_HET` (heterozygote count, not allele
+count) and `AF` to `INFO/gnomad_svAF`. Counts do not determine which match is
+selected, and AF is not recalculated from the count. Both live SV rank models
+read `gnomad_svAF` with their existing score thresholds. Deploy any external
+copies of the models together with the workflow. The former VEP custom
+fields `gnomad_AF`, `gnomad_FREQ_HOMALT` and `gnomad_SVTYPE` are no longer
+produced in CSQ.
+
+Matching requires the same variant type, overlap 0.6 and both breakpoints
+within 10,000 bp. Interval overlap is intersection divided by the span
+covering both intervals, not VEP's former 70% reciprocal overlap. The SVDB
+`cohort` profile sets insertion distance to 50 bp, minimum insertion length
+ratio to 0.8 and sequence similarity to 0.75 where sequences are available.
+Symbolic insertions without sequence use position and available length.
+The best geometric match supplies AF, rather than the maximum AF over all
+qualifying matches. Source FILTER values are not restricted.
+
 This is a non-comprehensive documentation on how some of the reference files can be prepared. If you miss instructions for some annotation file, please open an issue in the [GitHub repository](https://github.com/Clinical-Genomics-Lund/nextflow_wgs/issues).
 
 ### Preparing reference and indexes
