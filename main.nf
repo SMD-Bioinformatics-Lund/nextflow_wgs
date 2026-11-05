@@ -5,11 +5,11 @@ include { CALL_AND_ANNOTATE_STRS } from './workflows/call_and_annotate_strs.nf'
 include { CALL_SNVS              } from './workflows/call_snvs.nf'
 include { IDSNP_CALL             } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON      } from './modules/idsnp.nf'
-include { gnomad_sv             } from './modules/gnomad_sv.nf'
+include { GNOMAD_SV              } from './modules/gnomad_sv.nf'
 include { MELT                   } from './workflows/melt.nf'
 include { MITOCHONDRIAL_ANALYSIS } from './workflows/mitochondrial.nf'
-include { PED                  } from './workflows/ped.nf'
-include { PEDDY_QC             } from './workflows/peddy_qc.nf'
+include { PED                    } from './workflows/ped.nf'
+include { PEDDY_QC               } from './workflows/peddy_qc.nf'
 include { QC_TO_CDM              } from './workflows/qc_to_cdm.nf'
 include { SNV_ANNOTATE           } from './workflows/annotate_snvs.nf'
 include { SPLIT_NORMALIZE_SNVS   } from './workflows/split_normalize_snvs.nf'
@@ -742,14 +742,14 @@ workflow NEXTFLOW_WGS {
 		filter_proband_null_calls(ch_filter_proband_null_calls_in)
 		tdup_to_dup(filter_proband_null_calls.out.filtered_vcf)
 		annotsv(tdup_to_dup.out.renamed_vcf)
-		gnomad_sv(tdup_to_dup.out.renamed_vcf, file(params.GNOMAD_SV, checkIfExists: true))
-		vep_sv(gnomad_sv.out.vcf)
+		GNOMAD_SV(tdup_to_dup.out.renamed_vcf, file(params.GNOMAD_SV, checkIfExists: true))
+		vep_sv(GNOMAD_SV.out.vcf)
 		postprocess_vep_sv(vep_sv.out.vep_sv_vcf)
 		artefact(postprocess_vep_sv.out.merged_processed_vcf)
 		bcftools_annotate_dbvar(artefact.out.vcf)
 
 		ch_versions = ch_versions.mix(annotsv.out.versions.first())
-		ch_versions = ch_versions.mix(gnomad_sv.out.versions.first())
+		ch_versions = ch_versions.mix(GNOMAD_SV.out.versions.first())
 		ch_versions = ch_versions.mix(vep_sv.out.versions.first())
 		ch_versions = ch_versions.mix(postprocess_vep_sv.out.versions.first())
 		ch_versions = ch_versions.mix(artefact.out.versions.first())

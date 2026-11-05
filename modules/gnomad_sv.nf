@@ -1,5 +1,5 @@
 // Population frequencies use SVDB before VEP, as in Nallo's ANNOTATE_SVS.
-process gnomad_sv {
+process GNOMAD_SV {
     tag "$group"
     cpus 2
     memory '10 GB'
