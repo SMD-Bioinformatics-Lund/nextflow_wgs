@@ -4,7 +4,7 @@ process GNOMAD_SV {
     cpus 2
     memory '10 GB'
     time '10h'
-    container "${params.container_gnomad_sv}"
+    container "${params.container_svdb_2_12_2}"
 
     input:
     tuple val(group), val(id), path(vcf)
@@ -18,12 +18,15 @@ process GNOMAD_SV {
     """
     # N_HET is already retained in the slim reference. It is copied as a count;
     # matching uses geometry/type, and AF is copied directly from the best match.
+    # VEP used 70% reciprocal overlap with no breakpoint-distance cutoff.
+    # SVDB uses intersection/span instead. A 50 kb endpoint-distance limit
+    # allows larger shifts while keeping candidate lookups local.
     svdb \\
         --query \\
         --db ${database} \\
         --in_occ N_HET --in_frq AF \\
         --out_occ gnomad_svN_HET --out_frq gnomad_svAF \\
-        --overlap 0.6 --bnd_distance 10000 --data_profile cohort \\
+        --overlap 0.6 --bnd_distance 50000 --data_profile cohort \\
         --query_vcf ${vcf} > ${group}.gnomad.vcf
 
     # Ensure annotation does not lose query records.
