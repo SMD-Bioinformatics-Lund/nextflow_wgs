@@ -21,6 +21,7 @@ process GNOMAD_SV {
     # VEP used 70% reciprocal overlap with no breakpoint-distance cutoff.
     # SVDB uses intersection/span instead. A 50 kb endpoint-distance limit
     # allows larger shifts while keeping candidate lookups local.
+    # --data_profile cohort sets preset settings for INS
     svdb \\
         --query \\
         --db ${database} \\
