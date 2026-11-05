@@ -5,6 +5,7 @@
 #### Added 
 
 #### Changed
+* Tentatively annotate gnomAD SV frequencies with SVDB 2.12.2 before VEP using existing slim references (N_HET/AF, no AC required), and use INFO/gnomad_svAF in the live SV rank models. Match using intersection/span overlap 0.6 and a 50 kb breakpoint-distance limit, replacing VEP's former 70% reciprocal overlap without a distance limit.
 * Update fastp to v1.4.0
 
 #### Fixed
