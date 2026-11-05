@@ -16,8 +16,6 @@ process gnomad_sv {
 
     script:
     """
-    validate_gnomad_sv.py ${database}
-
     # N_HET is already retained in the slim reference. It is copied as a count;
     # matching uses geometry/type, and AF is copied directly from the best match.
     svdb \\

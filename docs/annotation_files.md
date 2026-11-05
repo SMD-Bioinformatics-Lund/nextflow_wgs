@@ -48,9 +48,11 @@ artefacts                                                                       
 
 `GNOMAD_SV` points to the existing slim gnomAD sites VCF produced by
 `bin/reference_tools/banta_gnomad_sv.py`. No regeneration or `AC` field is
-required. Each record must contain scalar numeric `N_HET` and `AF`; the
-workflow validates these before querying so SVDB cannot silently skip records
-with missing annotations. Empty references are rejected.
+required. When provisioning or updating the reference, check that it contains
+variant records and that every record has a scalar integer `N_HET >= 0` and
+a finite scalar `AF` between 0 and 1. These are reference setup checks, not
+part of each pipeline run. SVDB warns and skips reference records missing
+either field.
 
 The gnomAD step uses its own `container_gnomad_sv`, pinned to SVDB 2.12.2.
 The configured BioContainers image is downloaded and cached by Singularity;

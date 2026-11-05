@@ -1,11 +1,10 @@
-"""Reference validation and optional native SVDB 2.12.2/Nextflow regression checks."""
+"""Optional native SVDB 2.12.2/Nextflow and rank model regression checks."""
 
 import gzip
 import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 
 import pytest
 
@@ -19,45 +18,6 @@ HEADER = """##fileformat=VCFv4.2
 ##INFO=<ID=N_HET,Number=1,Type=Integer,Description="Heterozygote count">
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
 """
-
-
-def write_source(path, info):
-    content = HEADER + f"1\t10000\tref\tN\t<DEL>\t.\tPASS\tSVTYPE=DEL;END=14900;{info}\n"
-    opener = gzip.open if str(path).endswith(".gz") else open
-    with opener(path, "wt") as output:
-        output.write(content)
-
-
-def validate(path):
-    return subprocess.run(
-        [sys.executable, str(ROOT / "bin/validate_gnomad_sv.py"), str(path)],
-        capture_output=True, text=True, timeout=10,
-    )
-
-
-@pytest.mark.parametrize("suffix", [".vcf", ".vcf.gz"])
-@pytest.mark.parametrize("count", [0, 10])
-def test_existing_slim_reference_without_ac(tmp_path, suffix, count):
-    source = tmp_path / f"source{suffix}"
-    write_source(source, f"AF=0.02;N_HET={count}")
-    result = validate(source)
-    assert result.returncode == 0, result.stderr
-
-
-@pytest.mark.parametrize("info", [
-    "AF=0.02", "N_HET=2", "AF=.;N_HET=2", "AF=nan;N_HET=2",
-    "AF=0.02;N_HET=-1", "AF=1.1;N_HET=2", "AF=0.01,0.02;N_HET=2",
-])
-def test_incomplete_or_invalid_reference_is_rejected(tmp_path, info):
-    source = tmp_path / "source.vcf"
-    write_source(source, info)
-    assert validate(source).returncode != 0
-
-
-def test_header_only_reference_is_rejected(tmp_path):
-    source = tmp_path / "source.vcf"
-    source.write_text(HEADER)
-    assert "contains no variant records" in validate(source).stderr
 
 
 def run_annotation(tmp_path, source, query):
@@ -82,7 +42,7 @@ process.publishDir = [path: 'out', mode: 'copy']
     return subprocess.run(
         ["nextflow", "run", "test.nf", "-c", "test.config", "-ansi-log", "false"],
         cwd=tmp_path, capture_output=True, text=True, timeout=120,
-        env={**os.environ, "NXF_OFFLINE": "true", "PATH": f"{ROOT / 'bin'}:{os.environ['PATH']}"},
+        env={**os.environ, "NXF_OFFLINE": "true"},
     )
 
 
@@ -132,16 +92,6 @@ def test_native_matching_keeps_af_with_zero_heterozygotes(tmp_path):
         else:
             assert "gnomad_svAF" not in info
     assert "2.12.2" in (tmp_path / "out/gnomad_sv_versions.yml").read_text()
-
-
-def test_native_annotation_rejects_missing_source_count(tmp_path):
-    result = run_annotation(
-        tmp_path,
-        ["1\t10000\tref\tN\t<DEL>\t.\tPASS\tSVTYPE=DEL;END=14900;AF=0.02"],
-        ["1\t10000\tquery\tN\t<DEL>\t50\tPASS\tSVTYPE=DEL;END=15000"],
-    )
-    assert result.returncode != 0
-    assert "requires scalar numeric N_HET and AF" in result.stdout + result.stderr
 
 
 @pytest.mark.parametrize("model", ["sv_rank_model_v5.3.ini", "sv_rank_model_panel_v1.1.ini"])
