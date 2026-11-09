@@ -87,7 +87,10 @@ def symbolic_class(alt):
 def interval(columns, info):
     """Return an anchor-free half-open interval and a reference SO class."""
     pos, ref, alt = int(columns[1]), columns[3], columns[4]
-    if re.fullmatch(r'[ACGTN]+', ref, re.I) and re.fullmatch(r'[ACGTN]+', alt, re.I):
+    # VEP uses SVTYPE/SVLEN for alleles containing unknown bases, including
+    # Manta's combined insertion/deletion records with N-padded REF alleles.
+    structural = info.get("SVTYPE") and not re.fullmatch(r'[ACGT]+', ref + alt)
+    if not structural and re.fullmatch(r'[ACGTN]+', ref, re.I) and re.fullmatch(r'[ACGTN]+', alt, re.I):
         ref, alt = ref.upper(), alt.upper()
         prefix = 0
         while prefix < min(len(ref), len(alt)) and ref[prefix] == alt[prefix]:
@@ -106,6 +109,8 @@ def interval(columns, info):
         return None
 
     kind = symbolic_class(alt)
+    if not kind and structural and "," not in alt:
+        kind = symbolic_class(info["SVTYPE"])
     if not kind or kind == "chromosome_breakpoint":
         return None
     length = info.get("SVLEN", ".").split(",")[0]

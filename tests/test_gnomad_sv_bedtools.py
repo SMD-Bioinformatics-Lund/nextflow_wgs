@@ -126,6 +126,40 @@ def test_sequence_and_symbolic_insertions_use_the_same_length_interval(annotate,
     assert annotations[0][0]["gnomad"] == "same"
 
 
+@pytest.mark.parametrize("deleted, inserted", [
+    (20, 201), (20, 119), (201, 2), (20, 64), (37, 141), (38, 81), (20, 162),
+])
+def test_manta_mixed_indels_with_unknown_reference_use_vep_sv_coordinates(annotate, deleted, inserted):
+    kind = "INS" if inserted > deleted else "DEL"
+    length = max(deleted, inserted)
+    original = query(length=length, symbolic=True, kind=kind)
+    original[3:5] = ["A" + "N" * deleted, "A" + "T" * inserted]
+    end = 1000 if kind == "INS" else 1000 + length
+    original[7] = original[7].replace("END={};".format(end), "END={};".format(1000 + deleted))
+    original[7] += ";CIGAR=1M{}I{}D".format(inserted, deleted)
+    shift = 3 * length // 10
+    rows, annotations, _ = annotate([original], [
+        reference(length=length, kind=kind, name="same"),
+        reference(1000 + shift, length, kind=kind, name="seventy_percent"),
+        reference(1001 + shift, length, kind=kind, name="below_threshold", af="0.9"),
+        reference(length=length, kind="DEL" if kind == "INS" else "INS", name="wrong_type", af="0.8"),
+    ])
+    assert rows[0][:7] == original[:7]
+    assert rows[0][8:] == original[8:]
+    assert ";CIGAR=1M{}I{}D".format(inserted, deleted) in rows[0][7]
+    for consequence in annotations[0]:
+        assert [consequence[field] for field in GNOMAD_FIELDS] == [
+            "same&seventy_percent", "0.03&0.03", "0.001&0.001", "{}&{}".format(kind, kind)]
+
+
+def test_sequence_with_unknown_bases_without_svtype_still_uses_alleles(annotate):
+    original = query(length=79)
+    original[3] = "A" + "N" * 79
+    original[7] = original[7].replace(";SVTYPE=DEL", "")
+    _, annotations, _ = annotate([original], [reference(length=79)])
+    assert annotations[0][0]["gnomad"] == "r"
+
+
 def test_record_limit_and_source_order_match_vep_default(annotate):
     refs = [reference(name="r{}".format(index), af="0.0001") for index in range(50)]
     refs += [reference(name="over_limit", af="0.9")]
