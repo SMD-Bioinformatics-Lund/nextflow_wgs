@@ -213,10 +213,11 @@ chr2\t5000\t6000\tdefault_annot
     out_dir = tmp_path
     padding = 5
 
-    current_new_to_add, current_old_to_remove = compare_clinvar(
+    current_all_to_add, current_new_to_add, current_old_to_remove = compare_clinvar(
         new_clinvar, old_clinvar, final_bed_path, padding, out_dir, keep_tmp=False
     )
 
+    assert current_all_to_add == expected_new_to_add
     assert current_new_to_add == expected_new_to_add
     assert current_old_to_remove == expected_old_to_remove
 
