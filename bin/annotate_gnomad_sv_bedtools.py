@@ -3,6 +3,7 @@
 
 import argparse
 import gzip
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -36,7 +37,9 @@ def records(path):
             columns = line.rstrip("\n").split("\t")
             if len(columns) < 8:
                 raise ValueError("{}: record {} has fewer than eight columns".format(path, row))
-            yield row, columns, dict(field.split("=", 1) for field in columns[7].split(";") if "=" in field)
+            info = dict(field.split("=", 1) if "=" in field else (field, None)
+                        for field in columns[7].split(";"))
+            yield row, columns, info
 
 
 def csq_schema(line):
@@ -137,9 +140,19 @@ def prepare_beds(vcf, database, synonyms, query_bed, reference_bed):
         for row, columns, info in records(database):
             span = interval(columns, info)
             if span:
-                name = columns[2] if columns[2] != "." else "{}:{}-{}".format(chrom(columns[0]), span[0] + 1, span[1])
-                values = (chrom(columns[0]), span[0], span[1], row, "0", ".", name, span[2],
-                          info.get("AF", "."), info.get("FREQ_HOMALT", "."), info.get("SVTYPE", "."))
+                # VEP reports the first ID, or source coordinates when it is absent.
+                name = columns[2].split(";")[0]
+                if name in ("", ".", "0"):
+                    name = "{}:{}-{}".format(columns[0], span[0] + 1, span[1])
+                data = []
+                for field in ("AF", "FREQ_HOMALT", "SVTYPE"):
+                    value = info.get(field, "")
+                    value = "1" if value is None else value  # VEP reports INFO flags as 1.
+                    parts = value.split(",")
+                    if len(parts) == len(columns[4].split(",")) + 1:
+                        value = ",".join(parts[1:])  # Discard a value for REF, as VEP does.
+                    data.append(value)
+                values = (chrom(columns[0]), span[0], span[1], row, "0", ".", name, span[2], json.dumps(data))
                 output.write("\t".join(map(str, values)) + "\n")
     return schema
 
@@ -159,7 +172,7 @@ def find_matches(query_bed, reference_bed, overlaps):
             overlap = min(q_end, r_end) - max(q_start, r_start)
             if (values[6] == values[14] and 10 * overlap >= 7 * (q_end - q_start)
                     and 10 * overlap >= 7 * (r_end - r_start)):
-                fields = [values[13], values[15], values[16], values[17]]
+                fields = [values[13]] + json.loads(values[15])
                 matches.setdefault(int(values[3]), []).append((int(values[10]), fields))
     return matches
 
@@ -168,21 +181,36 @@ def annotation_values(matches):
     ordered = sorted(matches)
     selected = [entry[1] for entry in ordered[:MAX_RECORDS]]
     # Preserve every reported match, so existing CSQ/max-AF scoring remains valid.
-    values = ["&".join("" if entry[index] == "." else entry[index] for entry in selected) for index in range(4)]
+    # VEP omits absent INFO fields from each list, but keeps literal '.' values.
+    values = ["&".join(entry[index] for entry in selected if entry[index] != "") for index in range(4)]
     if len(ordered) > MAX_RECORDS:
         values[0] += "&..."
-    return [value.replace(",", "&").replace("|", "%7C").replace(";", "%3B") for value in values]
+    return [re.sub(r"\s+", "_", value.replace(",", "&").replace(";", "%3B")).replace("|", "&")
+            if value != "-" else "" for value in values]
 
 
-def write_annotations(vcf, output, schema, matches):
+def write_annotations(vcf, output, schema, matches, database):
     fields = schema + [field for field in FIELDS if field not in schema]
     indexes = [fields.index(field) for field in FIELDS]
+    header_ids = set()
     row = 0
     with open_vcf(vcf) as source, open(output, "w") as target:
         for line in source:
             if line.startswith("#"):
+                info_header = re.match(r"##INFO=<ID=([^,]+),", line)
+                if info_header:
+                    header_ids.add(info_header.group(1))
                 if csq_schema(line):
                     line = line.replace("Format: " + "|".join(schema), "Format: " + "|".join(fields), 1)
+                if line.startswith(("##VEP-command-line=", "#CHROM")):
+                    # Restore VEP's custom INFO headers. The configured database
+                    # uses an absolute path, which VEP masks to [PATH]/basename.
+                    for field in FIELDS:
+                        if field not in header_ids:
+                            description = (field[len("gnomad_"):] + " field from " if field != "gnomad" else "")
+                            description += "[PATH]/" + Path(database).name
+                            target.write('##INFO=<ID={},Number=.,Type=String,Description="{}">\n'.format(field, description))
+                    header_ids.update(FIELDS)
                 target.write(line)
                 continue
             if not line.strip():
@@ -216,7 +244,7 @@ def main():
         query, reference, overlaps = (Path(work) / name for name in ("query.bed", "reference.bed", "overlaps.tsv"))
         schema = prepare_beds(args.vcf, args.database, args.synonyms, query, reference)
         matches = find_matches(query, reference, overlaps)
-        write_annotations(args.vcf, args.output, schema, matches)
+        write_annotations(args.vcf, args.output, schema, matches, args.database)
 
 
 if __name__ == "__main__":

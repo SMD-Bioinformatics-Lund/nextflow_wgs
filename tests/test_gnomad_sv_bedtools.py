@@ -29,10 +29,11 @@ def reference(pos=1000, length=500, *, kind="DEL", af="0.03", hom="0.001", name=
             "END={};SVLEN={};SVTYPE={};AF={};FREQ_HOMALT={}".format(pos + length, length, kind, af, hom)]
 
 
-def write_vcf(path, variants, schema=None):
+def write_vcf(path, variants, schema=None, extra_headers=()):
     text = "##fileformat=VCFv4.2\n"
     if schema:
         text += '##INFO=<ID=CSQ,Number=.,Type=String,Description="Consequence annotations from Ensembl VEP. Format: {}">\n'.format("|".join(schema))
+    text += "".join(line + "\n" for line in extra_headers)
     text += "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsample\n"
     text += "".join("\t".join(variant) + "\n" for variant in variants)
     if str(path).endswith(".gz"):
@@ -44,10 +45,10 @@ def write_vcf(path, variants, schema=None):
 
 @pytest.fixture
 def annotate(tmp_path):
-    def run(queries, references, schema=None):
+    def run(queries, references, schema=None, extra_headers=()):
         source, database, synonyms, output = (tmp_path / name for name in (
             "query.vcf", "reference.vcf.gz", "synonyms", "annotated.vcf"))
-        write_vcf(source, queries, schema or SCHEMA)
+        write_vcf(source, queries, schema or SCHEMA, extra_headers)
         write_vcf(database, references)
         synonyms.write_text("1\tchr1\tNC_000001.11\nMT\tchrM\n")
         subprocess.run([sys.executable, str(SCRIPT), "--vcf", str(source),
@@ -148,10 +149,73 @@ def test_duplicate_ids_do_not_mix_variants(annotate):
     assert annotations[1][0]["gnomad_AF"] == "0.03"
 
 
-def test_zero_af_and_missing_values(annotate):
+# These output expectations were checked against the unmodified VEP 114.2
+# AnnotationSource/File/VCF.pm and OutputFactory/VCF.pm methods.
+def test_zero_af_and_literal_missing_values_are_retained(annotate):
     _, annotations, _ = annotate([query()], [reference(af="0", hom=".")])
     assert annotations[0][0]["gnomad_AF"] == "0"
-    assert annotations[0][0]["gnomad_FREQ_HOMALT"] == ""
+    assert annotations[0][0]["gnomad_FREQ_HOMALT"] == "."
+
+
+def test_absent_fields_are_omitted_from_lists_as_in_vep(annotate):
+    refs = [reference(name="r1", hom="."), reference(name="r2", af="0.02")]
+    refs[0][7] = refs[0][7].replace(";AF=0.03", "").replace(";SVTYPE=DEL", "")
+    refs[1][7] = refs[1][7].replace(";FREQ_HOMALT=0.001", "")
+    _, annotations, _ = annotate([query(symbolic=True)], refs)
+    assert [annotations[0][0][field] for field in GNOMAD_FIELDS] == ["r1&r2", "0.02", ".", "DEL"]
+
+
+@pytest.mark.parametrize("af, hom, expected_af, expected_hom", [
+    ("0.97,0.03", "0.999,0.001", "0.03", "0.001"),
+    ("0.01,0.02,0.03", ".", "0.01&0.02&0.03", "."),
+])
+def test_reference_field_lists_follow_vep_allele_handling(annotate, af, hom, expected_af, expected_hom):
+    _, annotations, _ = annotate([query(symbolic=True)], [reference(af=af, hom=hom)])
+    assert annotations[0][0]["gnomad_AF"] == expected_af
+    assert annotations[0][0]["gnomad_FREQ_HOMALT"] == expected_hom
+
+
+def test_reference_info_flags_are_reported_as_one(annotate):
+    ref = reference()
+    ref[7] = ref[7].replace("AF=0.03", "AF")
+    _, annotations, _ = annotate([query(symbolic=True)], [ref])
+    assert annotations[0][0]["gnomad_AF"] == "1"
+
+
+@pytest.mark.parametrize("name, expected", [
+    ("first;second", "first"), (".", "chr1:1001-1500"), ("0", "chr1:1001-1500"),
+    ("id|one,two with space", "id&one&two_with_space"), ("-", ""),
+])
+def test_reference_names_follow_vep_output(annotate, name, expected):
+    _, annotations, _ = annotate([query(symbolic=True)], [reference(name=name)])
+    assert annotations[0][0]["gnomad"] == expected
+
+
+def test_custom_headers_match_vep_and_other_output_is_retained(annotate, tmp_path):
+    original = query(symbolic=True)
+    command = "##VEP-command-line='vep --variant_class'"
+    plugin = '##LoFtool="LoFtool score"'
+    rows, _, fields = annotate([original], [reference()], extra_headers=[plugin, command])
+    lines = (tmp_path / "annotated.vcf").read_text().splitlines()
+    custom_headers = [line for line in lines if line.startswith("##INFO=<ID=gnomad")]
+    assert custom_headers == [
+        '##INFO=<ID=gnomad,Number=.,Type=String,Description="[PATH]/reference.vcf.gz">',
+        '##INFO=<ID=gnomad_AF,Number=.,Type=String,Description="AF field from [PATH]/reference.vcf.gz">',
+        '##INFO=<ID=gnomad_FREQ_HOMALT,Number=.,Type=String,Description="FREQ_HOMALT field from [PATH]/reference.vcf.gz">',
+        '##INFO=<ID=gnomad_SVTYPE,Number=.,Type=String,Description="SVTYPE field from [PATH]/reference.vcf.gz">',
+    ]
+    assert fields == SCHEMA + GNOMAD_FIELDS
+    start = lines.index(plugin)
+    assert lines[start:start + 6] == [plugin] + custom_headers + [command]
+    expected = original.copy()
+    expected[7] += "|r|0.03|0.001|DEL"
+    expected[7] = expected[7].replace("|deletion,", "|deletion|r|0.03|0.001|DEL,")
+    assert rows == [expected]
+
+    # Re-annotating a file with VEP custom headers must not duplicate them.
+    annotate([original], [reference()], extra_headers=custom_headers + [command])
+    updated = (tmp_path / "annotated.vcf").read_text().splitlines()
+    assert [line for line in updated if line.startswith("##INFO=<ID=gnomad")] == custom_headers
 
 
 def test_empty_reference_and_empty_query(annotate):
