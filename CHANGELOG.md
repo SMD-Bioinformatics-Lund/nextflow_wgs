@@ -8,6 +8,7 @@
 * Update fastp to v1.4.0
 
 #### Fixed
+* Use bedtools for gnomAD SV matching, requiring the same variant type (preserving VEP's `same_type=1` rule) and at least 70% overlap in each direction, including sequence-resolved variants. Retain the VEP version, original alleles, gnomAD CSQ fields and existing maximum-AF rank models.
 * fastp runs now produce consistent outputs for onco runs on reruns
 
 ### 3.29.0

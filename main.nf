@@ -5,6 +5,7 @@ include { CALL_AND_ANNOTATE_STRS } from './workflows/call_and_annotate_strs.nf'
 include { CALL_SNVS              } from './workflows/call_snvs.nf'
 include { IDSNP_CALL             } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON      } from './modules/idsnp.nf'
+include { gnomad_sv_bedtools    } from './modules/gnomad_sv_bedtools.nf'
 include { MELT                   } from './workflows/melt.nf'
 include { MITOCHONDRIAL_ANALYSIS } from './workflows/mitochondrial.nf'
 include { PED                  } from './workflows/ped.nf'
@@ -742,12 +743,18 @@ workflow NEXTFLOW_WGS {
 		tdup_to_dup(filter_proband_null_calls.out.filtered_vcf)
 		annotsv(tdup_to_dup.out.renamed_vcf)
 		vep_sv(tdup_to_dup.out.renamed_vcf)
-		postprocess_vep_sv(vep_sv.out.vep_sv_vcf)
+		gnomad_sv_bedtools(
+			vep_sv.out.vep_sv_vcf,
+			file(params.GNOMAD_SV),
+			file(params.VEP_SYNONYMS)
+		)
+		postprocess_vep_sv(gnomad_sv_bedtools.out.vcf)
 		artefact(postprocess_vep_sv.out.merged_processed_vcf)
 		bcftools_annotate_dbvar(artefact.out.vcf)
 
 		ch_versions = ch_versions.mix(annotsv.out.versions.first())
 		ch_versions = ch_versions.mix(vep_sv.out.versions.first())
+		ch_versions = ch_versions.mix(gnomad_sv_bedtools.out.versions.first())
 		ch_versions = ch_versions.mix(postprocess_vep_sv.out.versions.first())
 		ch_versions = ch_versions.mix(artefact.out.versions.first())
 		
@@ -2834,7 +2841,6 @@ process vep_sv {
 			--dir_plugins $params.VEP_PLUGINS \\
 			--max_sv_size $params.VEP_MAX_SV_SIZE \\
 			--distance $params.VEP_TRANSCRIPT_DISTANCE \\
-			--custom file=$params.GNOMAD_SV,short_name=gnomad,fields=AF%FREQ_HOMALT%SVTYPE,format=vcf,reciprocal=1,overlap_cutoff=70,same_type=1 \\
 			-cache \\
 			--format vcf
 
