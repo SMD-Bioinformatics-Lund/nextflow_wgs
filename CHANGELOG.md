@@ -8,6 +8,7 @@
 * Update fastp to v1.4.0
 
 #### Fixed
+* Match gnomAD deletions with bcftools using 70% overlap in both directions, including sequence-resolved deletions. Keep VEP annotation for other SV types.
 * fastp runs now produce consistent outputs for onco runs on reruns
 
 ### 3.29.0

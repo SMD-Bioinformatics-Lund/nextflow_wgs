@@ -5,6 +5,7 @@ include { CALL_AND_ANNOTATE_STRS } from './workflows/call_and_annotate_strs.nf'
 include { CALL_SNVS              } from './workflows/call_snvs.nf'
 include { IDSNP_CALL             } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON      } from './modules/idsnp.nf'
+include { gnomad_del_bcftools    } from './modules/gnomad_del_bcftools.nf'
 include { MELT                   } from './workflows/melt.nf'
 include { MITOCHONDRIAL_ANALYSIS } from './workflows/mitochondrial.nf'
 include { PED                  } from './workflows/ped.nf'
@@ -742,12 +743,14 @@ workflow NEXTFLOW_WGS {
 		tdup_to_dup(filter_proband_null_calls.out.filtered_vcf)
 		annotsv(tdup_to_dup.out.renamed_vcf)
 		vep_sv(tdup_to_dup.out.renamed_vcf)
-		postprocess_vep_sv(vep_sv.out.vep_sv_vcf)
+		gnomad_del_bcftools(vep_sv.out.vep_sv_vcf, file(params.GNOMAD_SV_DEL), file(params.VEP_SYNONYMS))
+		postprocess_vep_sv(gnomad_del_bcftools.out.vcf)
 		artefact(postprocess_vep_sv.out.merged_processed_vcf)
 		bcftools_annotate_dbvar(artefact.out.vcf)
 
 		ch_versions = ch_versions.mix(annotsv.out.versions.first())
 		ch_versions = ch_versions.mix(vep_sv.out.versions.first())
+		ch_versions = ch_versions.mix(gnomad_del_bcftools.out.versions.first())
 		ch_versions = ch_versions.mix(postprocess_vep_sv.out.versions.first())
 		ch_versions = ch_versions.mix(artefact.out.versions.first())
 		

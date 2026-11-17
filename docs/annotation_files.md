@@ -17,6 +17,8 @@ To run the pipeline, you need to setup a number of annotation files. Default val
 | `GNOMAD_GENOMES`          | Annotation (VEP)     | `vcf`           | Allele frequencies for variants ([download page](https://gnomad.broadinstitute.org/downloads))                                                                                                                                                          |
 | `GNOMAD_EXOMES`           | Annotation (VEP)     | `vcf`           |                                                                                                                                                                                                                                                         |
 | `GNOMAD_MT`               | Annotation (VEP)     | `vcf`           |                                                                                                                                                                                                                                                         |
+| `GNOMAD_SV`               | Annotation (VEP)     | `vcf.gz`        | Original gnomAD SV reference; VEP continues to use this file. |
+| `GNOMAD_SV_DEL`           | Deletion annotation  | `bed.gz`        | Deletion intervals prepared from `GNOMAD_SV` for reciprocal overlap matching with bcftools. |
 | `MAXENTSCAN`              | Annotation (VEP)     | folder          | A direct path to the MaxEntScan scripts                                                                                                                                                                                                                 |
 | `dbNSFP`                  | Annotation (VEP)     | `tsv`           | Path to gzipped tab delimited file containing the dbNSFP annotations.                                                                                                                                                                                   |
 | `PHYLOP`                  | Annotation (VEP)     | `tsv`           | Measures evolutionary conservation at individual alignment sites. This parameter expects a tab-delimited file with pre-calculated phyloP scores.                                                                                                        |
@@ -45,6 +47,44 @@ artefacts                                                                       
 ## Preparing annotation files
 
 This is a non-comprehensive documentation on how some of the reference files can be prepared. If you miss instructions for some annotation file, please open an issue in the [GitHub repository](https://github.com/Clinical-Genomics-Lund/nextflow_wgs/issues).
+
+### Preparing gnomAD deletion annotations
+
+VEP continues to annotate SVs using the original `GNOMAD_SV` VCF. A subsequent
+bcftools step replaces only the annotations for VEP's ordinary `deletion` class,
+requiring at least 70% overlap in each direction. Insertions, duplications,
+mobile-element deletions and other classes keep their existing VEP annotations.
+
+Prepare the deletion reference once, using the same gnomAD release as `GNOMAD_SV`:
+
+```bash
+python3 bin/gnomad_del.py reference \
+    --vcf /path/to/gnomad.v4.1.sv.sites.slim.vcf.gz \
+    --output /path/to/gnomad.v4.1.sv.sites.slim.del.bed.gz
+```
+
+Set `params.GNOMAD_SV_DEL` to the output file. Keep `params.GNOMAD_SV` pointing to
+the original VCF. Rebuild the deletion reference whenever the original changes.
+The generated file is a gzipped BED with a payload column; bcftools' region
+annotation mode reads it directly, so no tabix index is needed.
+
+The pipeline uses three small stages with the existing Python and bcftools
+containers: prepare temporary deletion intervals, annotate them with bcftools,
+and copy the results into the original VCF's gnomAD CSQ fields. Removing the VCF
+anchor base in the temporary copy makes the overlap calculation independent of
+whether the deletion has symbolic or sequence alleles. The original coordinates,
+alleles, other annotations and genotypes are retained. Match order and VEP's
+50-record limit are preserved.
+
+bcftools retrieves candidates with a small numerical tolerance; the helper then
+checks exactly 70% in both directions using integer arithmetic. This prevents
+floating-point rounding at the threshold from changing long-variant matches.
+
+For local tests without VEP, `gnomad_del.py query` also accepts a raw benchmark
+VCF, and `restore` writes deletion annotations as INFO fields. Complex replacement
+alleles that cannot be represented as a pure deletion are left unchanged with a
+message; use VEP classification for those records. These matching tests do not
+replace a complete pipeline evaluation or recompute rank scores.
 
 ### Preparing reference and indexes
 
