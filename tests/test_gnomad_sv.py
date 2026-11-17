@@ -6,7 +6,8 @@ import sys
 import pytest
 
 
-SCRIPT = Path(__file__).resolve().parents[1] / "bin/gnomad_del.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "bin/gnomad_sv.py"
+MODES = ("del", "ins_site", "ins_length")
 FIELDS = ["gnomad", "gnomad_AF", "gnomad_FREQ_HOMALT", "gnomad_SVTYPE"]
 SCHEMA = ["Allele", "Consequence", "SYMBOL", "VARIANT_CLASS"] + FIELDS
 
@@ -41,9 +42,8 @@ def write_vcf(path, rows, csq=False):
 @pytest.fixture
 def annotate(tmp_path):
     def run(queries, references, csq=True):
-        vcf, source, bed, intervals, matches, output = (
-            tmp_path / name for name in ("input.vcf", "reference.vcf.gz", "reference.bed.gz",
-                                        "intervals.vcf", "matches.vcf", "output.vcf"))
+        vcf, source, database, prefix, output = (
+            tmp_path / name for name in ("input.vcf", "reference.vcf.gz", "reference", "query", "output.vcf"))
         write_vcf(vcf, queries, csq)
         write_vcf(source, references)
 
@@ -51,13 +51,18 @@ def annotate(tmp_path):
             subprocess.run([sys.executable, str(SCRIPT), mode, "--vcf", str(input_path),
                             "--output", str(output_path), *extra], check=True, capture_output=True, text=True)
 
-        helper("reference", source, bed)
-        helper("query", vcf, intervals)
-        subprocess.run(["bcftools", "annotate", "--no-version", "-a", str(bed),
-                        "-c", "CHROM,FROM,TO,GNOMAD_DEL_MATCHES", "-l", "GNOMAD_DEL_MATCHES:append",
-                        "--min-overlap", "0.699999:0.699999", "-Ov", "-o", str(matches), str(intervals)],
-                       check=True, capture_output=True, text=True)
-        helper("restore", vcf, output, "--matches", str(matches))
+        helper("reference", source, database)
+        helper("query", vcf, prefix)
+        matches = []
+        for mode in MODES:
+            intervals = "{}.{}.intervals.vcf".format(prefix, mode)
+            match = tmp_path / (mode + ".matches.vcf")
+            subprocess.run(["bcftools", "annotate", "--no-version", "-a", str(database / (mode + ".bed.gz")),
+                            "-c", "CHROM,FROM,TO,GNOMAD_SV_MATCHES", "-l", "GNOMAD_SV_MATCHES:append",
+                            "--min-overlap", "0:0" if mode == "ins_site" else "0.699999:0.699999",
+                            "-Ov", "-o", str(match), intervals], check=True, capture_output=True, text=True)
+            matches.append(str(match))
+        helper("restore", vcf, output, "--matches", *matches)
         lines = output.read_text().splitlines()
         rows = [line.split("\t") for line in lines if not line.startswith("#")]
         annotations = []
@@ -107,9 +112,79 @@ def test_only_ordinary_deletion_class_is_matched_and_all_frequencies_are_kept(an
 
 
 @pytest.mark.parametrize("symbolic", [False, True])
-def test_insertions_are_unchanged_including_preexisting_vep_matches(annotate, symbolic):
+def test_insertions_match_the_ordinary_insertion_class(annotate, symbolic):
     original = variant(kind="INS", symbolic=symbolic)
-    rows, _, _ = annotate([original], [reference()])
+    rows, annotations, _ = annotate([original], [reference(kind="INS"), reference(kind="DEL", af="0.9")])
+    assert rows[0][:7] == original[:7]
+    assert rows[0][8:] == original[8:]
+    assert [annotations[0][0][field] for field in FIELDS] == ["r", "0.03", "0.001", "INS"]
+
+
+@pytest.mark.parametrize("pos, length, expected", [(1000, 1000, "r"), (1001, 100, ""), (999, 100, "")])
+def test_sequence_insertions_keep_master_site_matching_without_size_filter(annotate, pos, length, expected):
+    _, annotations, _ = annotate([variant(kind="INS", length=100)], [reference(pos, length, kind="INS")])
+    assert annotations[0][0]["gnomad"] == expected
+
+
+@pytest.mark.parametrize("pos, length, expected", [(1030, 100, "r"), (1031, 100, ""), (1000, 200, "")])
+def test_structural_insertions_keep_reciprocal_overlap(annotate, pos, length, expected):
+    _, annotations, _ = annotate([variant(kind="INS", length=100, symbolic=True)], [reference(pos, length, kind="INS")])
+    assert annotations[0][0]["gnomad"] == expected
+
+
+def test_sequence_insertion_padding_determines_the_site(annotate):
+    original = variant(kind="INS", length=3)
+    original[3:5] = ["AA", "AATAA"]
+    rows, annotations, _ = annotate([original], [reference(1001, kind="INS")])
+    assert rows[0][1:5] == original[1:5]
+    assert annotations[0][0]["gnomad"] == "r"
+
+
+def test_ins_site_uses_raw_reference_span_not_inserted_length(annotate):
+    ref = reference(999, kind="INS")
+    ref[3] = "NN"
+    _, annotations, _ = annotate([variant(kind="INS")], [ref])
+    assert annotations[0][0]["gnomad"] == "r"
+
+
+@pytest.mark.parametrize("index_end, expected", [(1000, ""), (1001, "r")])
+def test_sequence_ins_preserves_vep_reference_index_boundary(annotate, index_end, expected):
+    ref = reference(kind="INS")
+    ref[7] = ref[7].replace("END=1500", "END={}".format(index_end))
+    _, annotations, _ = annotate([variant(kind="INS")], [ref])
+    assert annotations[0][0]["gnomad"] == expected
+
+
+@pytest.mark.parametrize("index_end, expected", [(950, ""), (1400, "r")])
+def test_structural_ins_preserves_vep_reference_index_boundary(annotate, index_end, expected):
+    ref = reference(900, kind="INS")
+    ref[7] = ref[7].replace("END=1400", "END={}".format(index_end))
+    _, annotations, _ = annotate([variant(kind="INS", symbolic=True)], [ref])
+    assert annotations[0][0]["gnomad"] == expected
+
+
+def test_unknown_size_structural_ins_is_not_assigned_an_inserted_length(annotate):
+    original = variant(kind="INS", symbolic=True)
+    original[7] = original[7].replace(";SVLEN=500", "")
+    _, annotations, _ = annotate([original], [reference(length=50, kind="INS")])
+    assert annotations[0][0]["gnomad"] == ""
+
+
+def test_manta_mixed_insertion_with_ns_takes_the_structural_path(annotate):
+    original = variant(kind="INS", length=201, symbolic=True)
+    original[3:5] = ["A" + "N" * 20, "A" + "T" * 201]
+    original[7] = original[7].replace("END=1000", "END=1020") + ";CIGAR=1M201I20D"
+    rows, annotations, _ = annotate([original], [reference(1060, length=201, kind="INS")])
+    assert rows[0][3:5] == original[3:5]
+    assert annotations[0][0]["gnomad"] == "r"
+
+
+@pytest.mark.parametrize("kind, cls", [("DUP", "duplication"), ("INS:ME:ALU", "Alu_insertion")])
+def test_other_vep_classes_are_kept_verbatim(annotate, kind, cls):
+    original = variant(kind="INS", symbolic=True)
+    original[4] = "<{}>".format(kind)
+    original[7] = original[7].replace("|insertion|", "|{}|".format(cls))
+    rows, _, _ = annotate([original], [reference(kind="INS"), reference(kind="DEL")])
     assert rows == [original]
 
 
