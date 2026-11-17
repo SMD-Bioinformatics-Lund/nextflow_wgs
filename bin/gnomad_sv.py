@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare DEL/INS matching records and restore annotations to the original VCF."""
+"""Prepare SV matching records and add gnomAD annotations to VCF INFO fields."""
 
 import argparse
 from collections import Counter
@@ -12,9 +12,19 @@ from urllib.parse import quote, unquote
 
 
 FIELDS = ("gnomad", "gnomad_AF", "gnomad_FREQ_HOMALT", "gnomad_SVTYPE")
+FIELD_TYPES = ("String", "Float", "Float", "String")
 MATCHES = "GNOMAD_SV_MATCHES"
-MODES = ("del", "ins_site", "ins_length")
+MODES = ("overlap", "ins_site", "ins_length")
 MAX_RECORDS = 50  # VEP's default custom-annotation limit, in reference source order.
+SV_CLASSES = {
+    "DEL": "deletion", "DUP": "duplication", "TDUP": "tandem_duplication",
+    "INS": "insertion", "INV": "inversion", "CNV": "copy_number_variation",
+    "TREP": "tandem_repeat", "BND": "chromosome_breakpoint",
+}
+for _kind, _name in (("DEL", "deletion"), ("INS", "insertion")):
+    for _suffix, _prefix in (("ME", "mobile_element"), ("ALU", "Alu"),
+                             ("HERV", "HERV"), ("LINE1", "LINE1"), ("SVA", "SVA")):
+        SV_CLASSES[_kind + "_" + _suffix] = _prefix + "_" + _name
 
 
 def open_vcf(path):
@@ -48,9 +58,31 @@ def chromosome(name):
     return "MT" if name == "M" else name
 
 
+def symbolic_class(alt):
+    """Keep VEP's same-class matching, including tandem and mobile-element types."""
+    mobile = re.search(r"(INS|DEL):ME:?([A-Z0-9]+)?", alt, re.I)
+    if mobile:
+        element = (mobile.group(2) or "ME").upper()
+        element = "LINE1" if element == "L1" else element
+        element = element if element in ("ALU", "HERV", "LINE1", "SVA") else "ME"
+        return SV_CLASSES[mobile.group(1).upper() + "_" + element]
+    if "DUP:TANDEM" in alt:
+        return SV_CLASSES["TDUP"]
+    if "CNV:TR" in alt:
+        return SV_CLASSES["TREP"]
+    if re.search(r"CN=?[0-9]", alt):
+        return SV_CLASSES["DEL" if re.fullmatch(r"<?CN=?0>?", alt) else
+                          "DUP" if re.fullmatch(r"<?CN=?2>?", alt) else "CNV"]
+    if "CNV" in alt:
+        return SV_CLASSES["CNV"]
+    if any(char in alt for char in "[]") or alt.startswith(".") or alt.endswith("."):
+        return SV_CLASSES["BND"]
+    return SV_CLASSES.get(alt.strip("<>").split(":", 1)[0])
+
+
 def metadata_end(pos, info, kind):
     length = info.get("SVLEN", ".").split(",")[0]
-    return pos + abs(int(length)) if length != "." else int(info.get("END", pos if kind == "DEL" else pos + 1))
+    return pos + abs(int(length)) if length != "." else int(info.get("END", pos if kind.endswith("deletion") else pos + 1))
 
 
 def event(columns, info):
@@ -58,15 +90,19 @@ def event(columns, info):
     pos, ref, alt = int(columns[1]), columns[3], columns[4]
     if "," in alt:
         return None
-    kind = {"<DEL>": "DEL", "<CN0>": "DEL", "<CN=0>": "DEL", "<INS>": "INS"}.get(alt)
-    if not kind and not alt.startswith("<") and not re.fullmatch(r"[ACGT]+", ref + alt):
-        kind = info.get("SVTYPE")
-    if kind in ("DEL", "INS"):
+    kind = None
+    if not re.fullmatch(r"[ACGT]+", ref + alt):
+        # VEP falls back to SVTYPE for non-standard ALT spellings, including TDUP.
+        variant_type = info.get("SVTYPE", alt) if not re.match(r"^<?(DEL|INS|DUP|INV|CNV|CN=?[0-9]+)", alt) else alt
+        kind = symbolic_class(variant_type)
+    if kind:
         end = metadata_end(pos, info, kind)
-        if kind == "DEL":
-            return (kind, "del", pos, end, pos, end) if end > pos else None
-        # VEP swaps reversed insertion boundaries before checking overlap.
-        return kind, "ins_length", min(pos + 1, end) - 1, max(pos + 1, end), pos, end
+        if kind == "chromosome_breakpoint" and info.get("SVLEN", ".") == ".":
+            end = pos + 1  # END can identify the mate; VEP ignores it for query breakends.
+        if kind.endswith("insertion"):
+            # VEP swaps reversed insertion boundaries before checking overlap.
+            return kind, "ins_length", min(pos + 1, end) - 1, max(pos + 1, end), pos, end
+        return (kind, "overlap", pos, end, pos, end) if end > pos else None
     if not re.fullmatch(r"[ACGTN]+", ref + alt, re.I):
         return None
     ref, alt = ref.upper(), alt.upper()
@@ -78,11 +114,11 @@ def event(columns, info):
         ref, alt = ref[:-1], alt[:-1]
     start = pos - 1 + prefix
     if ref and not alt:
-        return "DEL", "del", start, start + len(ref), start, start + len(ref)
+        return "deletion", "overlap", start, start + len(ref), start, start + len(ref)
     if alt and not ref:
         # Preserve VEP's sequence-INS path: compare the insertion site, without
         # comparing inserted lengths. SVLEN does not affect this path.
-        return "INS", "ins_site", start - 1, start, start, start
+        return "insertion", "ins_site", start - 1, start, start, start
     return None
 
 
@@ -92,18 +128,18 @@ def reference(vcf, output):
     with ExitStack() as stack:
         handles = {mode: stack.enter_context(gzip.open(str(directory / (mode + ".bed.gz")), "wt")) for mode in MODES}
         for row, columns, info in records(vcf):
-            kind = {"<DEL>": "DEL", "<CN0>": "DEL", "<CN=0>": "DEL", "<INS>": "INS"}.get(columns[4])
+            kind = symbolic_class(columns[4])
             if kind is None:
                 continue
             pos = int(columns[1])
             end = metadata_end(pos, info, kind)
-            # Original tabix bounds matter for legacy INS matching: VEP cannot
+            # Original tabix bounds matter for legacy SV matching: VEP cannot
             # match a reference record that its original VCF index did not fetch.
             index_end = int(info["END"]) if info.get("END") else pos - 1 + len(columns[3])
-            if kind == "DEL":
+            if not kind.endswith("insertion"):
                 if end <= pos:
-                    raise ValueError("Incomplete reference deletion: " + columns[2])
-                spans = {"del": (pos, end)}
+                    raise ValueError("Incomplete reference SV: " + columns[2])
+                spans = {"overlap": (pos, end)}
             else:
                 spans = {"ins_site": (pos - 1, pos - 1 + len(columns[3]))}
                 if end > pos:
@@ -121,7 +157,7 @@ def reference(vcf, output):
             # appends hits. Source row and coordinates preserve VEP order and
             # allow an exact integer check at the 70% boundary.
             for mode, span in spans.items():
-                payload = "|".join(quote(str(value), safe="") for value in (row, *span, index_end, name, *values))
+                payload = "|".join(quote(str(value), safe="") for value in (row, *span, index_end, kind, name, *values))
                 handles[mode].write("{}\t{}\t{}\t{}\n".format(chromosome(columns[0]), *span, payload))
 
 
@@ -142,7 +178,7 @@ def query(vcf, output, synonyms=None):
             if "CSQ" not in info:
                 continue  # Keep VEP's skipped records unannotated.
             classes = {entry.split("|")[class_index] for entry in info["CSQ"].split(",")}
-            selected = classes.intersection({"deletion", "insertion"})
+            selected = classes.intersection(SV_CLASSES.values())
             if not selected:
                 continue
             if len(classes) != 1:
@@ -150,29 +186,28 @@ def query(vcf, output, synonyms=None):
         parsed = event(columns, info)
         if parsed is None:
             if fields:
-                raise ValueError("Cannot represent DEL/INS for matching: {}:{} ({})".format(*columns[:3]))
+                raise ValueError("Cannot represent SV for matching: {}:{} ({})".format(*columns[:3]))
             if info.get("SVTYPE") in ("DEL", "INS"):
                 unclassified[info["SVTYPE"]] += 1
             continue
         kind, mode, start, end, seek_start, native_end = parsed
-        expected_class = "deletion" if kind == "DEL" else "insertion"
-        if fields and classes != {expected_class}:
+        if fields and classes != {kind}:
             raise ValueError("VEP class disagrees with alleles for " + columns[2])
         chrom = chromosome(columns[0])
-        intervals[mode].append((aliases.get(chrom, chrom), start, end, row, seek_start, native_end))
+        intervals[mode].append((aliases.get(chrom, chrom), start, end, row, seek_start, native_end, kind))
     for mode, rows in intervals.items():
         with open("{}.{}.intervals.vcf".format(output, mode), "w") as handle:
             handle.write("##fileformat=VCFv4.2\n")
             for chrom in sorted({item[0] for item in rows}):
                 handle.write("##contig=<ID={}>\n".format(chrom))
-            for key, datatype in (("END", "Integer"), ("SEEK_START", "Integer"), ("QUERY_END", "Integer"), ("MATCH_MODE", "String")):
+            for key, datatype in (("END", "Integer"), ("SEEK_START", "Integer"), ("QUERY_END", "Integer"),
+                                  ("MATCH_MODE", "String"), ("SVCLASS", "String")):
                 handle.write('##INFO=<ID={},Number=1,Type={},Description="Internal matching coordinate or mode">\n'.format(key, datatype))
             handle.write('##INFO=<ID={},Number=.,Type=String,Description="Internal gnomAD matches">\n'.format(MATCHES))
             handle.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
-            for chrom, start, end, row, seek_start, native_end in sorted(rows):
-                kind = "DEL" if mode == "del" else "INS"
-                handle.write("{}\t{}\t{}\tN\t<{}>\t.\tPASS\tEND={};MATCH_MODE={};SEEK_START={};QUERY_END={}\n".format(
-                    chrom, start + 1, row, kind, end, mode, seek_start, native_end))
+            for chrom, start, end, row, seek_start, native_end, kind in sorted(rows):
+                handle.write("{}\t{}\t{}\tN\t<SV>\t.\tPASS\tEND={};MATCH_MODE={};SEEK_START={};QUERY_END={};SVCLASS={}\n".format(
+                    chrom, start + 1, row, end, mode, seek_start, native_end, kind))
     if unclassified:
         print("Left complex records unchanged ({}); VEP classification is needed.".format(dict(unclassified)), file=sys.stderr)
 
@@ -185,24 +220,25 @@ def matched_values(matches_vcf):
         for entry in (info.get(MATCHES) or "").split(","):
             if not entry:
                 continue
-            row, rstart, rend, index_end, *values = [unquote(value) for value in entry.split("|")]
+            row, rstart, rend, index_end, kind, *values = [unquote(value) for value in entry.split("|")]
+            if kind != info["SVCLASS"]:
+                continue
             rstart, rend = int(rstart), int(rend)
             overlap = min(end, rend) - max(start, rstart)
             mode = info["MATCH_MODE"]
             if mode != "ins_site" and (10 * overlap < 7 * (end - start) or 10 * overlap < 7 * (rend - rstart)):
                 continue
-            if mode.startswith("ins_"):
+            if kind != "deletion":
                 reference_pos = rstart + 1 if mode == "ins_site" else rstart
                 if int(index_end) <= int(info["SEEK_START"]) or reference_pos > int(info["QUERY_END"]):
                     continue
             hits.append((int(row), values))
         selected = [values for _, values in sorted(hits)[:MAX_RECORDS]]
-        values = ["&".join(hit[i] for hit in selected if hit[i] != "") for i in range(4)]
+        values = [",".join(quote(hit[i], safe=":._-|") if i in (0, 3) and hit[i] else hit[i] or "."
+                           for hit in selected) for i in range(4)]
         if len(hits) > MAX_RECORDS:
-            values[0] += "&..."
-        annotations[int(columns[2])] = [
-            re.sub(r"\s+", "_", value.replace(",", "&").replace(";", "%3B")).replace("|", "&")
-            if value != "-" else "" for value in values]
+            values[0] += ",..."
+        annotations[int(columns[2])] = values
     return annotations
 
 
@@ -210,15 +246,15 @@ def restore(vcf, matches_vcfs, output):
     annotations = {}
     for path in matches_vcfs:
         annotations.update(matched_values(path))
-    fields = schema(vcf)
-    indexes = [fields.index(field) for field in FIELDS] if fields else []
     row = 0
     with open_vcf(vcf) as source, open(output, "w") as target:
         for line in source:
             if line.startswith("#"):
-                if line.startswith("#CHROM") and fields is None:
-                    for field in FIELDS:
-                        target.write('##INFO=<ID={},Number=.,Type=String,Description="gnomAD DEL/INS annotation">\n'.format(field))
+                if line.startswith(tuple("##INFO=<ID=" + field + "," for field in FIELDS)):
+                    continue
+                if line.startswith("#CHROM"):
+                    for field, datatype in zip(FIELDS, FIELD_TYPES):
+                        target.write('##INFO=<ID={},Number=.,Type={},Description="gnomAD SV annotation">\n'.format(field, datatype))
                 target.write(line)
                 continue
             row += 1
@@ -227,19 +263,8 @@ def restore(vcf, matches_vcfs, output):
                 continue
             columns = line.rstrip("\n").split("\t")
             info = columns[7].split(";")
-            if fields:
-                for i, entry in enumerate(info):
-                    if entry.startswith("CSQ="):
-                        consequences = []
-                        for consequence in entry[4:].split(","):
-                            parts = consequence.split("|")
-                            for index, value in zip(indexes, annotations[row]):
-                                parts[index] = value
-                            consequences.append("|".join(parts))
-                        info[i] = "CSQ=" + ",".join(consequences)
-            else:
-                info = [entry for entry in info if entry.split("=", 1)[0] not in FIELDS and entry != "."]
-                info.extend("{}={}".format(field, value) for field, value in zip(FIELDS, annotations[row]) if value)
+            info = [entry for entry in info if entry.split("=", 1)[0] not in FIELDS and entry != "."]
+            info.extend("{}={}".format(field, value) for field, value in zip(FIELDS, annotations[row]) if value)
             columns[7] = ";".join(info) or "."
             target.write("\t".join(columns) + "\n")
 

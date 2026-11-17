@@ -7,9 +7,9 @@ import pytest
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "bin/gnomad_sv.py"
-MODES = ("del", "ins_site", "ins_length")
+MODES = ("overlap", "ins_site", "ins_length")
 FIELDS = ["gnomad", "gnomad_AF", "gnomad_FREQ_HOMALT", "gnomad_SVTYPE"]
-SCHEMA = ["Allele", "Consequence", "SYMBOL", "VARIANT_CLASS"] + FIELDS
+SCHEMA = ["Allele", "Consequence", "SYMBOL", "VARIANT_CLASS"]
 
 
 def variant(pos=1000, length=500, kind="DEL", symbolic=False, name="q", csq=True):
@@ -20,7 +20,7 @@ def variant(pos=1000, length=500, kind="DEL", symbolic=False, name="q", csq=True
         pos + length if kind == "DEL" else pos, -length if kind == "DEL" else length, kind)
     if csq:
         cls = "deletion" if kind == "DEL" else "insertion"
-        info += ";CSQ=-|intron_variant|GENE1|{}|old|0.9|0.8|{},-|splice_region_variant|GENE2|{}|old|0.9|0.8|{}".format(cls, kind, cls, kind)
+        info += ";CSQ=-|intron_variant|GENE1|{},-|splice_region_variant|GENE2|{}".format(cls, cls)
     return ["1", str(pos), name, ref, alt, "100", "PASS", info, "GT:DP", "0/1:24"]
 
 
@@ -68,8 +68,7 @@ def annotate(tmp_path):
         annotations = []
         for row in rows:
             info = dict(entry.split("=", 1) for entry in row[7].split(";") if "=" in entry)
-            annotations.append([dict(zip(SCHEMA, entry.split("|"))) for entry in info["CSQ"].split(",")]
-                               if csq and "CSQ" in info else [info])
+            annotations.append([dict({field: "" for field in FIELDS}, **info)])
         return rows, annotations, lines
     return run
 
@@ -82,7 +81,9 @@ def test_symbolic_and_sequence_deletions_match_and_keep_original_data(annotate, 
     assert rows[0][:7] == original[:7]
     assert rows[0][8:] == original[8:]
     assert ";FLAG;" in rows[0][7]
+    assert rows[0][7].split("CSQ=", 1)[1].split(";", 1)[0] == original[7].split("CSQ=", 1)[1]
     assert len([line for line in lines if line.startswith("##INFO=<ID=CSQ,")]) == 1
+    assert '##INFO=<ID=gnomad_AF,Number=.,Type=Float,' in "\n".join(lines)
     for entry in annotations[0]:
         assert [entry[field] for field in FIELDS] == ["r", "0.03", "0.001", "DEL"]
 
@@ -107,8 +108,8 @@ def test_only_ordinary_deletion_class_is_matched_and_all_frequencies_are_kept(an
     _, annotations, _ = annotate([variant()], [
         reference(name="exact", af="0.0001"), reference(1150, name="shifted", af="0.03"),
         reference(kind="DUP", name="dup", af="0.8"), reference(kind="DEL:ME:LINE1", name="mobile", af="0.9")])
-    assert annotations[0][0]["gnomad"] == "exact&shifted"
-    assert annotations[0][0]["gnomad_AF"] == "0.0001&0.03"
+    assert annotations[0][0]["gnomad"] == "exact,shifted"
+    assert annotations[0][0]["gnomad_AF"] == "0.0001,0.03"
 
 
 @pytest.mark.parametrize("symbolic", [False, True])
@@ -179,13 +180,56 @@ def test_manta_mixed_insertion_with_ns_takes_the_structural_path(annotate):
     assert annotations[0][0]["gnomad"] == "r"
 
 
-@pytest.mark.parametrize("kind, cls", [("DUP", "duplication"), ("INS:ME:ALU", "Alu_insertion")])
-def test_other_vep_classes_are_kept_verbatim(annotate, kind, cls):
+@pytest.mark.parametrize("kind, cls", [
+    ("DUP", "duplication"), ("INV", "inversion"), ("CNV", "copy_number_variation"),
+    ("DUP:TANDEM", "tandem_duplication"), ("INS:ME:ALU", "Alu_insertion"),
+    ("INS:ME:LINE1", "LINE1_insertion"), ("DEL:ME:LINE1", "LINE1_deletion"),
+    ("BND", "chromosome_breakpoint"),
+])
+def test_other_sv_classes_get_variant_info_without_vep_frequency_fields(annotate, kind, cls):
     original = variant(kind="INS", symbolic=True)
     original[4] = "<{}>".format(kind)
-    original[7] = original[7].replace("|insertion|", "|{}|".format(cls))
-    rows, _, _ = annotate([original], [reference(kind="INS"), reference(kind="DEL")])
-    assert rows == [original]
+    original[7] = original[7].replace("|insertion", "|" + cls).replace("SVTYPE=INS", "SVTYPE=" + kind.split(":", 1)[0])
+    rows, annotations, _ = annotate([original], [reference(kind=kind)])
+    assert rows[0][:7] == original[:7]
+    assert rows[0][8:] == original[8:]
+    assert annotations[0][0]["gnomad"] == "r"
+    assert annotations[0][0]["gnomad_AF"] == "0.03"
+    assert annotations[0][0]["CSQ"] == original[7].split("CSQ=", 1)[1]
+
+
+def test_tandem_duplication_does_not_match_ordinary_duplication(annotate):
+    original = variant(symbolic=True)
+    original[4] = "<DUP:TANDEM>"
+    original[7] = original[7].replace("SVTYPE=DEL", "SVTYPE=DUP").replace("|deletion", "|tandem_duplication")
+    _, annotations, _ = annotate([original], [reference(kind="DUP")])
+    assert annotations[0][0]["gnomad"] == ""
+
+
+def test_nonstandard_tdup_alt_uses_svtype_dup(annotate):
+    original = variant(symbolic=True)
+    original[4] = "<TDUP>"
+    original[7] = original[7].replace("SVTYPE=DEL", "SVTYPE=DUP").replace("|deletion", "|duplication")
+    _, annotations, _ = annotate([original], [reference(kind="DUP")])
+    assert annotations[0][0]["gnomad"] == "r"
+
+
+def test_breakend_without_svlen_ignores_mate_end(annotate):
+    original = variant(kind="INS", symbolic=True)
+    original[4] = "<BND>"
+    original[7] = original[7].replace("SVTYPE=INS", "SVTYPE=BND").replace("|insertion", "|chromosome_breakpoint")
+    original[7] = original[7].replace(";SVLEN=500", "").replace("END=1000", "END=2000000")
+    _, annotations, _ = annotate([original], [reference(kind="BND", length=1)])
+    assert annotations[0][0]["gnomad"] == "r"
+
+
+def test_reannotation_replaces_info_and_retains_one_typed_header(annotate):
+    original = variant()
+    original[7] += ";gnomad=stale;gnomad_AF=0.9"
+    rows, annotations, lines = annotate([original], [reference()])
+    assert rows[0][7].count("gnomad_AF=") == 1
+    assert annotations[0][0]["gnomad_AF"] == "0.03"
+    assert len([line for line in lines if line.startswith("##INFO=<ID=gnomad_AF,")]) == 1
 
 
 def test_manta_mixed_deletion_with_unknown_reference_uses_svlen(annotate):
@@ -201,15 +245,15 @@ def test_first_fifty_matches_follow_reference_source_order(annotate):
     refs = [reference(1001, name="r{}".format(i), af="0.0001") for i in range(50)]
     refs.append(reference(1000, name="excluded", af="0.9"))
     _, annotations, _ = annotate([variant()], refs)
-    assert annotations[0][0]["gnomad"].split("&") == ["r{}".format(i) for i in range(50)] + ["..."]
-    assert max(map(float, annotations[0][0]["gnomad_AF"].split("&"))) == 0.0001
+    assert annotations[0][0]["gnomad"].split(",") == ["r{}".format(i) for i in range(50)] + ["..."]
+    assert max(map(float, annotations[0][0]["gnomad_AF"].split(","))) == 0.0001
 
 
-def test_missing_values_and_vep_field_formatting(annotate):
+def test_missing_values_keep_reference_fields_aligned_in_info(annotate):
     refs = [reference(name="first;second", af="0", hom="."), reference(name="r2", af="0.97,0.03")]
     refs[1][7] = refs[1][7].replace(";FREQ_HOMALT=0.001", "")
     _, annotations, _ = annotate([variant()], refs)
-    assert [annotations[0][0][field] for field in FIELDS] == ["first&r2", "0&0.03", ".", "DEL&DEL"]
+    assert [annotations[0][0][field] for field in FIELDS] == ["first,r2", "0,0.03", ".,.", "DEL,DEL"]
 
 
 def test_duplicate_query_ids_and_records_without_csq_are_not_confused(annotate):

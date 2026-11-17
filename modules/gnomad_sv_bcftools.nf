@@ -35,7 +35,7 @@ process gnomad_sv_intervals {
 
     stub:
     """
-    touch ${group}.del.intervals.vcf ${group}.ins_site.intervals.vcf ${group}.ins_length.intervals.vcf
+    touch ${group}.overlap.intervals.vcf ${group}.ins_site.intervals.vcf ${group}.ins_length.intervals.vcf
     """
 }
 
@@ -58,7 +58,7 @@ process gnomad_sv_annotate {
     // The helper applies an exact integer 70% check after candidate retrieval.
     // This tolerance prevents single-precision rounding from losing boundary hits.
     """
-    for mode in del ins_site ins_length; do
+    for mode in overlap ins_site ins_length; do
         overlap=0.699999:0.699999
         if [ "\$mode" = ins_site ]; then overlap=0:0; fi
         bcftools annotate --no-version \\
@@ -73,7 +73,7 @@ process gnomad_sv_annotate {
 
     stub:
     """
-    touch ${group}.del.matches.vcf ${group}.ins_site.matches.vcf ${group}.ins_length.matches.vcf
+    touch ${group}.overlap.matches.vcf ${group}.ins_site.matches.vcf ${group}.ins_length.matches.vcf
     ${gnomad_sv_bcftools_version(task)}
     """
 }
@@ -94,7 +94,7 @@ process gnomad_sv_restore {
     script:
     """
     gnomad_sv.py restore --vcf "${vcf}" --output "${group}.gnomad.vcf" \\
-        --matches "${group}.del.matches.vcf" "${group}.ins_site.matches.vcf" "${group}.ins_length.matches.vcf"
+        --matches "${group}.overlap.matches.vcf" "${group}.ins_site.matches.vcf" "${group}.ins_length.matches.vcf"
     """
 
     stub:

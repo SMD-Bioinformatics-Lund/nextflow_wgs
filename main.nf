@@ -2734,7 +2734,7 @@ process filter_proband_null_calls {
 }
 
 process tdup_to_dup {
-	// in order for vep_sv to match on SVTYPE for gnomadSV TDUP needs to go
+	// Use DUP consistently for gnomAD SV type matching.
 	tag "$group"
 	cpus 2
 	memory '5 GB'
@@ -2837,7 +2837,6 @@ process vep_sv {
 			--dir_plugins $params.VEP_PLUGINS \\
 			--max_sv_size $params.VEP_MAX_SV_SIZE \\
 			--distance $params.VEP_TRANSCRIPT_DISTANCE \\
-			--custom file=$params.GNOMAD_SV,short_name=gnomad,fields=AF%FREQ_HOMALT%SVTYPE,format=vcf,reciprocal=1,overlap_cutoff=70,same_type=1 \\
 			-cache \\
 			--format vcf
 

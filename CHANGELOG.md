@@ -8,7 +8,7 @@
 * Update fastp to v1.4.0
 
 #### Fixed
-* Match gnomAD deletions with bcftools using 70% overlap in both directions, including sequence-resolved deletions. Match ordinary insertions with bcftools while retaining VEP 114's representation-dependent rules; keep VEP annotation for other SV classes.
+* Annotate gnomAD SV frequencies with bcftools in variant-level INFO fields and update the SV rank models to read them. Remove VEP's gnomAD SV custom annotation; retain its matching rules for insertions and other SV classes while correcting sequence-resolved deletions to use reciprocal 70% overlap.
 * fastp runs now produce consistent outputs for onco runs on reruns
 
 ### 3.29.0
