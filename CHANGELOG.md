@@ -1,11 +1,12 @@
 # CHANGELOG
 
-### [Unreleased]
+### [3.29.1]
 
 #### Added 
 
 #### Changed
 * Update fastp to v1.4.0
+* Specify genome build in loqusdb load cli command
 
 #### Fixed
 * fastp runs now produce consistent outputs for onco runs on reruns
