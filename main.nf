@@ -5,6 +5,7 @@ include { CALL_AND_ANNOTATE_STRS } from './workflows/call_and_annotate_strs.nf'
 include { CALL_SNVS              } from './workflows/call_snvs.nf'
 include { IDSNP_CALL             } from './modules/idsnp.nf'
 include { IDSNP_VCF_TO_JSON      } from './modules/idsnp.nf'
+include { LOQUSDB_LOAD           } from './workflows/loqusdb_load.nf'
 include { MELT                   } from './workflows/melt.nf'
 include { MITOCHONDRIAL_ANALYSIS } from './workflows/mitochondrial.nf'
 include { PED                  } from './workflows/ped.nf'
@@ -16,7 +17,7 @@ include { VALIDATE_PARAMETERS    } from './workflows/validate_params.nf'
 include { VALIDATE_SAMPLES_CSV   } from './workflows/validate_csv.nf'
 include { PREPARE_INPUT_AND_META_CHANNELS } from './workflows/prepare_input_and_meta_channels.nf'
 
-include { vcfHasVariants } from './workflows/util.nf'
+include { vcfHasVariants; validateLoqusdbDestinations } from './workflows/util.nf'
 
 nextflow.enable.dsl=2
 
@@ -64,10 +65,19 @@ workflow {
 
 	ch_versions = channel.empty()
 
+    val_run_loqusdb_cron = !params.skip_loqusdb && !params.noupload && !params.reanalyze
+    val_loqusdb_by_platform = val_run_loqusdb_cron && params.containsKey('loqusdb_by_platform') ?
+        params.loqusdb_by_platform : [:]
+
 	VALIDATE_SAMPLES_CSV(params.csv)
 
 	ch_samplesheet = VALIDATE_SAMPLES_CSV.out.validated_csv
 		.splitCsv(header: true)
+	if (val_run_loqusdb_cron) {
+		ch_samplesheet = ch_samplesheet.toList().flatMap { rows ->
+			validateLoqusdbDestinations(rows, val_loqusdb_by_platform)
+		}
+	}
 
     val_run_contamination_qc = params.antype == "wgs"
     val_use_targeted_qc = params.antype == "panel"
@@ -102,7 +112,8 @@ workflow {
 		params.create_alt_affect_ped,
 		params.run_melt,
 		params.skip_mito,
-		params.skip_loqusdb,
+		val_run_loqusdb_cron,
+		val_loqusdb_by_platform,
 		params.cdm_assay,
 		params.crondir,
 		params.idsnps,
@@ -217,7 +228,8 @@ workflow NEXTFLOW_WGS {
 	val_create_alt_affect_ped                  // bool:    Whether family runs should create alternate affected-parent PEDs
 	val_run_melt                               // bool:    Whether melt should be run?
 	val_skip_mito                              // bool:    Whether mitochondrial analysis should be skipped
-	val_skip_loqusdb                           // bool:    Whether loqusdb upload should be skipped
+	val_run_loqusdb_cron                       // bool:    Whether to generate LoqusDB load commands.
+	val_loqusdb_by_platform                    // map:     Proband platform to LoqusDB database.
 	val_cdm_assay                              // string:  CDM assay name used when creating QC cron files.
 	val_cron_output_dir                        // string:  Base directory for cron input files.
 	val_idsnp_config                           // map:     ID-SNP reference paths.
@@ -247,7 +259,7 @@ workflow NEXTFLOW_WGS {
 		error "params.gatk_ref_csv must be defined when params.gatkcnv is true"
 	}
 
-	PREPARE_INPUT_AND_META_CHANNELS(ch_samplesheet, params.gatkcnv ? params.gatk_ref_csv : null)
+	PREPARE_INPUT_AND_META_CHANNELS(ch_samplesheet, params.gatkcnv ? params.gatk_ref_csv : null, val_loqusdb_by_platform)
 
 	ch_sample_meta   = PREPARE_INPUT_AND_META_CHANNELS.out.sample_meta   // group, id, meta[:]
 	ch_proband_meta  = PREPARE_INPUT_AND_META_CHANNELS.out.proband_meta  // group, id(proband), meta[:] contains priority
@@ -837,33 +849,14 @@ workflow NEXTFLOW_WGS {
 
 	}
 
-	// LOQUSDB //
-	ch_loqusdb_sv_for_load = ch_loqusdb_sv.map { group, svvcf ->
-		def svvcf_for_load = svvcf
-
-		if (svvcf) {
-			def svvcf_exists = svvcf.exists() && svvcf.size() > 0
-			def svvcf_has_variants = svvcf_exists && vcfHasVariants(svvcf)
-
-			if (!svvcf_has_variants) {
-				svvcf_for_load = []
-			}
-		}
-
-		tuple(group, svvcf_for_load)
-	}
-
-	ch_loqusdb_input = ch_ped_base
-		.join(SNV_ANNOTATE.out.annotated_snv_vcf, by: [0,1])
-		.join(ch_loqusdb_sv_for_load, by: 0)
-		.map { group, type, ped, vcf_snvs, _tbi, vcf_svs ->
-			tuple(group, type, ped, vcf_snvs, vcf_svs)
-		}
-
-    if(!val_skip_loqusdb) {
-	    add_to_loqusdb(
-		    ch_loqusdb_input
-	    )
+	if (val_run_loqusdb_cron) {
+		LOQUSDB_LOAD(
+			ch_ped_base,
+			SNV_ANNOTATE.out.annotated_snv_vcf,
+			ch_loqusdb_sv,
+			PREPARE_INPUT_AND_META_CHANNELS.out.loqusdb_database,
+			val_accessdir
+		)
 	}
 
 	// MERGE QC JSONs AND OUTPUT TO CDM //
@@ -2673,36 +2666,6 @@ def svdb_merge_version(task) {
 	"""
 }
 
-
-process add_to_loqusdb {
-	cpus 1
-	publishDir "${params.crondir}/loqus", mode: 'copy' , overwrite: true
-	tag "$group"
-	memory '100 MB'
-	time '25m'
-	input:
-		tuple val(group), val(type), path(ped), path(vcf_snvs), path(vcf_svs)
-
-	output:
-		path("${group}*.loqus"), emit: loqusdb_done
-
-	when:
-		!params.noupload && !params.reanalyze
-
-	script:
-
-		def sv_variants_arg = vcf_svs ?  "--sv-variants ${params.accessdir}/sv_vcf/merged/${vcf_svs}" : ""
-
-
-		"""
-		echo "-db $params.loqusdb -g GRCh38 load -f ${params.accessdir}/ped/${ped} --variant-file ${params.accessdir}/vcf/${vcf_snvs} ${sv_variants_arg}" > "${group}.loqus"
-		"""
-
-	stub:
-		"""
-		touch "${group}.loqus"
-		"""
-}
 
 process filter_proband_null_calls {
 	tag "$group"

@@ -91,6 +91,7 @@ workflow PREPARE_INPUT_AND_META_CHANNELS {
 	take:
 	ch_samplesheet
 	val_gatk_ref_csv
+	val_loqusdb_by_platform
 
 	main:
 	def gatk_ref_rows = val_gatk_ref_csv ? gatkRefRowsFromCsv(val_gatk_ref_csv) : []
@@ -108,6 +109,10 @@ workflow PREPARE_INPUT_AND_META_CHANNELS {
 			def meta = sampleMeta(row)
 			tuple ( meta.group, meta.id, meta)
 		}
+
+	ch_loqusdb_database = val_loqusdb_by_platform ? ch_proband_meta.map { group, _id, meta ->
+		tuple(group, val_loqusdb_by_platform[meta.platform])
+	} : channel.empty()
 
 	ch_fastq_meta = ch_samplesheet
 		.filter { row ->
@@ -152,6 +157,7 @@ workflow PREPARE_INPUT_AND_META_CHANNELS {
 	emit:
 		sample_meta = ch_sample_meta
 		proband_meta = ch_proband_meta
+		loqusdb_database = ch_loqusdb_database // [group, database]
 		fastq = ch_fastq_meta
 		bam = ch_bam_meta
 		vcf = ch_vcf_meta
