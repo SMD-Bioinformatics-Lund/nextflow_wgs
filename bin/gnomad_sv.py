@@ -8,13 +8,20 @@ import gzip
 from pathlib import Path
 import re
 import sys
+from typing import Dict, Iterable, Iterator, List, Literal, Optional, Sequence, TextIO, Tuple, Union, cast
 from urllib.parse import quote, unquote
 
+
+FilePath = Union[str, Path]
+VcfInfo = Dict[str, Optional[str]]  # Bare INFO flags have no value.
+MatchMode = Literal["overlap", "ins_site", "ins_length"]
+Event = Tuple[str, MatchMode, int, int, int, int]
+QueryInterval = Tuple[str, int, int, int, int, int, str]
 
 FIELDS = ("gnomad", "gnomad_AF", "gnomad_FREQ_HOMALT", "gnomad_SVTYPE")
 FIELD_TYPES = ("String", "Float", "Float", "String")
 MATCHES = "GNOMAD_SV_MATCHES"
-MODES = ("overlap", "ins_site", "ins_length")
+MODES: Tuple[MatchMode, ...] = ("overlap", "ins_site", "ins_length")
 MAX_RECORDS = 50  # VEP's default custom-annotation limit, in reference source order.
 SV_CLASSES = {
     "DEL": "deletion", "DUP": "duplication", "TDUP": "tandem_duplication",
@@ -27,11 +34,20 @@ for _kind, _name in (("DEL", "deletion"), ("INS", "insertion")):
         SV_CLASSES[_kind + "_" + _suffix] = _prefix + "_" + _name
 
 
-def open_vcf(path):
+def open_vcf(path: FilePath) -> TextIO:
+    """
+    Detect if VCF is compressed or not and read it
+    """
     return gzip.open(str(path), "rt") if str(path).endswith((".gz", ".bgz")) else open(path)
 
 
-def records(path):
+def records(path: FilePath) -> Iterator[Tuple[int, List[str], VcfInfo]]:
+    """
+    Open VCF file, iterate through, return:
+    row: The raw row
+    columns: The split row
+    info: Info col parsed into key-value dict format
+    """
     with open_vcf(path) as handle:
         row = 0
         for line in handle:
@@ -39,26 +55,39 @@ def records(path):
                 continue
             row += 1
             columns = line.rstrip("\n").split("\t")
-            info = dict(entry.split("=", 1) if "=" in entry else (entry, None)
-                        for entry in columns[7].split(";"))
+            info_fields = columns[7].split(";")
+            info: VcfInfo = {}
+            for entry in info_fields:
+                key, separator, value = entry.partition("=")
+                info[key] = value if separator else None
             yield row, columns, info
 
 
-def schema(path):
+def schema(path: FilePath) -> Optional[List[str]]:
+    """
+    Detect the CSQ fields
+    Return None if not present
+    """
     with open_vcf(path) as handle:
         for line in handle:
             if line.startswith("##INFO=<ID=CSQ,"):
                 return line.split("Format: ", 1)[1].split('"', 1)[0].split("|")
             if line.startswith("#CHROM"):
-                return None
+                break
+    return None
 
 
-def chromosome(name):
+def normalize_chr_name(name: str) -> str:
+    """
+    Normalize chromosome names
+    chr3 -> 3
+    M -> MT
+    """
     name = name[3:] if name.startswith("chr") else name
     return "MT" if name == "M" else name
 
 
-def symbolic_class(alt):
+def symbolic_class(alt: str) -> Optional[str]:
     """Keep VEP's same-class matching, including tandem and mobile-element types."""
     mobile = re.search(r"(INS|DEL):ME:?([A-Z0-9]+)?", alt, re.I)
     if mobile:
@@ -80,12 +109,15 @@ def symbolic_class(alt):
     return SV_CLASSES.get(alt.strip("<>").split(":", 1)[0])
 
 
-def metadata_end(pos, info, kind):
-    length = info.get("SVLEN", ".").split(",")[0]
-    return pos + abs(int(length)) if length != "." else int(info.get("END", pos if kind.endswith("deletion") else pos + 1))
+def metadata_end(pos: int, info: VcfInfo, kind: str) -> int:
+    length = cast(str, info.get("SVLEN", ".")).split(",")[0]
+    if length != ".":
+        return pos + abs(int(length))
+    default_end = pos if kind.endswith("deletion") else pos + 1
+    return int(cast(Union[str, int], info.get("END", default_end)))
 
 
-def event(columns, info):
+def event(columns: Sequence[str], info: VcfInfo) -> Optional[Event]:
     """Return the type, matching mode, BED span and VEP's original scan bounds."""
     pos, ref, alt = int(columns[1]), columns[3], columns[4]
     if "," in alt:
@@ -93,7 +125,9 @@ def event(columns, info):
     kind = None
     if not re.fullmatch(r"[ACGT]+", ref + alt):
         # VEP falls back to SVTYPE for non-standard ALT spellings, including TDUP.
-        variant_type = info.get("SVTYPE", alt) if not re.match(r"^<?(DEL|INS|DUP|INV|CNV|CN=?[0-9]+)", alt) else alt
+        variant_type = alt
+        if not re.match(r"^<?(DEL|INS|DUP|INV|CNV|CN=?[0-9]+)", alt):
+            variant_type = cast(str, info.get("SVTYPE", alt))
         kind = symbolic_class(variant_type)
     if kind:
         end = metadata_end(pos, info, kind)
@@ -122,7 +156,7 @@ def event(columns, info):
     return None
 
 
-def reference(vcf, output):
+def reference(vcf: FilePath, output: FilePath) -> None:
     directory = Path(output)
     directory.mkdir(parents=True, exist_ok=True)
     with ExitStack() as stack:
@@ -135,7 +169,9 @@ def reference(vcf, output):
             end = metadata_end(pos, info, kind)
             # Original tabix bounds matter for legacy SV matching: VEP cannot
             # match a reference record that its original VCF index did not fetch.
-            index_end = int(info["END"]) if info.get("END") else pos - 1 + len(columns[3])
+            reference_end = info.get("END")
+            index_end = int(reference_end) if reference_end else pos - 1 + len(columns[3])
+            spans: Dict[MatchMode, Tuple[int, int]]
             if not kind.endswith("insertion"):
                 if end <= pos:
                     raise ValueError("Incomplete reference SV: " + columns[2])
@@ -147,7 +183,7 @@ def reference(vcf, output):
             name = columns[2].split(";", 1)[0]
             if name in ("", ".", "0"):
                 name = "{}:{}-{}".format(columns[0], pos + 1, end)
-            values = []
+            values: List[str] = []
             for key in ("AF", "FREQ_HOMALT", "SVTYPE"):
                 value = info.get(key, "")
                 value = "1" if value is None else value
@@ -158,26 +194,28 @@ def reference(vcf, output):
             # allow an exact integer check at the 70% boundary.
             for mode, span in spans.items():
                 payload = "|".join(quote(str(value), safe="") for value in (row, *span, index_end, kind, name, *values))
-                handles[mode].write("{}\t{}\t{}\t{}\n".format(chromosome(columns[0]), *span, payload))
+                handles[mode].write("{}\t{}\t{}\t{}\n".format(normalize_chr_name(columns[0]), *span, payload))
 
 
-def query(vcf, output, synonyms=None):
+def query(vcf: FilePath, output: FilePath, synonyms: Optional[FilePath] = None) -> None:
     fields = schema(vcf)
     class_index = fields.index("VARIANT_CLASS") if fields else None
-    aliases = {}
+    aliases: Dict[str, str] = {}
     if synonyms:
         with open(synonyms) as handle:
             for line in handle:
-                names = [chromosome(name) for name in line.split()] if not line.startswith("#") else []
+                names = [normalize_chr_name(name) for name in line.split()] if not line.startswith("#") else []
                 if names:
                     aliases.update((name, names[0]) for name in names)
-    intervals = {mode: [] for mode in MODES}
-    unclassified = Counter()
+    intervals: Dict[MatchMode, List[QueryInterval]] = {mode: [] for mode in MODES}
+    unclassified: Dict[str, int] = Counter()
     for row, columns, info in records(vcf):
-        if fields:
+        classes = None
+        if class_index is not None:
             if "CSQ" not in info:
                 continue  # Keep VEP's skipped records unannotated.
-            classes = {entry.split("|")[class_index] for entry in info["CSQ"].split(",")}
+            csq = cast(str, info["CSQ"])
+            classes = {entry.split("|")[class_index] for entry in csq.split(",")}
             selected = classes.intersection(SV_CLASSES.values())
             if not selected:
                 continue
@@ -187,13 +225,14 @@ def query(vcf, output, synonyms=None):
         if parsed is None:
             if fields:
                 raise ValueError("Cannot represent SV for matching: {}:{} ({})".format(*columns[:3]))
-            if info.get("SVTYPE") in ("DEL", "INS"):
-                unclassified[info["SVTYPE"]] += 1
+            svtype = info.get("SVTYPE")
+            if svtype == "DEL" or svtype == "INS":
+                unclassified[svtype] += 1
             continue
         kind, mode, start, end, seek_start, native_end = parsed
-        if fields and classes != {kind}:
+        if classes is not None and classes != {kind}:
             raise ValueError("VEP class disagrees with alleles for " + columns[2])
-        chrom = chromosome(columns[0])
+        chrom = normalize_chr_name(columns[0])
         intervals[mode].append((aliases.get(chrom, chrom), start, end, row, seek_start, native_end, kind))
     for mode, rows in intervals.items():
         with open("{}.{}.intervals.vcf".format(output, mode), "w") as handle:
@@ -212,11 +251,11 @@ def query(vcf, output, synonyms=None):
         print("Left complex records unchanged ({}); VEP classification is needed.".format(dict(unclassified)), file=sys.stderr)
 
 
-def matched_values(matches_vcf):
-    annotations = {}
+def matched_values(matches_vcf: FilePath) -> Dict[int, List[str]]:
+    annotations: Dict[int, List[str]] = {}
     for _, columns, info in records(matches_vcf):
-        start, end = int(columns[1]) - 1, int(info["END"])
-        hits = []
+        start, end = int(columns[1]) - 1, int(cast(str, info["END"]))
+        hits: List[Tuple[int, List[str]]] = []
         for entry in (info.get(MATCHES) or "").split(","):
             if not entry:
                 continue
@@ -230,7 +269,10 @@ def matched_values(matches_vcf):
                 continue
             if kind != "deletion":
                 reference_pos = rstart + 1 if mode == "ins_site" else rstart
-                if int(index_end) <= int(info["SEEK_START"]) or reference_pos > int(info["QUERY_END"]):
+                if (
+                    int(index_end) <= int(cast(str, info["SEEK_START"]))
+                    or reference_pos > int(cast(str, info["QUERY_END"]))
+                ):
                     continue
             hits.append((int(row), values))
         selected = [values for _, values in sorted(hits)[:MAX_RECORDS]]
@@ -242,8 +284,8 @@ def matched_values(matches_vcf):
     return annotations
 
 
-def restore(vcf, matches_vcfs, output):
-    annotations = {}
+def restore(vcf: FilePath, matches_vcfs: Iterable[FilePath], output: FilePath) -> None:
+    annotations: Dict[int, List[str]] = {}
     for path in matches_vcfs:
         annotations.update(matched_values(path))
     row = 0
@@ -269,13 +311,16 @@ def restore(vcf, matches_vcfs, output):
             target.write("\t".join(columns) + "\n")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("reference", "query", "restore"))
-    parser.add_argument("--vcf", required=True)
-    parser.add_argument("--output", required=True)
-    parser.add_argument("--synonyms")
-    parser.add_argument("--matches", nargs="+")
+    parser.add_argument(
+        "mode", choices=("reference", "query", "restore"),
+        help="Build reference BEDs, prepare query intervals, or restore annotations to the original VCF.",
+    )
+    parser.add_argument("--vcf", required=True, help="Input VCF, plain or gzip-compressed.")
+    parser.add_argument("--output", required=True, help="Reference directory, query prefix, or annotated VCF path.")
+    parser.add_argument("--synonyms", help="Chromosome alias file for query mode.")
+    parser.add_argument("--matches", nargs="+", help="VCFs containing bcftools matches. Required in restore mode.")
     args = parser.parse_args()
     if args.mode == "reference":
         reference(args.vcf, args.output)
