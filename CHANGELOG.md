@@ -9,6 +9,7 @@
 * Specify genome build in loqusdb load cli command
 
 #### Fixed
+* Annotate gnomAD SV frequencies with bcftools in variant-level INFO fields and update the SV rank models to read them. Remove VEP's gnomAD SV custom annotation; retain its matching rules for insertions and other SV classes while correcting sequence-resolved deletions to use reciprocal 70% overlap.
 * fastp runs now produce consistent outputs for onco runs on reruns
 
 ### 3.29.0
