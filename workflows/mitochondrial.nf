@@ -60,6 +60,7 @@ workflow MITOCHONDRIAL_ANALYSIS {
 		ch_output_info = ch_output_info.mix(run_haplogrep.out.haplogrep_INFO)
 
 		ch_versions = ch_versions.mix(run_hmtnote.out.versions.first())
+		ch_versions = ch_versions.mix(filter_mutect2_mito.out.versions.first())
 		ch_versions = ch_versions.mix(split_normalize_mito.out.versions.first())
 		ch_versions = ch_versions.mix(run_mutect2.out.versions.first())
 		ch_versions = ch_versions.mix(picard_mergevcfs.out.versions.first())
@@ -348,23 +349,45 @@ process filter_mutect2_mito {
 	cpus 1
 	memory '1GB'
 	time '1h'
+	container "${params.container_bcftools}"
 
 	input:
 		tuple val(group), val(proband_id), path(vcf)
 
 	output:
 		tuple val(group), path("${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"), emit: vcf
+		path "*versions.yml", emit: versions
 
 	script:
 		"""
-		filter_mutect2_mito.pl "${vcf}" "${proband_id}" > "${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"
+	    set -o pipefail
+
+        # Bcftools supports id-lookup from file: 
+		printf '%s\\n' "${proband_id}" > proband.id
+
+		# GT contains allele 1 if the proband carries ALT after multiallelic splitting.
+		bcftools view -Ou -i 'GT[@proband.id]~"1" & FMT/DP[@proband.id]>50' "${vcf}" | \\
+			bcftools +setGT - -Ov -o "${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf" \\
+				-- -t q -n c:1/1 -i 'FMT/AF[:0]>=0.99'
+
+		${filter_mutect2_mito_version(task)}
 		"""
 
 	stub:
 		"""
 		echo "${proband_id}" > proband.id
 		touch "${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"
+		${filter_mutect2_mito_version(task)}
 		"""
+}
+
+def filter_mutect2_mito_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    bcftools: \$(bcftools --version | head -n1 | cut -d ' ' -f 2)
+	END_VERSIONS
+	"""
 }
 
 // use python tool HmtNote for annotating vcf
