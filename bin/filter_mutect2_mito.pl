@@ -9,7 +9,6 @@ use Data::Dumper;
 
 # Variants are only interesting if they exist in proband. A 0/0 in proband is non-informative
 # Also require atleast 50 basepairs depth for sight.
-# Tag variants with a placeholder genotype quality to make downstream loqusdb accept variant
 
 
 my $line = 1;
@@ -31,33 +30,16 @@ while ( my $vcf_rec = $vcf->next_var() ) {
     if ($vcf_rec->{GT}->[$index]->{GT} =~ /1/) {
         ## variant has at least 50 depth    
         if ($vcf_rec->{GT}->[$index]->{DP} > 50) {
-            my $quality = 99;
-            my $af_thres = 0.99;
-            my $gt = genotype_quality($vcf_rec->{GT},$quality,$af_thres);
-            $vcf_rec->{GT} = $gt;
-            push (@{$vcf_rec->{FORMAT}},"GQ");
+            foreach my $sample (@{$vcf_rec->{GT}}) {
+                if ($sample->{AF} >= 0.99) {
+                    $sample->{GT} = '1/1';
+                }
+            }
             my $vcfstr = vcfstr($vcf_rec,[]);
             print $vcfstr;
         }
     }
     $line++;
-}
-
-sub genotype_quality {
-    # Add placeholder 99 GQ to each individual
-    # Also update genotype to 1/1 if AF>99%
-    my $gt = shift;
-    my $quality = shift;
-    my $af_thres = shift;
-    my $c = 0;
-    foreach my $ind ( @{ $gt }) {
-       $gt->[$c]->{GQ} = $quality;
-       if ($ind->{AF} >= $af_thres) {
-            $gt->[$c]->{GT} = '1/1';
-       }
-       $c++;
-    }
-    return $gt;
 }
 
 sub vcfstr {
