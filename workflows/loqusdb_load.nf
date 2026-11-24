@@ -3,7 +3,7 @@ include { vcfHasVariants } from './util.nf'
 workflow LOQUSDB_LOAD {
     take:
     ch_ped                  // [group, type, ped]
-    ch_snv                  // [group, type, vcf, index]
+    ch_snv                  // [group, type, vcf, tbi]
     ch_sv                   // [group, vcf or []]
     ch_loqusdb_database     // [group, database]
     val_accessdir
