@@ -41,12 +41,13 @@ workflow MITOCHONDRIAL_ANALYSIS {
 
 		ch_split_normalize_mito_in = run_mutect2.out.vcf
 			.join(ch_proband_meta, by:[0])
-			.map { group, _id, mito_snv_vcf, proband_id, meta ->
-				tuple(group, proband_id, meta, mito_snv_vcf)
+			.map { group, _id, mito_snv_vcf, proband_id, _meta ->
+				tuple(group, proband_id, mito_snv_vcf)
 			}
 		split_normalize_mito(ch_split_normalize_mito_in, val_rcrs_fasta)
 
-		run_hmtnote(split_normalize_mito.out.vcf)
+		filter_mutect2_mito(split_normalize_mito.out.vcf)
+		run_hmtnote(filter_mutect2_mito.out.vcf)
 
 		ch_picard_mergevcfs_in = ch_snv_vcf_tbi_intersected
 			.join(run_hmtnote.out.vcf)
@@ -299,14 +300,14 @@ process split_normalize_mito {
 	cpus 2
 	memory '1GB'
 	time '1h'
-	// TODO: Add an explicit container for bcftools/tabix/filter_mutect2_mito.pl.
+	// TODO: Add an explicit container for bcftools and tabix.
 
 	input:
-		tuple val(group), val(id), val(meta), path(mito_snv_vcf)
+		tuple val(group), val(proband_id), path(mito_snv_vcf)
 		val val_rcrs_fasta
 
 	output:
-		tuple val(group), path("${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"), emit: vcf
+		tuple val(group), val(proband_id), path("${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf"), emit: vcf
 		path "*versions.yml", emit: versions
 
 	script:
@@ -321,15 +322,13 @@ process split_normalize_mito {
 		bcftools norm -f ${val_rcrs_fasta} -o ${mito_snv_vcf.baseName}.adjusted.vcf ${mito_snv_vcf}.breakmulti.fix
 		bcftools view -i 'FMT/AF[*]>0.05' ${mito_snv_vcf.baseName}.adjusted.vcf -o ${group}.mutect2.breakmulti.filtered5p.vcf
 		bcftools filter -S 0 --exclude 'FMT/AF[*]<0.05' ${group}.mutect2.breakmulti.filtered5p.vcf -o ${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf
-		filter_mutect2_mito.pl ${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf ${meta.id} > ${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf
 
 		${split_normalize_mito_version(task)}
 		"""
 
 	stub:
 		"""
-		echo "${meta.id}" > proband.id
-		touch "${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"
+		touch "${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf"
 		${split_normalize_mito_version(task)}
 		"""
 }
@@ -342,6 +341,30 @@ def split_normalize_mito_version(task) {
 	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
 	END_VERSIONS
 	"""
+}
+
+process filter_mutect2_mito {
+	tag "$group"
+	cpus 1
+	memory '1GB'
+	time '1h'
+
+	input:
+		tuple val(group), val(proband_id), path(vcf)
+
+	output:
+		tuple val(group), path("${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"), emit: vcf
+
+	script:
+		"""
+		filter_mutect2_mito.pl "${vcf}" "${proband_id}" > "${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"
+		"""
+
+	stub:
+		"""
+		echo "${proband_id}" > proband.id
+		touch "${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"
+		"""
 }
 
 // use python tool HmtNote for annotating vcf
