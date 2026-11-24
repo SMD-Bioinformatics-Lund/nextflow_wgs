@@ -301,7 +301,7 @@ process split_normalize_mito {
 	cpus 2
 	memory '1GB'
 	time '1h'
-	// TODO: Add an explicit container for bcftools and tabix.
+	container "${params.container_bcftools}"
 
 	input:
 		tuple val(group), val(proband_id), path(mito_snv_vcf)
@@ -337,7 +337,6 @@ def split_normalize_mito_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    vcflib: 1.0.9
 	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
 	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
 	END_VERSIONS
