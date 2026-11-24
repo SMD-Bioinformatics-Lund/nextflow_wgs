@@ -1,5 +1,16 @@
 # CHANGELOG
 
+### Unreleased
+
+#### Added
+
+#### Changed
+- Extract `filter_mutect.pl` logitc into own processs and replace with bcftools calls 
+- Ignore GQ check for mutect2 calls in loqusdb export 
+
+#### Removed
+- `filter_mutect.pl` script 
+
 ### [3.29.1]
 
 #### Added 

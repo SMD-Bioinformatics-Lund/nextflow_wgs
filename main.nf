@@ -2695,7 +2695,7 @@ process add_to_loqusdb {
 
 
 		"""
-		echo "-db $params.loqusdb -g GRCh38 load -f ${params.accessdir}/ped/${ped} --variant-file ${params.accessdir}/vcf/${vcf_snvs} ${sv_variants_arg}" > "${group}.loqus"
+		echo "-db $params.loqusdb -g GRCh38 load --ignore-gq-if-unset -f ${params.accessdir}/ped/${ped} --variant-file ${params.accessdir}/vcf/${vcf_snvs} ${sv_variants_arg}" > "${group}.loqus"
 		"""
 
 	stub:

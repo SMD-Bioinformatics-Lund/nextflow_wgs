@@ -41,12 +41,13 @@ workflow MITOCHONDRIAL_ANALYSIS {
 
 		ch_split_normalize_mito_in = run_mutect2.out.vcf
 			.join(ch_proband_meta, by:[0])
-			.map { group, _id, mito_snv_vcf, proband_id, meta ->
-				tuple(group, proband_id, meta, mito_snv_vcf)
+			.map { group, _id, mito_snv_vcf, proband_id, _meta ->
+				tuple(group, proband_id, mito_snv_vcf)
 			}
 		split_normalize_mito(ch_split_normalize_mito_in, val_rcrs_fasta)
 
-		run_hmtnote(split_normalize_mito.out.vcf)
+		filter_mutect2_mito(split_normalize_mito.out.vcf)
+		run_hmtnote(filter_mutect2_mito.out.vcf)
 
 		ch_picard_mergevcfs_in = ch_snv_vcf_tbi_intersected
 			.join(run_hmtnote.out.vcf)
@@ -59,6 +60,7 @@ workflow MITOCHONDRIAL_ANALYSIS {
 		ch_output_info = ch_output_info.mix(run_haplogrep.out.haplogrep_INFO)
 
 		ch_versions = ch_versions.mix(run_hmtnote.out.versions.first())
+		ch_versions = ch_versions.mix(filter_mutect2_mito.out.versions.first())
 		ch_versions = ch_versions.mix(split_normalize_mito.out.versions.first())
 		ch_versions = ch_versions.mix(run_mutect2.out.versions.first())
 		ch_versions = ch_versions.mix(picard_mergevcfs.out.versions.first())
@@ -299,37 +301,31 @@ process split_normalize_mito {
 	cpus 2
 	memory '1GB'
 	time '1h'
-	// TODO: Add an explicit container for bcftools/tabix/filter_mutect2_mito.pl.
+	container "${params.container_bcftools}"
 
 	input:
-		tuple val(group), val(id), val(meta), path(mito_snv_vcf)
+		tuple val(group), val(proband_id), path(mito_snv_vcf)
 		val val_rcrs_fasta
 
 	output:
-		tuple val(group), path("${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"), emit: vcf
+		tuple val(group), val(proband_id), path("${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf"), emit: vcf
 		path "*versions.yml", emit: versions
 
 	script:
 		"""
-		# Old workaround to remove false-positive that crashes bcftools norm:
-		# TODO: deal w/ this in some better way
-		grep -vP "^M\\s+955" ${mito_snv_vcf} > ${mito_snv_vcf}.fix
-
 		bcftools norm -m-both -o ${mito_snv_vcf}.breakmulti ${mito_snv_vcf}.fix
 		bcftools sort ${mito_snv_vcf}.breakmulti | bgzip > ${mito_snv_vcf}.breakmulti.fix
 		tabix -p vcf ${mito_snv_vcf}.breakmulti.fix
 		bcftools norm -f ${val_rcrs_fasta} -o ${mito_snv_vcf.baseName}.adjusted.vcf ${mito_snv_vcf}.breakmulti.fix
 		bcftools view -i 'FMT/AF[*]>0.05' ${mito_snv_vcf.baseName}.adjusted.vcf -o ${group}.mutect2.breakmulti.filtered5p.vcf
 		bcftools filter -S 0 --exclude 'FMT/AF[*]<0.05' ${group}.mutect2.breakmulti.filtered5p.vcf -o ${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf
-		filter_mutect2_mito.pl ${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf ${meta.id} > ${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf
 
 		${split_normalize_mito_version(task)}
 		"""
 
 	stub:
 		"""
-		echo "${meta.id}" > proband.id
-		touch "${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"
+		touch "${group}.mutect2.breakmulti.filtered5p.0genotyped.vcf"
 		${split_normalize_mito_version(task)}
 		"""
 }
@@ -337,9 +333,54 @@ def split_normalize_mito_version(task) {
 	"""
 	cat <<-END_VERSIONS > ${task.process}_versions.yml
 	${task.process}:
-	    vcflib: 1.0.9
 	    bcftools: \$(echo \$(bcftools --version 2>&1) | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
 	    tabix: \$(echo \$(tabix --version 2>&1) | sed 's/^.*(htslib) // ; s/ Copyright.*//')
+	END_VERSIONS
+	"""
+}
+
+process filter_mutect2_mito {
+	tag "$group"
+	cpus 1
+	memory '1GB'
+	time '1h'
+	container "${params.container_bcftools}"
+
+	input:
+		tuple val(group), val(proband_id), path(vcf)
+
+	output:
+		tuple val(group), path("${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"), emit: vcf
+		path "*versions.yml", emit: versions
+
+	script:
+		"""
+	    set -o pipefail
+
+        # Bcftools supports id-lookup from file: 
+		printf '%s\\n' "${proband_id}" > proband.id
+
+		# GT contains allele 1 if the proband carries ALT after multiallelic splitting.
+		bcftools view -Ou -i 'GT[@proband.id]~"1" & FMT/DP[@proband.id]>50' "${vcf}" | \\
+			bcftools +setGT - -Ov -o "${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf" \\
+				-- -t q -n c:1/1 -i 'FMT/AF[:0]>=0.99'
+
+		${filter_mutect2_mito_version(task)}
+		"""
+
+	stub:
+		"""
+		echo "${proband_id}" > proband.id
+		touch "${group}.mutect2.breakmulti.filtered5p.0genotyped.proband.vcf"
+		${filter_mutect2_mito_version(task)}
+		"""
+}
+
+def filter_mutect2_mito_version(task) {
+	"""
+	cat <<-END_VERSIONS > ${task.process}_versions.yml
+	${task.process}:
+	    bcftools: \$(bcftools --version | head -n1 | cut -d ' ' -f 2)
 	END_VERSIONS
 	"""
 }
