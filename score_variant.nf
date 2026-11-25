@@ -56,6 +56,30 @@ process PREPARE_VARIANT_QUERY {
     """
 }
 
+process DECLARE_HMTVAR_INFO {
+    cpus 1
+    memory '1 GB'
+    time '5m'
+
+    input:
+    tuple val(group), val(type), path(vcf)
+
+    output:
+    tuple val(group), val(type), path('rank-input.vcf'), emit: vcf
+
+    script:
+    """
+    # The WGS rank model expects the HmtNote header even when an SNV has no HmtVar value.
+    awk '
+        /^##INFO=<ID=Pathogenicity[,>]/ { declared = 1 }
+        /^#CHROM[[:space:]]/ && !declared {
+            print "##INFO=<ID=Pathogenicity,Number=1,Type=String,Description=\\"Pathogenicity predicted by HmtVar\\">"
+        }
+        { print }
+    ' "${vcf}" > rank-input.vcf
+    """
+}
+
 process REPORT_VARIANT_SCORE {
     container params.container_python
     cpus 1
@@ -133,7 +157,8 @@ workflow {
     snv_models_input = mark_splice.out.splice_marked.combine(ped)
         .map { group, vcf, pedigree -> tuple(group, vcf, 'single', pedigree) }
     inher_models(snv_models_input)
-    genmodscore(inher_models.out.vcf, false)
+    DECLARE_HMTVAR_INFO(inher_models.out.vcf)
+    genmodscore(DECLARE_HMTVAR_INFO.out.vcf, false)
 
     REPORT_VARIANT_SCORE(
         genmodscore.out.scored_vcf.map { group, type, vcf -> vcf },
