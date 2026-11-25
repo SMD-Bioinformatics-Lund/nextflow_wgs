@@ -3,9 +3,32 @@
 include { annotate_vep; vcfanno; modify_vcf; mark_splice; inher_models; genmodscore } from './workflows/annotate_snvs.nf'
 
 params.variant = null
+params.hgvs = null
+params.coord = null
 params.query_genotype = '0/1'
 params.query_sex = '0'
 params.score_outdir = 'variant-score'
+
+process RESOLVE_HGVS {
+    container params.container_vep
+    cpus 1
+    memory '4 GB'
+    time '30m'
+
+    input:
+    val hgvs
+
+    output:
+    path 'resolved.vcf', emit: vcf
+
+    script:
+    """
+    vep --input_data '${hgvs}' --format hgvs --assembly GRCh38 \\
+        --cache --merged --dir_cache "${params.VEP_CACHE}" \\
+        --fasta "${params.VEP_FASTA}" --synonyms "${params.VEP_SYNONYMS}" \\
+        --check_ref --vcf --no_stats --output_file resolved.vcf
+    """
+}
 
 process PREPARE_VARIANT_QUERY {
     container params.container_python
@@ -57,8 +80,11 @@ process REPORT_VARIANT_SCORE {
 }
 
 workflow {
-    if (!params.variant || !params.genome_file) {
-        error 'Provide --variant and configure the GRCh38 genome_file (for example with the Hopper wgs profile).'
+    if ([params.variant, params.hgvs, params.coord].findAll { it != null }.size() != 1) {
+        error 'Provide exactly one of --variant (a VCF file), --hgvs (an HGVS SNV), or --coord (CHROM:POS:REF:ALT).'
+    }
+    if (!params.genome_file) {
+        error 'Configure the GRCh38 genome_file (for example with the Hopper wgs profile).'
     }
     def genotype = params.query_genotype.toString()
     def sex = params.query_sex.toString()
@@ -66,8 +92,31 @@ workflow {
         error 'Use --query_genotype 0/1 or 1/1 and --query_sex 0, 1 or 2.'
     }
 
+    if (params.coord != null) {
+        def coordinate = params.coord.toString().trim()
+        if (!(coordinate ==~ /[A-Za-z0-9_.-]+:[1-9][0-9]*:[ACGTacgt]:[ACGTacgt]/)) {
+            error 'Use --coord CHROM:POS:REF:ALT with a 1-based GRCh38 position and single-base alleles.'
+        }
+        def (chrom, pos, ref, alt) = coordinate.split(':')
+        def row = [chrom, pos, '.', ref, alt, '.', '.', '.'].join('\t')
+        query_vcf = channel.of(row).collectFile(name: 'coordinate.vcf', newLine: true)
+    }
+    else if (params.hgvs != null) {
+        def hgvs = params.hgvs.toString().trim()
+        def genomic_snv = /(?:NC_[0-9]+\.[0-9]+|[0-9]+|X|Y|MT):g\.[1-9][0-9]*[ACGT]>[ACGT]/
+        def transcript_snv = /(?:ENST[0-9]+|[NX][MR]_[0-9]+)(?:\.[0-9]+)?:[cn]\.[*-]?[1-9][0-9]*(?:[+-][1-9][0-9]*)?[ACGT]>[ACGT]/
+        if (!(hgvs ==~ genomic_snv || hgvs ==~ transcript_snv)) {
+            error 'Use a genomic or transcript HGVS SNV with a chromosome or transcript reference, such as NC_000011.10:g.5227002T>A or NM_000518.5:c.20A>T.'
+        }
+        RESOLVE_HGVS(channel.of(hgvs))
+        query_vcf = RESOLVE_HGVS.out.vcf
+    }
+    else {
+        query_vcf = channel.of(file(params.variant, checkIfExists: true))
+    }
+
     PREPARE_VARIANT_QUERY(
-        channel.of(file(params.variant, checkIfExists: true)),
+        query_vcf,
         file(params.genome_file, checkIfExists: true),
         file("${params.genome_file}.fai", checkIfExists: true),
         file("${projectDir}/bin/prepare_variant_query.py"),
