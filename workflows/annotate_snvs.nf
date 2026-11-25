@@ -48,7 +48,7 @@ workflow SNV_ANNOTATE {
 	genmodscore(inher_models.out.vcf, val_use_family_wgs_genmod_scoring)
 	vcf_completion_ch = channel.empty()
 	if (val_run_cftr) {
-		bgzip_index_vcf(genmodscore.out.scored_vcf)
+		bgzip_index_vcf(genmodscore.out.scored_vcf, "${params.outdir}/${params.subdir}/vcf")
 		cftr_ch = bgzip_index_vcf.out.compressed_indexed_vcf.join(ch_bam_bai)
 
 		adjust_cftr_homopolymer_repeat_scores(cftr_ch)

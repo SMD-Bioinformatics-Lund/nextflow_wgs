@@ -75,6 +75,33 @@ Additional useful arguments:
 * `-resume` If possible, continue a previous run and only rerun required steps.
 * `-w` Specify the location of the work folder (default is in the same folder as `main.nf`)
 
+### Annotating an existing VCF
+
+For a single-sample SNV/indel VCF, add the `snv_vcf` profile after the WGS
+profiles. Put the indexed, normalized VCF and its index in the samplesheet's
+`read1` and `read2` columns. The VCF sample name must match `id` in the
+samplesheet. This follows the existing SNV annotation and scoring path.
+
+```bash
+nextflow -c configs/nextflow.hopper.config run main.nf \
+    -profile wgs,hg38_masked,snv_vcf \
+    --csv /path/to/sample.csv \
+    --outdir /path/to/evaluation/snv \
+    --crondir /path/to/evaluation/snv/cron
+```
+
+For a sorted, unannotated GRCh38 SV VCF, run the standalone SV entry point
+with the Hopper VEP and gnomAD resources. It runs VEP and gnomAD annotation and
+writes an indexed VCF to `<outdir>/vcf/<sample_id>.gnomad.vcf.gz`. It ends before
+the production SVDB merge and scoring steps.
+
+```bash
+nextflow -c configs/nextflow.hopper.config run annotate_sv.nf \
+    --vcf /path/to/unannotated.sv.vcf.gz \
+    --sample_id HG002 \
+    --outdir /path/to/evaluation/sv
+```
+
 ### Running as a batch script
 
 Note that if you are running jobs on Hopper in CMD, Lund, production jobs should be started using the `start_nextflow_analysis.pl` script.

@@ -34,13 +34,14 @@ def vcfHasVariants(Path vcf) {
 
 process bgzip_index_vcf {
 	cpus 16
-	publishDir "${params.outdir}/${params.subdir}/vcf", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
+	publishDir "${vcf_outdir}", mode: 'copy', overwrite: true, pattern: '*.vcf.gz*'
 	tag "$group"
 	time '1h'
 	memory '5 GB'
 
 	input:
 		tuple val(group), val(type), path(vcf)
+		val vcf_outdir
 
 	output:
 		tuple val(group), val(type), path("*.vcf.gz"), path("*.vcf.gz.tbi"), emit: compressed_indexed_vcf
@@ -56,8 +57,7 @@ process bgzip_index_vcf {
 
 	stub:
 	"""
-		touch "${group}.vcf.gz"
-		touch "${group}.vcf.gz.tbi"
+		touch "${vcf}.gz" "${vcf}.gz.tbi"
 
         ${bgzip_index_vcf_version(task)}
 		"""
