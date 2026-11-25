@@ -445,6 +445,96 @@ def summarize_probe_coverage(
         summary["probe_threshold_summaries"] = threshold_summaries
     return summary
 
+def format_coverage_threshold(threshold):
+    if threshold is None:
+        return "unknown"
+    value = float(threshold)
+    return str(int(value)) if value.is_integer() else str(value)
+
+def build_coverage_assessment(summary):
+    """Build the compact, immutable QC result consumed by CDM."""
+    cds_summaries = summary.get("threshold_summaries")
+    if not cds_summaries and summary.get("threshold") is not None:
+        cds_summaries = [summary]
+    cds_summaries = cds_summaries or []
+
+    probe_summaries = summary.get("probe_threshold_summaries")
+    if not probe_summaries and summary.get("genes_assessed_for_probe_coverage") is not None:
+        probe_summaries = [summary]
+    probe_summaries = probe_summaries or []
+
+    failures = []
+    passed = []
+    missing_genes = summary.get("missing_genes") or []
+    genes_with_no_probes = summary.get("genes_with_no_probes") or []
+    missing_probe_genes = summary.get("probe_check_genes_not_in_summary") or []
+
+    if missing_genes:
+        failures.append("Missing genes: " + ", ".join(missing_genes))
+    if genes_with_no_probes:
+        failures.append("Genes with no probes: " + ", ".join(genes_with_no_probes))
+    if missing_probe_genes:
+        failures.append(
+            "Probe-check genes missing from coverage summary: "
+            + ", ".join(missing_probe_genes)
+        )
+
+    for threshold_summary in cds_summaries:
+        threshold = format_coverage_threshold(threshold_summary.get("threshold"))
+        assessed = threshold_summary.get("genes_assessed_for_full_cds_mean_coverage")
+        covered = threshold_summary.get("genes_covered_by_mean_cds_coverage_threshold")
+        failed_genes = (
+            threshold_summary.get(
+                "genes_not_covered_by_at_least_threshold_mean_cds_coverage"
+            )
+            or []
+        )
+        label = f"CDS >= {threshold}x"
+        if failed_genes or assessed is None or covered != assessed:
+            detail = ", ".join(failed_genes) if failed_genes else f"{covered}/{assessed} genes"
+            failures.append(f"{label}: {detail}")
+        else:
+            passed.append(f"{label}: {covered}/{assessed} genes")
+
+    probe_results = {
+        result.get("gene"): result
+        for result in summary.get("probe_assessment_results") or []
+        if result.get("gene")
+    }
+    for threshold_summary in probe_summaries:
+        raw_threshold = threshold_summary.get("threshold")
+        threshold = format_coverage_threshold(raw_threshold)
+        assessed = threshold_summary.get("genes_assessed_for_probe_coverage")
+        covered = threshold_summary.get("genes_covered_by_probe_coverage_threshold")
+        failed_genes = (
+            threshold_summary.get("genes_not_covered_by_probe_coverage_threshold") or []
+        )
+        label = f"Probes >= {threshold}x"
+        if failed_genes or assessed is None or covered != assessed:
+            details = []
+            threshold_key = str(float(raw_threshold)) if raw_threshold is not None else None
+            for gene in failed_genes:
+                probes_by_threshold = (
+                    probe_results.get(gene, {}).get("probes_below_thresholds") or {}
+                )
+                probes = probes_by_threshold.get(threshold_key, [])
+                if not probes and threshold_key:
+                    probes = probes_by_threshold.get(threshold_key.replace(".", "_"), [])
+                details.append(f"{gene} ({', '.join(probes)})" if probes else gene)
+            detail = ", ".join(details) if details else f"{covered}/{assessed} genes"
+            failures.append(f"{label}: {detail}")
+        else:
+            passed.append(f"{label}: {covered}/{assessed} genes")
+
+    if not failures and not passed:
+        return None
+    if failures:
+        tooltip = "Coverage failed: " + "; ".join(failures)
+        if passed:
+            tooltip += ". Passed: " + "; ".join(passed)
+        return {"passed": False, "tooltip": tooltip}
+    return {"passed": True, "tooltip": "Coverage passed: " + "; ".join(passed)}
+
 def summarize_coverage(
     coverage_data,
     genes_to_include,
@@ -659,6 +749,10 @@ def summarize_coverage(
                 ignored_genes=y_chromosome_genes,
             )
         )
+
+    assessment = build_coverage_assessment(summary)
+    if assessment is not None:
+        summary["coverage_assessment"] = assessment
 
     return summary
 
