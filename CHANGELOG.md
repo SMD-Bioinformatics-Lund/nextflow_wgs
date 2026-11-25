@@ -2,7 +2,12 @@
 
 ### Unreleased
 
-* Configure LoqusDB load destinations by proband platform in each assay profile. Validate all proband destinations before starting analysis when loading is enabled.
+#### Added 
+
+#### Changed
+* Make loqusdb export platform-specific 
+
+#### Fixed
 
 ### [3.29.1]
 
