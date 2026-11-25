@@ -20,6 +20,7 @@ work/
 data/
 output/
 .vscode/
+local_notes/
 
 # Ref tools
 bin/reference_tools/*.log
