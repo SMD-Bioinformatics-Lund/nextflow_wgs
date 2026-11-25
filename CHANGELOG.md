@@ -1,5 +1,14 @@
 # CHANGELOG
 
+### Unreleased
+
+#### Added 
+
+#### Changed
+* Make loqusdb export platform-specific 
+
+#### Fixed
+
 ### [3.29.1]
 
 #### Added 
