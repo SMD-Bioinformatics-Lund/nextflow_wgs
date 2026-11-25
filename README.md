@@ -4,6 +4,7 @@
 
 * [Pipeline overview](#pipeline-overview)
 * [Running the pipeline](docs/running_the_pipeline.md)
+* [Scoring a single SNV](docs/scoring_a_variant.md)
 * Inputs
     * [Input files](docs/input_files.md)
     * [Annotation files](docs/annotation_files.md)
