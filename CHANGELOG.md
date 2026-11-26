@@ -1,17 +1,11 @@
-# CHANGELOG
-
-### Unreleased
-
-#### Added 
+### 3.30.0
 
 #### Changed
-* Make loqusdb export platform-specific 
+* Make loqusdb export platform-specific
 
 #### Fixed
 
-### [3.29.1]
-
-#### Added 
+### 3.29.1
 
 #### Changed
 * Update fastp to v1.4.0
