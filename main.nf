@@ -2523,11 +2523,6 @@ process tiddit {
 		tuple val(group), val(id), path("${id}.tiddit.filtered.vcf"), emit: vcf
 		path "*versions.yml", emit: versions
 
-
-    
-	when:
-		params.sv
-
 	script:
 		"""
 		TIDDIT.py --sv -o ${id}.tiddit --bam $bam
